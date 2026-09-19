@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Resume Screening Assistant</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--muted:#5c6470;--line:#e3e6ea;--accent:#2d5bd7;
+--ok:#0f7b4f;--warn:#a86a00;--stop:#a32b2b;--okbg:#e6f4ec;--warnbg:#fdf2dd;--stopbg:#fbeaea;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:16px 24px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:640}
+.badge{font-size:11px;padding:3px 9px;border-radius:999px;background:#eef1f6;color:var(--muted);font-weight:600}
+main{max-width:1180px;margin:0 auto;padding:20px 16px 64px}
+.notice{background:#eef2fb;border:1px solid #d3ddf5;color:#22366b;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.card h2{font-size:14px;margin:0 0 10px;font-weight:640}
+textarea{width:100%;min-height:120px;padding:10px;border:1px solid var(--line);border-radius:8px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;resize:vertical;background:#fcfcfd;color:var(--ink)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:620;cursor:pointer;font-size:13px}
+button.ghost{background:#eef1f6;color:var(--ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.err{color:var(--stop);font-size:12px;margin-top:6px;min-height:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);cursor:pointer;user-select:none}
+tbody tr{cursor:pointer}tbody tr:hover{background:#fafbfc}
+.chip{display:inline-block;font-size:11px;font-weight:650;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.c-ok{background:var(--okbg);color:var(--ok)}.c-warn{background:var(--warnbg);color:var(--warn)}
+.c-stop{background:var(--stopbg);color:var(--stop)}.c-mute{background:#eef1f6;color:var(--muted)}
+.score{font-weight:700;font-size:15px}.sub{color:var(--muted);font-size:11px}
+input[type=search],input[type=text]{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fcfcfd;color:var(--ink)}
+.filters button{background:#eef1f6;color:var(--muted);font-weight:600;padding:6px 12px}
+.filters button[aria-pressed=true]{background:var(--accent);color:#fff}
+dialog{border:0;border-radius:12px;padding:0;width:min(920px,94vw);max-height:88vh;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(10,12,18,.45)}
+.dh{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;position:sticky;top:0;background:var(--card)}
+.tabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--line);overflow-x:auto;background:var(--card);position:sticky;top:0}
+.tabs button{background:transparent;color:var(--muted);border-radius:8px 8px 0 0;padding:8px 12px;font-size:12.5px}
+.tabs button[aria-selected=true]{background:#eef2fb;color:var(--accent)}
+.dbody{padding:18px 20px;overflow:auto;max-height:64vh}
+.kv{display:grid;grid-template-columns:180px 1fr;gap:6px 14px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.req{border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px}
+.req.missing{border-left:3px solid var(--stop)}.req.ne{border-left:3px dashed var(--warn)}
+.req.matched{border-left:3px solid var(--ok)}.req.partial{border-left:3px solid var(--accent)}
+.q{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;padding:10px;margin-bottom:8px}
+.empty{color:var(--muted);padding:24px;text-align:center}
+code{background:#eef1f6;padding:1px 5px;border-radius:4px;font-size:12px}
+.foot{font-size:11.5px;color:var(--muted);border-top:1px solid var(--line);padding:10px 20px;background:#fafbfc}
+@media(max-width:620px){.kv{grid-template-columns:1fr}.hide-sm{display:none}}
+</style></head><body>
+<header>
+  <h1>AI Resume Screening Assistant</h1>
+  <span class="badge" id="mode">checking provider…</span>
+  <span class="badge">Decision support - a human recruiter decides</span>
+</header>
+<main>
+  <div class="notice" id="fairness">This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.</div>
+
+  <div class="card">
+    <h2>1 · Job description</h2>
+    <textarea id="jd" placeholder="Paste the job description…" aria-label="Job description"></textarea>
+    <div class="row"><button class="ghost" id="loadJd">Load sample JD</button></div>
+    <div class="err" id="jdErr"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Resumes</h2>
+    <input type="file" id="files" multiple accept=".pdf,.docx,.txt,.md" aria-label="Upload resumes">
+    <textarea id="paste" style="margin-top:10px;min-height:90px" placeholder="…or paste one resume here" aria-label="Paste resume"></textarea>
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-size:13px">Optional evidence sources</summary>
+      <div class="row">
+        <input type="text" id="gh" placeholder="GitHub username" aria-label="GitHub username">
+        <input type="text" id="pf" placeholder="Portfolio URL" aria-label="Portfolio URL">
+      </div>
+      <div class="row" style="font-size:12.5px;color:var(--muted)">
+        <label><input type="checkbox" id="cGh" checked> Consent: GitHub</label>
+        <label><input type="checkbox" id="cLi" checked> Consent: LinkedIn export</label>
+        <label><input type="checkbox" id="cPf" checked> Consent: portfolio</label>
+      </div>
+      <p class="sub">Each source is only read with consent, and is used to look for evidence supporting resume claims. Absence of a source lowers confidence in the assessment - it is never counted against the candidate.</p>
+    </details>
+    <div class="row"><button id="run" disabled>Screen candidates</button><span class="sub" id="prog"></span></div>
+    <div class="err" id="fileErr"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin:0 0 10px">
+      <h2 style="margin:0">3 · Results</h2>
+      <div class="row filters" style="margin:0" id="filters">
+        <input type="search" id="q" placeholder="Search candidates" aria-label="Search candidates">
+        <button aria-pressed="true" data-f="All">All</button>
+        <button aria-pressed="false" data-f="Shortlist">Shortlist</button>
+        <button aria-pressed="false" data-f="Review Manually">Review</button>
+        <button aria-pressed="false" data-f="Not Recommended">Not recommended</button>
+      </div>
+    </div>
+    <div id="tableWrap"><p class="empty">No screenings yet. Load the sample JD and press Screen candidates.</p></div>
+  </div>
+</main>
+
+<dialog id="modal"><div id="modalInner"></div></dialog>
+<script>
+const $=s=>document.querySelector(s), api=p=>fetch(p).then(r=>r.json());
+let rows=[], filter='All', sortKey='overall_match_score', sortDir=-1, current=null;
+
+fetch('/v1/health').then(r=>r.json()).then(h=>{
+  $('#mode').textContent = h.mock_mode ? 'Mock analysis mode' : `LLM: ${h.llm_provider}`;
+}).catch(()=>$('#mode').textContent='offline');
+
+$('#loadJd').onclick = async () => {
+  $('#jd').value = await fetch('/sample-jd').then(r=>r.text()).catch(()=>SAMPLE_JD);
+  validate();
+};
+const SAMPLE_JD = `Backend Engineer\n\nMust have\n- Strong Python and production experience with FastAPI\n- PostgreSQL, including schema design and query optimization\n- Kafka or a comparable event streaming platform\n- Docker and container-based deployment\n- 3+ years of professional software engineering experience\n- Bachelor's degree in Computer Science or a related field\n\nPreferred\n- AWS experience\n- CI/CD pipeline ownership\n- Experience with pytest and automated testing`;
+$('#loadJd').onclick = () => { $('#jd').value = SAMPLE_JD; validate(); };
+
+function validate(){
+  const jd=$('#jd').value.trim(), has=$('#files').files.length||$('#paste').value.trim();
+  $('#jdErr').textContent = jd ? '' : 'A job description is required before screening.';
+  $('#fileErr').textContent = has ? '' : 'Upload at least one resume, or paste one.';
+  $('#run').disabled = !(jd && has);
+}
+['#jd','#paste'].forEach(s=>$(s).addEventListener('input',validate));
+$('#files').addEventListener('change',validate);
+
+$('#run').onclick = async () => {
+  $('#run').disabled=true; $('#prog').textContent='Parse → Integrity → Match → Skills → Authenticity → Questions…';
+  const fd=new FormData();
+  fd.append('jd_text',$('#jd').value);
+  for(const f of $('#files').files) fd.append('files',f);
+  if($('#paste').value.trim()) fd.append('pasted_resumes',$('#paste').value);
+  if($('#gh').value) fd.append('github_usernames',$('#gh').value);
+  if($('#pf').value) fd.append('portfolio_urls',$('#pf').value);
+  const res=await fetch('/v1/screenings',{method:'POST',body:fd}).then(r=>r.json());
+  if(res.code){ $('#fileErr').textContent=res.message+' '+(res.remediation||''); $('#run').disabled=false; return; }
+  poll(res.screening_id);
+};
+
+async function poll(sid){
+  const s=await api('/v1/screenings/'+sid);
+  rows=s.candidates; render();
+  $('#prog').textContent=`${s.done} / ${s.total} candidates screened`;
+  if(s.status!=='complete') return setTimeout(()=>poll(sid),400);
+  $('#run').disabled=false; $('#prog').textContent=`Done - ${s.total} candidates screened.`;
+}
+
+$('#filters').onclick=e=>{ if(!e.target.dataset.f) return;
+  filter=e.target.dataset.f;
+  [...$('#filters').querySelectorAll('button')].forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===filter));
+  render(); };
+$('#q').oninput=render;
+
+const recChip=r=>({'Shortlist':'c-ok','Review Manually':'c-warn','Not Recommended':'c-stop'}[r]||'c-mute');
+const bandChip=b=>({'HIGH_TRUST':'c-ok','MODERATE':'c-warn','NEEDS_VERIFICATION':'c-stop'}[b]||'c-mute');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function render(){
+  const q=$('#q').value.toLowerCase();
+  let list=rows.filter(r=>(filter==='All'||r.recommendation===filter)&&r.candidate_name.toLowerCase().includes(q));
+  list.sort((a,b)=>((a[sortKey]>b[sortKey])?1:(a[sortKey]<b[sortKey])?-1:0)*sortDir);
+  if(!rows.length){ $('#tableWrap').innerHTML='<p class="empty">No screenings yet. Load the sample JD and press Screen candidates.</p>'; return; }
+  if(!list.length){ $('#tableWrap').innerHTML='<p class="empty">No candidates match this filter.</p>'; return; }
+  $('#tableWrap').innerHTML=`<table><thead><tr>
+    <th data-k="candidate_name">Candidate</th><th data-k="overall_match_score">Score</th>
+    <th data-k="recommendation">Suggested</th><th class="hide-sm">Key gaps</th>
+    <th>Integrity</th><th>Authenticity</th></tr></thead><tbody>${list.map(r=>`
+    <tr data-id="${r.candidate_id}" tabindex="0">
+      <td><strong>${esc(r.candidate_name)}</strong><div class="sub">${esc(r.status)}</div></td>
+      <td><span class="score">${r.overall_match_score}</span>${
+        r.base_score!=null&&Math.round(r.base_score)!==r.overall_match_score
+        ?`<div class="sub">base ${r.base_score} after penalty</div>`:''}
+        <div class="sub">confidence ${r.score_confidence ?? '-'}</div></td>
+      <td><span class="chip ${recChip(r.recommendation)}">Suggested: ${esc(r.recommendation)}</span></td>
+      <td class="hide-sm sub">${(r.gaps||[]).map(esc).join(', ')||'none'}</td>
+      <td><span class="chip ${r.integrity_action==='proceed'?'c-ok':'c-stop'}">${esc(r.integrity_action)}</span></td>
+      <td>${r.authenticity_band==='INSUFFICIENT_EVIDENCE'
+        ?'<span class="chip c-mute">Insufficient evidence</span>'
+        :`<span class="chip ${bandChip(r.authenticity_band)}">${esc(r.authenticity_band||'-')}</span>`}</td>
+    </tr>`).join('')}</tbody></table>`;
+  $('#tableWrap').querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
+    sortDir = sortKey===th.dataset.k ? -sortDir : -1; sortKey=th.dataset.k; render(); });
+  $('#tableWrap').querySelectorAll('tbody tr').forEach(tr=>{
+    tr.onclick=()=>open(tr.dataset.id);
+    tr.onkeydown=e=>{ if(e.key==='Enter') open(tr.dataset.id); };
+  });
+}
+
+async function open(id){
+  current=await api('/v1/candidates/'+id);
+  $('#modalInner').innerHTML=shell(current); $('#modal').showModal(); tab('overview');
+}
+function shell(r){
+  const e=r.extensions||{};
+  return `<div class="dh">
+    <div><strong style="font-size:16px">${esc(r.candidate_name)}</strong>
+      <div class="sub">Score ${r.overall_match_score} · <span class="chip ${recChip(r.recommendation)}">Suggested: ${esc(r.recommendation)}</span></div></div>
+    <button class="ghost" onclick="document.getElementById('modal').close()">Close</button></div>
+  <div class="tabs" id="tabs">${['overview','requirements','skills','authenticity','integrity','questions','audit']
+    .map(t=>`<button data-t="${t}" aria-selected="false">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
+  <div class="dbody" id="dbody"></div>
+  <div class="foot">${esc(r.fairness_notice||'')} Provider: ${esc(e.meta?.llm_provider||'-')}${e.meta?.mock_mode?' (mock analysis mode)':''}.</div>`;
+}
+function tab(name){
+  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===name));
+  $('#dbody').innerHTML=VIEWS[name](current);
+}
+document.addEventListener('click',e=>{ if(e.target.dataset?.t) tab(e.target.dataset.t); });
+
+const statusClass=s=>({'Matched':'matched','Partially Matched':'partial','Missing':'missing','Not Enough Evidence':'ne'}[s]||'');
+const VIEWS={
+ overview:r=>{const b=r.extensions.score_breakdown||{};return `
+  <p>${esc(r.summary)}</p>
+  <dl class="kv">
+    <dt>Base score</dt><dd>${b.base_score ?? '-'}</dd>
+    <dt>Integrity penalty</dt><dd>×${b.integrity_penalty ?? 1}</dd>
+    <dt>Overall (shown)</dt><dd><strong>${r.overall_match_score}</strong></dd>
+    <dt>Score confidence</dt><dd>${b.score_confidence ?? '-'} <span class="sub">(share of requirements that could be judged)</span></dd>
+    <dt>AI-writing indicators</dt><dd><span class="chip c-mute">${esc(r.ai_text_indicators?.level)}</span>
+      <div class="sub">${esc(r.ai_text_indicators?.disclaimer)} Weight in score: 0.</div></dd>
+  </dl>
+  <h3 style="font-size:13px">Why this recommendation</h3>
+  <ul>${(r.extensions.recommendation_reasons||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+  <h3 style="font-size:13px">Strengths</h3><ul>${(r.strengths||[]).map(x=>`<li>${esc(x)}</li>`).join('')||'<li class="sub">none listed</li>'}</ul>
+  <h3 style="font-size:13px">Risks</h3><ul>${(r.risks||[]).map(x=>`<li>${esc(x)}</li>`).join('')||'<li class="sub">none listed</li>'}</ul>`},
+ requirements:r=>(r.requirement_match||[]).map(q=>`
+  <div class="req ${statusClass(q.status)}">
+    <strong>${esc(q.requirement)}</strong> <span class="chip c-mute">${esc(q.priority)}</span>
+    <span class="chip ${q.status==='Matched'?'c-ok':q.status==='Missing'?'c-stop':'c-warn'}">${esc(q.status)}</span>
+    ${q.resume_evidence?`<div class="sub" style="margin-top:6px">Evidence: “${esc(q.resume_evidence)}”</div>`:''}
+    <div class="sub">${esc(q.notes)}</div></div>`).join('')||'<p class="empty">No requirements extracted.</p>',
+ skills:r=>(r.extensions.skill_intelligence||[]).map(s=>`
+  <div class="req">
+    <strong>${esc(s.required_skill)}</strong>
+    <span class="chip c-mute">semantic ${Math.round(s.semantic_match*100)}% · ${esc(s.semantic_level)}</span>
+    <span class="chip ${s.classification==='Exact Match'?'c-ok':s.classification==='No Evidence'?'c-stop':'c-warn'}">${esc(s.classification)}</span>
+    <div class="sub" style="margin-top:6px">${esc(s.recruiter_suggestion)}</div>
+    <div class="sub">Supporting: ${(s.supporting_skills||[]).map(esc).join(', ')||'none'} ·
+      Projects: ${(s.supporting_projects||[]).map(esc).join(', ')||'none'} ·
+      Missing concepts: ${(s.missing_concepts||[]).map(esc).join(', ')||'none'}</div>
+    <div class="sub">${esc(s.reasoning)}</div></div>`).join('')||'<p class="empty">Skill intelligence unavailable.</p>',
+ authenticity:r=>{const a=r.extensions.authenticity; if(!a) return '<p class="empty">Authenticity assessment unavailable for this candidate.</p>';
+  return `<p>${esc(a.recruiter_summary)}</p>
+  <dl class="kv"><dt>Band</dt><dd>${a.band==='INSUFFICIENT_EVIDENCE'?'<span class="chip c-mute">Insufficient evidence (no headline score)</span>':`<span class="chip ${bandChip(a.band)}">${esc(a.band)}</span>`}</dd>
+  <dt>Assessment confidence</dt><dd>${a.scores.assessment_confidence}</dd>
+  <dt>Coverage</dt><dd>${a.scores.coverage}</dd>
+  <dt>Sources</dt><dd>${Object.entries(a.sources_used).map(([k,v])=>`${k}: <code>${esc(v)}</code>`).join(' · ')}</dd></dl>
+  <h3 style="font-size:13px">Claims (${a.claims.length})</h3>
+  <table><thead><tr><th>Type</th><th>Claim</th><th>Status</th></tr></thead><tbody>
+  ${a.claims.slice(0,40).map(c=>`<tr><td class="sub">${esc(c.type)}</td><td>${esc(c.text.slice(0,110))}</td>
+    <td><span class="chip c-mute">${esc(c.status)}</span></td></tr>`).join('')}</tbody></table>
+  <h3 style="font-size:13px">Verification gaps</h3>
+  <ul>${(a.verification_gaps||[]).map(g=>`<li>${esc(g.what_to_verify)} <span class="chip c-mute">${esc(g.priority)}</span></li>`).join('')||'<li class="sub">none</li>'}</ul>`},
+ integrity:r=>{const i=r.extensions.integrity||{};const s=i.score_adjustment||{};
+  return `<p><strong>${esc(i.headline||'No integrity findings.')}</strong></p>
+  <dl class="kv"><dt>Intent</dt><dd><span class="chip ${i.intent==='benign'?'c-ok':i.intent==='deliberate'?'c-stop':'c-warn'}">${esc(i.intent)}</span></dd>
+  <dt>Recommended action</dt><dd><span class="chip ${i.recommended_action==='proceed'?'c-ok':'c-stop'}">${esc(i.recommended_action)}</span></dd>
+  <dt>Base → adjusted</dt><dd>${s.base_score ?? '-'} × ${s.penalty ?? 1} = <strong>${s.adjusted_score ?? '-'}</strong></dd></dl>
+  ${(i.findings||[]).map(f=>`<div class="req missing"><strong>${esc(f.code)}</strong>
+    <div>${esc(f.plain_explanation)}</div><div class="sub">Why it matters: ${esc(f.why_it_matters)}</div>
+    <div class="sub">Innocent explanation: ${esc(f.benign_alternative)}</div></div>`).join('')
+    ||'<p class="sub">No findings. The document passed its integrity check.</p>'}
+  <p class="sub">Audit line: ${esc(i.audit_log_entry||'')}</p>
+  <p class="sub">${esc(i.human_decides||'A human recruiter always makes the final call.')}</p>`},
+ questions:r=>{const d=r.extensions.interview_questions_detailed||{};
+  return (d.interview_questions||[]).map(q=>`<div class="q"><strong>${esc(q.skill)}</strong>
+    <span class="chip c-mute">${esc(q.evidence_level)}</span>
+    <p style="margin:6px 0">${esc(q.question)}</p>
+    <div class="sub">Purpose: ${esc(q.purpose)}</div>
+    <div class="sub">Risk if unanswered: ${esc(q.risk_if_unanswered)}</div></div>`).join('')
+  + (d.skipped_strong_evidence?.length?`<p class="sub">Skipped (already strongly evidenced): ${d.skipped_strong_evidence.map(esc).join(', ')}</p>`:'')
+  || '<p class="empty">No questions generated.</p>'},
+ audit:r=>`<form onsubmit="saveDecision(event)">
+    <div class="row"><select id="dec" style="padding:8px;border-radius:8px;border:1px solid var(--line)">
+      <option>Advance to interview</option><option>Hold</option><option>Decline</option></select>
+    <input type="text" id="note" placeholder="Note (optional)" style="flex:1">
+    <button>Record decision</button></div></form>
+  <p class="sub">Decisions are appended to an append-only audit log with a timestamp and config version.</p>
+  <div id="auditLog"></div>`
+};
+async function saveDecision(e){ e.preventDefault();
+  const fd=new FormData(); fd.append('decision',$('#dec').value); fd.append('note',$('#note').value);
+  await fetch(`/v1/candidates/${current.extensions.candidate_id}/decision`,{method:'POST',body:fd});
+  const log=await api(`/v1/candidates/${current.extensions.candidate_id}/audit`);
+  $('#auditLog').innerHTML='<h3 style="font-size:13px">Audit log</h3>'+log.map(a=>
+    `<div class="req"><strong>${esc(a.decision)}</strong> <span class="sub">${esc(a.at)}</span><div class="sub">${esc(a.note||'')}</div></div>`).join('');
+}
+</script></body></html>

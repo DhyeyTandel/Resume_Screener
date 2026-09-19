@@ -1,0 +1,837 @@
+{
+  "candidate_name": "Sam Okafor",
+  "overall_match_score": 100,
+  "recommendation": "Review Manually",
+  "summary": "The resume covers 2 of 10 job requirements, giving a base match of 100.0. Strongest overlap is in Python, Bachelor's degree in a computing field. A recruiter should confirm depth in interview.",
+  "ai_text_indicators": {
+    "level": "Low",
+    "disclaimer": "AI-writing indicators are uncertain and should not be used as a sole hiring decision.",
+    "evidence": [
+      "buzzword_density: 0.0",
+      "specificity_gap: 0.4",
+      "skill_list_bloat: 1.0",
+      "unanchored_metrics: 0.0",
+      "opener_repetition: 0.0"
+    ]
+  },
+  "requirement_match": [
+    {
+      "requirement": "Python",
+      "priority": "Must Have",
+      "status": "Matched",
+      "resume_evidence": "Listed in skills: Python",
+      "notes": "Direct evidence of Python was found in the resume.",
+      "transferability": {
+        "required_skill": "Python",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "oop",
+          "packaging",
+          "scripting",
+          "testing"
+        ],
+        "recruiter_suggestion": "Direct evidence of Python was found in the resume.",
+        "reasoning": "Python appears directly in the resume's own wording.",
+        "confidence": "High",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "FastAPI",
+      "priority": "Must Have",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for FastAPI either.",
+      "transferability": {
+        "required_skill": "FastAPI",
+        "semantic_match": 0.292,
+        "semantic_level": "Low",
+        "transferability_score": 0.292,
+        "classification": "No Evidence",
+        "supporting_skills": [
+          "Python"
+        ],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "async",
+          "dependency injection",
+          "pydantic",
+          "routing"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for FastAPI either.",
+        "reasoning": "Neither FastAPI nor any skill the graph relates to it appears in the resume.",
+        "confidence": "High",
+        "factors": {
+          "skill_similarity": 0.55,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.85,
+          "learning_curve": 0.7
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "PostgreSQL",
+      "priority": "Must Have",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for PostgreSQL either.",
+      "transferability": {
+        "required_skill": "PostgreSQL",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "indexing",
+          "joins",
+          "jsonb",
+          "transactions",
+          "window functions"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for PostgreSQL either.",
+        "reasoning": "Neither PostgreSQL nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "Kafka",
+      "priority": "Must Have",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for Kafka either.",
+      "transferability": {
+        "required_skill": "Kafka",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "consumer groups",
+          "event streaming",
+          "offsets",
+          "partitions"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Kafka either.",
+        "reasoning": "Neither Kafka nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "Docker",
+      "priority": "Must Have",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for Docker either.",
+      "transferability": {
+        "required_skill": "Docker",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "compose",
+          "images",
+          "layers"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Docker either.",
+        "reasoning": "Neither Docker nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "3+ years of professional experience",
+      "priority": "Must Have",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "No dated roles found in the resume.",
+      "transferability": {}
+    },
+    {
+      "requirement": "Bachelor's degree in a computing field",
+      "priority": "Must Have",
+      "status": "Matched",
+      "resume_evidence": "B.S. Computer Science",
+      "notes": "A degree at or above the required level was found.",
+      "transferability": {}
+    },
+    {
+      "requirement": "AWS",
+      "priority": "Preferred",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for AWS either.",
+      "transferability": {
+        "required_skill": "AWS",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "compute",
+          "iam",
+          "object storage"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for AWS either.",
+        "reasoning": "Neither AWS nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "CI/CD",
+      "priority": "Preferred",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for CI/CD either.",
+      "transferability": {
+        "required_skill": "CI/CD",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "automated testing",
+          "deployment",
+          "pipelines"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for CI/CD either.",
+        "reasoning": "Neither CI/CD nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    },
+    {
+      "requirement": "Pytest",
+      "priority": "Preferred",
+      "status": "Not Enough Evidence",
+      "resume_evidence": "",
+      "notes": "Exact Match: No - no adjacent experience found for Pytest either.",
+      "transferability": {
+        "required_skill": "Pytest",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "assertions",
+          "automated testing",
+          "fixtures"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Pytest either.",
+        "reasoning": "Neither Pytest nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    }
+  ],
+  "matched_skills": [
+    "Python",
+    "Bachelor's degree in a computing field"
+  ],
+  "missing_or_unclear_skills": [
+    "FastAPI",
+    "PostgreSQL",
+    "Kafka",
+    "Docker",
+    "3+ years of professional experience",
+    "AWS",
+    "CI/CD",
+    "Pytest"
+  ],
+  "technical_gaps": [],
+  "education_assessment": "A degree at or above the required level was found.",
+  "experience_assessment": "No dated roles found in the resume.",
+  "strengths": [
+    "Evidence found for Python",
+    "Evidence found for Bachelor's degree in a computing field"
+  ],
+  "risks": [
+    "No material gaps identified from the resume text alone"
+  ],
+  "interview_questions": [
+    "We use Docker on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "We use FastAPI on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "We use Kafka on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "We use PostgreSQL on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "You list Python on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+    "We use AWS on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "We use CI/CD on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+    "We use Pytest on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?"
+  ],
+  "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
+  "extensions": {
+    "candidate_id": "d5b475a8",
+    "candidate_profile": {
+      "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Software engineer. Open to backend roles.",
+      "skills": [
+        "Python"
+      ],
+      "experience": [],
+      "projects": [],
+      "education": [
+        "B.S. Computer Science"
+      ],
+      "certifications": [],
+      "achievements": [],
+      "total_years": 0.0
+    },
+    "score_breakdown": {
+      "base_score": 100.0,
+      "integrity_penalty": 1.0,
+      "score_confidence": 0.24,
+      "per_requirement_contribution": [
+        {
+          "requirement": "Python",
+          "weight": 2.0,
+          "value": 1.0,
+          "contribution": 2.0,
+          "excluded": false
+        },
+        {
+          "requirement": "FastAPI",
+          "weight": 2.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "PostgreSQL",
+          "weight": 2.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "Kafka",
+          "weight": 2.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "Docker",
+          "weight": 2.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "3+ years of professional experience",
+          "weight": 2.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "Bachelor's degree in a computing field",
+          "weight": 2.0,
+          "value": 1.0,
+          "contribution": 2.0,
+          "excluded": false
+        },
+        {
+          "requirement": "AWS",
+          "weight": 1.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "CI/CD",
+          "weight": 1.0,
+          "value": null,
+          "excluded": true
+        },
+        {
+          "requirement": "Pytest",
+          "weight": 1.0,
+          "value": null,
+          "excluded": true
+        }
+      ]
+    },
+    "integrity": {
+      "headline": "This document passed its integrity check with no findings.",
+      "intent": "benign",
+      "intent_reasoning": "The scanner reported no findings for this document.",
+      "manipulation_attempted": false,
+      "findings": [],
+      "score_adjustment": {
+        "base_score": 100.0,
+        "penalty": 1.0,
+        "adjusted_score": 100.0,
+        "explanation": "No integrity findings, so the score is unchanged."
+      },
+      "recommended_action": "proceed",
+      "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
+    },
+    "authenticity": {
+      "candidate_id": "d5b475a8",
+      "band": "INSUFFICIENT_EVIDENCE",
+      "scores": {
+        "authenticity": 0.672,
+        "reliability": 0.5,
+        "consistency": 1.0,
+        "coverage": 0.0,
+        "inflation_index": 0.28,
+        "assessment_confidence": 0.0
+      },
+      "inflation_sub_signals": {
+        "buzzword_density": 0.0,
+        "specificity_gap": 0.4,
+        "skill_list_bloat": 1.0,
+        "unanchored_metrics": 0.0,
+        "opener_repetition": 0.0
+      },
+      "sources_used": {
+        "github": "missing",
+        "linkedin": "missing",
+        "portfolio": "missing"
+      },
+      "skill_evidence": [
+        {
+          "skill": "Python",
+          "required": true,
+          "status": "UNVERIFIABLE",
+          "evidence": []
+        }
+      ],
+      "claims": [
+        {
+          "claim_id": "C1",
+          "type": "SKILL",
+          "text": "Python",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.9
+        },
+        {
+          "claim_id": "C2",
+          "type": "EDUCATION",
+          "text": "B.S. Computer Science",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.8
+        }
+      ],
+      "contradictions": [],
+      "authenticity_flags": [],
+      "verification_gaps": [
+        {
+          "claim_id": "C1",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of Python.",
+          "priority": "high"
+        }
+      ],
+      "recruiter_summary": "No external source was available for this candidate, so 2 resume claims could not be checked against code, an employment record or a portfolio. That is common and is not a negative signal: private work, NDAs and a simple absence of a public profile all produce this result. The assessment confidence is 0.0, so no headline trust score is shown. Verify the listed items in interview rather than treating them as doubtful.",
+      "meta": {
+        "model": "deterministic-v1",
+        "config_version": "1.0.0",
+        "latency_ms": 0,
+        "llm_calls": 0
+      }
+    },
+    "skill_intelligence": [
+      {
+        "required_skill": "Python",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "oop",
+          "packaging",
+          "scripting",
+          "testing"
+        ],
+        "recruiter_suggestion": "Direct evidence of Python was found in the resume.",
+        "reasoning": "Python appears directly in the resume's own wording.",
+        "confidence": "High",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "FastAPI",
+        "semantic_match": 0.292,
+        "semantic_level": "Low",
+        "transferability_score": 0.292,
+        "classification": "No Evidence",
+        "supporting_skills": [
+          "Python"
+        ],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "async",
+          "dependency injection",
+          "pydantic",
+          "routing"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for FastAPI either.",
+        "reasoning": "Neither FastAPI nor any skill the graph relates to it appears in the resume.",
+        "confidence": "High",
+        "factors": {
+          "skill_similarity": 0.55,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.85,
+          "learning_curve": 0.7
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "PostgreSQL",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "indexing",
+          "joins",
+          "jsonb",
+          "transactions",
+          "window functions"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for PostgreSQL either.",
+        "reasoning": "Neither PostgreSQL nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "Kafka",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "consumer groups",
+          "event streaming",
+          "offsets",
+          "partitions"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Kafka either.",
+        "reasoning": "Neither Kafka nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "Docker",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "compose",
+          "images",
+          "layers"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Docker either.",
+        "reasoning": "Neither Docker nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "AWS",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "compute",
+          "iam",
+          "object storage"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for AWS either.",
+        "reasoning": "Neither AWS nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "CI/CD",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "automated testing",
+          "deployment",
+          "pipelines"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for CI/CD either.",
+        "reasoning": "Neither CI/CD nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "Pytest",
+        "semantic_match": 0.0,
+        "semantic_level": "Low",
+        "transferability_score": 0.0,
+        "classification": "No Evidence",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "assertions",
+          "automated testing",
+          "fixtures"
+        ],
+        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Pytest either.",
+        "reasoning": "Neither Pytest nor any skill the graph relates to it appears in the resume.",
+        "confidence": "Medium",
+        "factors": {
+          "skill_similarity": 0.0,
+          "concept_overlap": 0.0,
+          "experience_years": 0.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.0,
+          "learning_curve": 0.0
+        },
+        "evidence": []
+      }
+    ],
+    "interview_questions_detailed": {
+      "interview_questions": [
+        {
+          "skill": "Docker",
+          "evidence_level": "not_demonstrated",
+          "question": "We use Docker on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "FastAPI",
+          "evidence_level": "not_demonstrated",
+          "question": "We use FastAPI on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "Kafka",
+          "evidence_level": "not_demonstrated",
+          "question": "We use Kafka on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "PostgreSQL",
+          "evidence_level": "not_demonstrated",
+          "question": "We use PostgreSQL on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "Python",
+          "evidence_level": "claimed",
+          "question": "You list Python on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+          "purpose": "Distinguishes hands-on use from a skills-list entry.",
+          "risk_if_unanswered": "Depth of Python experience stays unverified before an offer."
+        },
+        {
+          "skill": "AWS",
+          "evidence_level": "not_demonstrated",
+          "question": "We use AWS on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "CI/CD",
+          "evidence_level": "not_demonstrated",
+          "question": "We use CI/CD on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        },
+        {
+          "skill": "Pytest",
+          "evidence_level": "not_demonstrated",
+          "question": "We use Pytest on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
+          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
+          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+        }
+      ],
+      "skipped_strong_evidence": [],
+      "_latency_seconds": 0.0,
+      "_attempts": 1,
+      "_model": "mock-heuristic-v1",
+      "_usage": {}
+    },
+    "recommendation_reasons": [
+      "Score confidence 0.24 is below 0.5; too much of the resume could not be judged."
+    ],
+    "human_review_required": true,
+    "meta": {
+      "stages": {
+        "parse": {
+          "latency_ms": 0,
+          "status": "ok"
+        },
+        "integrity": {
+          "latency_ms": 0,
+          "status": "ok"
+        },
+        "core": {
+          "latency_ms": 1,
+          "status": "ok"
+        },
+        "authenticity": {
+          "latency_ms": 0,
+          "status": "ok"
+        },
+        "narrative": {
+          "latency_ms": 0,
+          "status": "ok"
+        },
+        "integrity_interpret": {
+          "latency_ms": 0,
+          "status": "ok"
+        },
+        "interview": {
+          "latency_ms": 0,
+          "status": "ok"
+        }
+      },
+      "llm_provider": "mock",
+      "mock_mode": true,
+      "config_version": "1.0.0",
+      "latency_ms": 1,
+      "llm_calls": 2
+    }
+  }
+}

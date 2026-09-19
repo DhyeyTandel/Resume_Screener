@@ -1,0 +1,240 @@
+"""Module B slice: claim extraction, scoring, bands, inflation signals (Spec 11).
+
+Scope note (see ASSUMPTIONS.md): Stages 1, 5, 6 and 7 are implemented
+deterministically. Live GitHub / LinkedIn / portfolio collectors (Stage 2) and
+the LLM claim-evidence judge (Stage 3) are stubbed: without a collected source
+every claim is UNVERIFIABLE, which by the spec's own rule lowers CONFIDENCE and
+produces INSUFFICIENT_EVIDENCE - never a negative judgment of the candidate.
+"""
+from __future__ import annotations
+import re
+
+from ...config import cfg
+
+BUZZWORDS = {
+    "synergy", "rockstar", "ninja", "guru", "passionate", "dynamic", "results-driven",
+    "self-starter", "go-getter", "thought leader", "world-class", "cutting-edge",
+    "best-in-class", "visionary", "seamless", "robust", "leverage", "spearheaded",
+    "revolutionary", "game-changing", "hardworking", "detail-oriented", "team player",
+}
+VAGUE_VERBS = {
+    "helped", "assisted", "worked", "involved", "participated", "supported", "contributed",
+    "handled", "managed", "responsible",
+}
+_METRIC = re.compile(r"\b\d+(?:\.\d+)?\s*(?:%|percent|x|k|m|million|users|requests|ms|seconds)\b", re.I)
+_ANCHOR = re.compile(r"\b(from|to|over|within|across|by|per|reduc\w+|increas\w+|baseline)\b", re.I)
+
+
+def extract_claims(resume_text: str, parsed: dict) -> list[dict]:
+    """Stage 1: atomic claims with spans that must map to exact resume text."""
+    claims: list[dict] = []
+
+    def add(ctype: str, text: str, depth: str | None = None) -> None:
+        text = text.strip()
+        if len(text) < 3:
+            return
+        start = resume_text.find(text)
+        if start == -1:  # Reject any claim whose span does not map to resume text.
+            return
+        claims.append(
+            {
+                "claim_id": f"C{len(claims) + 1}",
+                "type": ctype,
+                "text": text,
+                "source_span": {"start": start, "end": start + len(text)},
+                "entities": {
+                    "tech": sorted({t for t in parsed["skills"] if t.lower() in text.lower()}),
+                    "numbers": _METRIC.findall(text),
+                },
+                "specificity_score": specificity(text),
+                **({"depth": depth} if depth else {}),
+            }
+        )
+
+    for s in parsed["skills"]:
+        used_in_project = any(s.lower() in p["description"].lower() for p in parsed["projects"])
+        used_in_role = any(
+            s.lower() in " ".join(e["relevant_points"]).lower() for e in parsed["experience"]
+        )
+        depth = (
+            "USED_IN_ROLE" if used_in_role
+            else "USED_IN_PROJECT" if used_in_project
+            else "LISTED_ONLY"
+        )
+        add("SKILL", s, depth)
+    for p in parsed["projects"]:
+        add("PROJECT", p["description"] or p["name"])
+    for e in parsed["experience"]:
+        add("ROLE", f"{e['title']}".strip())
+        for pt in e["relevant_points"]:
+            add("METRIC" if _METRIC.search(pt) else "ACHIEVEMENT", pt)
+    for ed in parsed["education"]:
+        add("EDUCATION", ed)
+    for c in parsed["certifications"]:
+        add("CERTIFICATION", c)
+    return claims
+
+
+def specificity(text: str) -> float:
+    words = re.findall(r"[a-z]+", text.lower())
+    if not words:
+        return 0.0
+    vague = sum(1 for w in words if w in VAGUE_VERBS)
+    concrete = len(_METRIC.findall(text)) + len(re.findall(r"\b[A-Z][\w.+#]{2,}\b", text))
+    return round(max(0.0, min(1.0, 0.3 + 0.15 * concrete - 0.2 * vague)), 3)
+
+
+def inflation_signals(resume_text: str, parsed: dict, claims: list[dict]) -> dict:
+    """Stage 5. Text-level only, low weight, and display-only downstream."""
+    words = re.findall(r"[a-z-]+", resume_text.lower())
+    n = max(1, len(words))
+    buzz = sum(1 for w in words if w in BUZZWORDS) / n
+    specificities = [c["specificity_score"] for c in claims] or [0.5]
+    specificity_gap = 1 - sum(specificities) / len(specificities)
+    listed = [c for c in claims if c["type"] == "SKILL"]
+    listed_only = [c for c in listed if c.get("depth") == "LISTED_ONLY"]
+    bloat = len(listed_only) / len(listed) if listed else 0.0
+    metrics = _METRIC.findall(resume_text)
+    unanchored = sum(
+        1 for line in resume_text.splitlines() if _METRIC.search(line) and not _ANCHOR.search(line)
+    ) / max(1, len(metrics))
+    openers = [ln.strip().split(" ")[0].lower() for ln in resume_text.splitlines() if ln.strip()]
+    repetition = 1 - (len(set(openers)) / len(openers)) if openers else 0.0
+    sub = {
+        "buzzword_density": round(min(1.0, buzz * 40), 3),
+        "specificity_gap": round(specificity_gap, 3),
+        "skill_list_bloat": round(bloat, 3),
+        "unanchored_metrics": round(min(1.0, unanchored), 3),
+        "opener_repetition": round(repetition, 3),
+    }
+    index = round(sum(sub.values()) / len(sub), 3)
+    return {"inflation_index": index, "sub_signals": sub}
+
+
+def assess(
+    candidate_id: str,
+    resume_text: str,
+    parsed: dict,
+    required_skills: list[str],
+    consent: dict | None = None,
+    sources: dict | None = None,
+) -> dict:
+    """Stages 1, 5, 6, 7. Sources absent => UNVERIFIABLE => confidence drops only."""
+    consent = consent or {}
+    sources = sources or {}
+    claims = extract_claims(resume_text, parsed)
+    infl = inflation_signals(resume_text, parsed, claims)
+
+    source_status = {}
+    for name in ("github", "linkedin", "portfolio"):
+        if consent.get(name) is False:
+            source_status[name] = "no_consent"
+        elif sources.get(name):
+            source_status[name] = "ok"
+        else:
+            source_status[name] = "missing"
+    n_sources = sum(1 for v in source_status.values() if v == "ok")
+
+    cw = cfg("authenticity.claim_weights")
+    mult = float(cfg("authenticity.weights.required_skill_multiplier", 1.5))
+    req_lower = {s.lower() for s in required_skills}
+    total_w = verifiable_w = 0.0
+    out_claims = []
+    for c in claims:
+        w = float(cw.get(c["type"], 1.0))
+        if c["type"] == "SKILL" and c["text"].lower() in req_lower:
+            w *= mult
+        total_w += w
+        # No collector ran, so nothing is checkable: UNVERIFIABLE, not UNSUPPORTED.
+        status = "UNVERIFIABLE"
+        out_claims.append(
+            {
+                "claim_id": c["claim_id"],
+                "type": c["type"],
+                "text": c["text"],
+                "status": status,
+                "epistemic_tag": "UNKNOWN",
+                "evidence": [],
+                "rationale": "No accessible source could confirm this claim.",
+                "judge_confidence": 0.0,
+                "weight": round(w, 3),
+            }
+        )
+
+    coverage = round(verifiable_w / total_w, 3) if total_w else 0.0
+    reliability = 0.5  # ((0)+1)/2 with no verifiable claims: neutral, not negative.
+    consistency = 1.0  # no checks performed => no contradictions found.
+    mean_judge_conf = 0.0
+    confidence = round(
+        0.5 * coverage + 0.3 * min(n_sources / 3, 1) + 0.2 * mean_judge_conf, 3
+    )
+    w = cfg("authenticity.weights")
+    authenticity = round(
+        w["alpha"] * reliability + w["beta"] * consistency + w["gamma"] * (1 - infl["inflation_index"]),
+        3,
+    )
+
+    bands = cfg("authenticity.bands")
+    contradictions: list[dict] = []
+    if confidence < float(bands["min_confidence"]):
+        band = "INSUFFICIENT_EVIDENCE"
+    elif confidence >= float(bands["high_trust"]):
+        band = "HIGH_TRUST"
+    elif confidence >= float(bands["moderate"]):
+        band = "MODERATE"
+    else:
+        band = "NEEDS_VERIFICATION"
+
+    gaps = [
+        {
+            "claim_id": c["claim_id"],
+            "what_to_verify": f"Ask the candidate to describe their hands-on use of "
+            f"{c['text'][:60]}.",
+            "priority": "high" if c["type"] in ("SKILL", "PROJECT", "ROLE") else "med",
+        }
+        for c in out_claims
+        if c["type"] == "SKILL" and c["text"].lower() in req_lower
+    ][:10]
+
+    return {
+        "candidate_id": candidate_id,
+        "band": band,
+        "scores": {
+            "authenticity": authenticity,
+            "reliability": reliability,
+            "consistency": consistency,
+            "coverage": coverage,
+            "inflation_index": infl["inflation_index"],
+            "assessment_confidence": confidence,
+        },
+        "inflation_sub_signals": infl["sub_signals"],
+        "sources_used": source_status,
+        "skill_evidence": [
+            {
+                "skill": c["text"],
+                "required": c["text"].lower() in req_lower,
+                "status": c["status"],
+                "evidence": [],
+            }
+            for c in out_claims
+            if c["type"] == "SKILL"
+        ],
+        "claims": out_claims,
+        "contradictions": contradictions,
+        "authenticity_flags": [],
+        "verification_gaps": gaps,
+        "recruiter_summary": (
+            f"No external source was available for this candidate, so {len(out_claims)} resume "
+            "claims could not be checked against code, an employment record or a portfolio. "
+            "That is common and is not a negative signal: private work, NDAs and a simple "
+            "absence of a public profile all produce this result. The assessment confidence is "
+            f"{confidence}, so no headline trust score is shown. Verify the listed items in "
+            "interview rather than treating them as doubtful."
+        ),
+        "meta": {
+            "model": "deterministic-v1",
+            "config_version": cfg("app.config_version"),
+            "latency_ms": 0,
+            "llm_calls": 0,
+        },
+    }

@@ -1,0 +1,23 @@
+Priya Raman
+priya.raman@example.com | +1 555 0100
+
+Summary
+Backend engineer building payment and billing services in Python.
+
+Experience
+Senior Backend Engineer at Northwind Payments, 2021 - Present
+- Built and shipped FastAPI services handling 4000 requests per second, reducing p95 latency from 380ms to 120ms
+- Designed PostgreSQL schemas and rewrote the settlement query, cutting run time by 60 percent
+- Ran Kafka consumer groups for the ledger event stream across 12 partitions
+- Owned Docker images and the CI/CD pipeline in GitHub Actions
+Backend Engineer at Corvid Systems, 2019 - 2021
+- Wrote Python services and pytest suites for the reconciliation platform
+
+Skills
+Python, FastAPI, PostgreSQL, Kafka, Docker, AWS, pytest, CI/CD, SQL
+
+Projects
+Ledger Service: FastAPI and PostgreSQL service processing settlement events from Kafka
+
+Education
+B.S. in Computer Science, Ravenna University, 2019

@@ -1,0 +1,17 @@
+Backend Engineer
+
+About the role
+We are hiring a Backend Engineer to build and operate the services behind our payments platform.
+
+Must have
+- Strong Python and production experience with FastAPI
+- PostgreSQL, including schema design and query optimization
+- Kafka or a comparable event streaming platform
+- Docker and container-based deployment
+- 3+ years of professional software engineering experience
+- Bachelor's degree in Computer Science or a related field
+
+Preferred
+- AWS experience
+- CI/CD pipeline ownership
+- Experience with pytest and automated testing

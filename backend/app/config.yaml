@@ -1,0 +1,35 @@
+app: { config_version: "1.0.0", data_dir: ./data }
+llm:
+  provider: mock
+  fallback_chain: [ollama, mock]
+  ollama: { base_url: "http://localhost:11434", model: "qwen2.5:7b-instruct" }
+  anthropic: { api_key_env: ANTHROPIC_API_KEY, model: "claude-sonnet-4-6" }
+  temperature: 0
+  max_retries: 2
+  timeout_s: 60
+integrity:
+  hidden_font_pt_max: 4.0
+  min_contrast_ratio: 1.3
+  offpage_margin_pt: 2
+  jd_clone_min_run_words: 12
+  jd_clone_min_total_words: 25
+  metadata_keyword_min: 8
+  parser_divergence_ratio: 0.08
+  ocr_page_coverage_min: 0.80
+  penalties: { clean: 1.0, suspicious: 0.75, attack: 0.40 }
+  max_hidden_quote_words: 15
+core:
+  weights: { must_have: 2.0, preferred: 1.0 }
+  min_evidence_for_missing: { skills: 3, projects_or_roles: 1 }
+semantic:
+  levels: { very_high: 0.90, high: 0.75, moderate: 0.55 }
+  transfer_weights: { skill_similarity: 0.25, concept_overlap: 0.25, experience_years: 0.10, project_evidence: 0.20, tech_proximity: 0.10, learning_curve: 0.10 }
+  transfer_classes: { strongly: 0.75, moderately: 0.55, weakly: 0.30 }
+authenticity:
+  weights: { alpha: 0.6, beta: 0.3, gamma: 0.1, required_skill_multiplier: 1.5 }
+  claim_weights: { PROJECT: 1.0, ROLE: 1.0, METRIC: 1.0, CERTIFICATION: 0.8, EDUCATION: 0.8, SKILL: 0.6, ACHIEVEMENT: 0.7 }
+  bands: { min_confidence: 0.40, high_trust: 0.75, moderate: 0.50 }
+ai_indicators: { low_max: 0.33, medium_max: 0.66 }
+policy: { shortlist_min: 75, not_recommended_max: 40, min_score_confidence: 0.5, not_recommended_missing_must_haves: 2 }
+interview: { model: claude-sonnet-4-6, temperature: 0.3, max_retries: 2, max_tokens_cap: 4000 }
+privacy: { retain_raw_days: 30, store_llm_prompts: false }

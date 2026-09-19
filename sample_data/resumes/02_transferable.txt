@@ -1,0 +1,22 @@
+Marcus Ito
+marcus.ito@example.com
+
+Summary
+Python web developer with four years building REST services.
+
+Experience
+Software Engineer at Bluefin Retail, 2021 - Present
+- Built Django REST APIs for the order management system
+- Tuned MySQL queries and added indexes, reducing report time by 45 percent
+- Containerised services with Docker for staging deploys
+Junior Developer at Halcyon Labs, 2019 - 2021
+- Maintained Flask microservices and wrote pytest coverage
+
+Skills
+Python, Django, Flask, REST APIs, MySQL, Docker, SQL, pytest, Git
+
+Projects
+Order API: Django REST service backed by MySQL with Docker deployment
+
+Education
+B.Tech in Information Technology, Solent Institute of Technology, 2019
