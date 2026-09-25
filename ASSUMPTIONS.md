@@ -21,11 +21,28 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   size, bbox, render mode) requires PyMuPDF; without it the scanner still runs but sees no
   span geometry, so hidden-text detection on PDFs degrades to `clean`. DOCX hidden-text
   detection (`w:vanish`, white text, tiny font) works with no extra dependency.
-- **A-6.** Module B ships Stages 1, 5, 6 and 7 deterministically. The live collectors
-  (Stage 2) and the LLM claim-evidence judge (Stage 3) are **not built**. With no collected
-  source, every claim is `UNVERIFIABLE`, which by the spec's own rule lowers *confidence*
-  and yields `INSUFFICIENT_EVIDENCE` - never a negative judgment. This is the correct
-  degraded behaviour, not a placeholder that fabricates verdicts.
+- **A-6 (updated).** Module B now has a real GitHub collector (Stage 2) and a
+  deterministic claim-evidence judge (Stage 3) - see `collectors/github.py` and
+  `matching.py`. The judge is rule-based, not an LLM: it checks language bytes, manifest
+  files and commit authorship against each SKILL/PROJECT claim, which keeps every citation
+  traceable to a collected artifact (0% hallucinated evidence by construction) without a
+  live model call in the hot path. **Still not built:** the LinkedIn and portfolio
+  collectors, and per-commit line-authorship stats (the GitHub API budget here counts
+  commits, not diff size, so `bulk_import` detection is approximate). With no source
+  collected at all, every claim is still `UNVERIFIABLE` -> `INSUFFICIENT_EVIDENCE`, per the
+  spec's own rule - never a negative judgment.
+- **A-6b.** Stage 4 (consistency) implements technology-anachronism detection
+  deterministically (`consistency.py`, `data/tech_release_dates.yaml`). Date-conflict and
+  title/employer-mismatch checks need a second source (LinkedIn) that is not collected, so
+  they are not implemented; only anachronism contributes to the `consistency` score.
+- **A-6c.** Band priority when both apply: `assessment_confidence < 0.40` -> 
+  `INSUFFICIENT_EVIDENCE` is checked *before* the contradiction-forcing rule, matching the
+  literal order the spec states them in (Section 11 Stage 6). A contradiction found on a
+  candidate with too few sources to reach 0.40 confidence therefore still shows as
+  `INSUFFICIENT_EVIDENCE`, not `NEEDS_VERIFICATION` - the contradiction is still visible in
+  `contradictions` and `authenticity_flags`, just not promoted to the headline band. This
+  is a genuine spec ambiguity; the alternative (contradiction always wins) is one line to
+  flip in `engine.py` if the Module B owner prefers it.
 - **A-7.** Storage is in-process (dicts) rather than SQLite. The audit log is append-only
   in behaviour but does not survive a restart.
 - **A-8.** The frontend is a single dependency-free HTML page served by FastAPI rather than

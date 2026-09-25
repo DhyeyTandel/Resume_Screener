@@ -1,0 +1,19 @@
+Derek Voss
+derek.voss@example.com
+
+Summary
+Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.
+
+Experience
+Lead Engineer at Pinegate Software, 2018 - Present
+- Spearheaded a revolutionary FastAPI platform leveraging synergy across teams
+- Forked and deployed an open-source starter kit as the company's core product
+
+Skills
+Python, FastAPI, PostgreSQL, Kafka, Docker
+
+Projects
+Starter Kit: forked repository redeployed as an internal tool
+
+Education
+B.S. in Computer Science, Marlowe University, 2016

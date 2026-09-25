@@ -54,6 +54,7 @@ async def screen_candidate(
     portfolio_url: str | None = None,
     consent: dict | None = None,
     llm: LLMClient | None = None,
+    github_fetch=None,  # test seam: inject a recorded fetch instead of a live one
 ) -> dict:
     started = time.perf_counter()
     llm = llm or LLMClient()
@@ -93,13 +94,14 @@ async def screen_candidate(
     # --- Stages 3 & 4 in parallel -----------------------------------------
     async def run_authenticity() -> dict:
         with Stage(stages, "authenticity"):
-            return assess(
+            return await assess(
                 candidate_id,
                 redacted,
                 parsed,
                 [r["requirement"] for r in requirements],
                 consent=consent,
                 sources={"github": github_username, "portfolio": portfolio_url},
+                github_fetch=github_fetch,
             )
 
     async def run_narrative() -> dict:

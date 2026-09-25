@@ -10,6 +10,9 @@ from __future__ import annotations
 import re
 
 from ...config import cfg
+from .collectors.github import GitHubEvidence, collect_github
+from .consistency import check_anachronisms
+from .matching import STATUS_V, authenticity_flags, judge_project_claim, judge_skill_claim
 
 BUZZWORDS = {
     "synergy", "rockstar", "ninja", "guru", "passionate", "dynamic", "results-driven",
@@ -111,15 +114,19 @@ def inflation_signals(resume_text: str, parsed: dict, claims: list[dict]) -> dic
     return {"inflation_index": index, "sub_signals": sub}
 
 
-def assess(
+async def assess(
     candidate_id: str,
     resume_text: str,
     parsed: dict,
     required_skills: list[str],
     consent: dict | None = None,
     sources: dict | None = None,
+    github_fetch=None,
 ) -> dict:
-    """Stages 1, 5, 6, 7. Sources absent => UNVERIFIABLE => confidence drops only."""
+    """Stages 1, 5, 6, 7 + live Stage 2/3 for GitHub. Sources absent => UNVERIFIABLE
+    => confidence drops only, never a negative judgment (Spec 2.4)."""
+    import os
+
     consent = consent or {}
     sources = sources or {}
     claims = extract_claims(resume_text, parsed)
@@ -133,38 +140,74 @@ def assess(
             source_status[name] = "ok"
         else:
             source_status[name] = "missing"
+
+    gh = GitHubEvidence(username="", status="missing")
+    if source_status["github"] == "ok":
+        gh = await collect_github(
+            sources.get("github"),
+            token=os.getenv(cfg("authenticity.github.token_env", "GITHUB_TOKEN")),
+            fetch=github_fetch,
+        )
+        if gh.status == "error":
+            source_status["github"] = "error"
+
     n_sources = sum(1 for v in source_status.values() if v == "ok")
 
     cw = cfg("authenticity.claim_weights")
     mult = float(cfg("authenticity.weights.required_skill_multiplier", 1.5))
     req_lower = {s.lower() for s in required_skills}
-    total_w = verifiable_w = 0.0
+    total_w = verifiable_w = weighted_v_sum = judge_conf_sum = 0.0
     out_claims = []
     for c in claims:
         w = float(cw.get(c["type"], 1.0))
-        if c["type"] == "SKILL" and c["text"].lower() in req_lower:
+        required = c["type"] == "SKILL" and c["text"].lower() in req_lower
+        if required:
             w *= mult
         total_w += w
-        # No collector ran, so nothing is checkable: UNVERIFIABLE, not UNSUPPORTED.
-        status = "UNVERIFIABLE"
+
+        if c["type"] == "SKILL":
+            judged = judge_skill_claim(c["text"], gh, required)
+        elif c["type"] == "PROJECT":
+            judged = judge_project_claim(c["text"], gh)
+        elif c["type"] == "METRIC":
+            # Spec 11 Stage 3: METRIC is VERIFIED only with a code/artifact trace,
+            # never UNSUPPORTED by default without one.
+            judged = {"status": "UNVERIFIABLE", "evidence": [],
+                      "rationale": "No code artifact could confirm this metric.",
+                      "judge_confidence": 0.0}
+        else:
+            judged = {"status": "UNVERIFIABLE", "evidence": [],
+                      "rationale": "No accessible source could confirm this claim.",
+                      "judge_confidence": 0.0}
+
+        status = judged["status"]
+        epistemic = "EVIDENCE" if status in ("VERIFIED", "CORROBORATED") else (
+            "INFERENCE" if status == "WEAK" else "UNKNOWN"
+        )
+        v = STATUS_V.get(status)
+        if v is not None:
+            verifiable_w += w
+            weighted_v_sum += w * v
+            judge_conf_sum += judged["judge_confidence"]
         out_claims.append(
             {
-                "claim_id": c["claim_id"],
-                "type": c["type"],
-                "text": c["text"],
-                "status": status,
-                "epistemic_tag": "UNKNOWN",
-                "evidence": [],
-                "rationale": "No accessible source could confirm this claim.",
-                "judge_confidence": 0.0,
-                "weight": round(w, 3),
+                "claim_id": c["claim_id"], "type": c["type"], "text": c["text"],
+                "status": status, "epistemic_tag": epistemic,
+                "evidence": judged["evidence"], "rationale": judged["rationale"],
+                "judge_confidence": judged["judge_confidence"], "weight": round(w, 3),
             }
         )
 
+    contradictions = [
+        {"type": c["type"], "detail": c["detail"], "sources": c["sources"]}
+        for c in check_anachronisms(resume_text)
+    ]
+    checks_performed = max(1, len(re.findall(r"\d+\s*\+?\s*years?", resume_text, re.I)))
+    consistency = round(1 - len(contradictions) / checks_performed, 3)
+
     coverage = round(verifiable_w / total_w, 3) if total_w else 0.0
-    reliability = 0.5  # ((0)+1)/2 with no verifiable claims: neutral, not negative.
-    consistency = 1.0  # no checks performed => no contradictions found.
-    mean_judge_conf = 0.0
+    reliability = round((weighted_v_sum / verifiable_w + 1) / 2, 3) if verifiable_w else 0.5
+    mean_judge_conf = round(judge_conf_sum / len(out_claims), 3) if out_claims else 0.0
     confidence = round(
         0.5 * coverage + 0.3 * min(n_sources / 3, 1) + 0.2 * mean_judge_conf, 3
     )
@@ -175,9 +218,14 @@ def assess(
     )
 
     bands = cfg("authenticity.bands")
-    contradictions: list[dict] = []
+    required_contradiction = any(
+        c["status"] == "CONTRADICTED" and c["type"] == "SKILL" and c["text"].lower() in req_lower
+        for c in out_claims
+    ) or bool(contradictions)  # anachronisms are resume-level; treat as a forcing signal too
     if confidence < float(bands["min_confidence"]):
         band = "INSUFFICIENT_EVIDENCE"
+    elif required_contradiction:
+        band = "NEEDS_VERIFICATION"  # Spec: a contradiction forces at least this band.
     elif confidence >= float(bands["high_trust"]):
         band = "HIGH_TRUST"
     elif confidence >= float(bands["moderate"]):
@@ -185,6 +233,7 @@ def assess(
     else:
         band = "NEEDS_VERIFICATION"
 
+    _NEEDS_VERIFY = {"UNSUPPORTED", "WEAK", "UNVERIFIABLE", "CONTRADICTED"}
     gaps = [
         {
             "claim_id": c["claim_id"],
@@ -194,6 +243,7 @@ def assess(
         }
         for c in out_claims
         if c["type"] == "SKILL" and c["text"].lower() in req_lower
+        and c["status"] in _NEEDS_VERIFY
     ][:10]
 
     return {
@@ -214,22 +264,17 @@ def assess(
                 "skill": c["text"],
                 "required": c["text"].lower() in req_lower,
                 "status": c["status"],
-                "evidence": [],
+                "evidence": c["evidence"],
             }
             for c in out_claims
             if c["type"] == "SKILL"
         ],
         "claims": out_claims,
         "contradictions": contradictions,
-        "authenticity_flags": [],
+        "authenticity_flags": authenticity_flags(gh),
         "verification_gaps": gaps,
-        "recruiter_summary": (
-            f"No external source was available for this candidate, so {len(out_claims)} resume "
-            "claims could not be checked against code, an employment record or a portfolio. "
-            "That is common and is not a negative signal: private work, NDAs and a simple "
-            "absence of a public profile all produce this result. The assessment confidence is "
-            f"{confidence}, so no headline trust score is shown. Verify the listed items in "
-            "interview rather than treating them as doubtful."
+        "recruiter_summary": _recruiter_summary(
+            gh, out_claims, confidence, n_sources
         ),
         "meta": {
             "model": "deterministic-v1",
@@ -238,3 +283,27 @@ def assess(
             "llm_calls": 0,
         },
     }
+
+
+def _recruiter_summary(gh: GitHubEvidence, claims: list[dict], confidence: float, n_sources: int) -> str:
+    if n_sources == 0:
+        return (
+            f"No external source was available for this candidate, so {len(claims)} resume "
+            "claims could not be checked against code, an employment record or a portfolio. "
+            "That is common and is not a negative signal: private work, NDAs and a simple "
+            "absence of a public profile all produce this result. The assessment confidence is "
+            f"{confidence}, so no headline trust score is shown. Verify the listed items in "
+            "interview rather than treating them as doubtful."
+        )
+    verified = sum(1 for c in claims if c["status"] == "VERIFIED")
+    unsupported = sum(1 for c in claims if c["status"] == "UNSUPPORTED")
+    bits = [f"GitHub evidence was reviewed across {len(gh.repos)} repositories."]
+    if verified:
+        bits.append(f"{verified} claim(s) have direct code or manifest evidence.")
+    if unsupported:
+        bits.append(
+            f"{unsupported} claim(s) have no supporting evidence in the sources checked, "
+            "which is worth a direct question in interview rather than an assumption either way."
+        )
+    bits.append(f"Overall assessment confidence is {confidence}.")
+    return " ".join(bits)

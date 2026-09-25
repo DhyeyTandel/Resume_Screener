@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "571fbd88",
+    "candidate_id": "3c43ef93",
     "candidate_profile": {
       "summary": "Priya Raman [CONTACT] | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -514,7 +514,7 @@
       "human_decides": "A human recruiter always makes the final call."
     },
     "authenticity": {
-      "candidate_id": "571fbd88",
+      "candidate_id": "3c43ef93",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -600,7 +600,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -611,7 +611,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -622,7 +622,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -633,7 +633,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -644,7 +644,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -655,7 +655,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -666,7 +666,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -677,7 +677,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.9
         },
@@ -688,7 +688,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
           "weight": 0.6
         },
@@ -699,7 +699,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible GitHub source could confirm this project.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -721,7 +721,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No code artifact could confirm this metric.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -732,7 +732,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No code artifact could confirm this metric.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -1150,7 +1150,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 3,
           "status": "ok"
         },
         "authenticity": {

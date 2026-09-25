@@ -1,0 +1,19 @@
+Alicia Ferreira
+alicia.ferreira@example.com
+
+Summary
+Backend engineer, four years, mostly on closed-source enterprise systems under NDA.
+
+Experience
+Backend Engineer at Vantage Health Systems, 2020 - Present
+- Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA
+- Ran Kafka pipelines for appointment event processing
+- Deployed with Docker across an on-prem cluster
+Backend Developer at Ridgeline Analytics, 2019 - 2020
+- Python services for internal reporting, no public repositories
+
+Skills
+Python, FastAPI, PostgreSQL, Kafka, Docker, SQL
+
+Education
+B.S. in Computer Science, Fenwick College, 2019

@@ -1,0 +1,19 @@
+# Public release year per technology, used for anachronism detection (Spec 11 Stage 4).
+fastapi: 2018
+django: 2005
+flask: 2010
+react: 2013
+vue: 2014
+angular: 2016
+typescript: 2012
+kubernetes: 2014
+docker: 2013
+kafka: 2011
+rabbitmq: 2007
+postgresql: 1996
+mysql: 1995
+mongodb: 2009
+graphql: 2015
+terraform: 2014
+pytorch: 2016
+tensorflow: 2015

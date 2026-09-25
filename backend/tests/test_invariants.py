@@ -7,6 +7,7 @@ import pytest
 from app.llm.client import LLMClient
 from app.pipeline.orchestrator import screen_candidate
 from app.schemas.vocab import MISSING
+from tests.fixtures.github_fixtures import make_fetch
 
 SAMPLES = Path(__file__).resolve().parents[2] / "sample_data"
 JD = (SAMPLES / "jd_backend_engineer.txt").read_text()
@@ -88,15 +89,38 @@ async def test_injection_invariance_beyond_the_deterministic_penalty():
            [q["status"] for q in injected["requirement_match"]]
 
 
-async def test_no_github_lowers_confidence_but_not_score_or_recommendation():
-    with_gh = await run(STRONG, github_username="priya")
+async def test_no_github_lowers_confidence_but_never_the_score():
+    """Presence/absence of GitHub changes confidence and band, never the base score."""
     without = await run(STRONG)
+    with_gh = await screen_candidate(
+        jd_text=JD, pasted_text=STRONG, llm=LLMClient("mock"),
+        github_username="priya", github_fetch=make_fetch("priya"))
     assert with_gh["overall_match_score"] == without["overall_match_score"]
-    assert with_gh["recommendation"] == without["recommendation"]
-    a = without["extensions"]["authenticity"]
-    assert a["band"] == "INSUFFICIENT_EVIDENCE"       # not NEEDS_VERIFICATION
-    assert a["scores"]["assessment_confidence"] < 0.4
-    assert without["recommendation"] == "Shortlist"   # band did not block it
+    a0 = without["extensions"]["authenticity"]
+    assert a0["band"] == "INSUFFICIENT_EVIDENCE"       # not NEEDS_VERIFICATION
+    assert a0["scores"]["assessment_confidence"] < 0.4
+    assert without["recommendation"] == "Shortlist"    # band did not block it
+    a1 = with_gh["extensions"]["authenticity"]
+    assert a1["scores"]["assessment_confidence"] > a0["scores"]["assessment_confidence"]
+    assert a1["sources_used"]["github"] == "ok"
+
+
+async def test_github_verified_evidence_upgrades_claim_status():
+    r = await screen_candidate(
+        jd_text=JD, pasted_text=STRONG, llm=LLMClient("mock"),
+        github_username="priya", github_fetch=make_fetch("priya"))
+    a = r["extensions"]["authenticity"]
+    python_claims = [c for c in a["claims"] if c["text"].lower() == "python"]
+    assert python_claims and python_claims[0]["status"] == "VERIFIED"
+    assert python_claims[0]["evidence"][0]["citation"] == "github.com/priya/ledger-service"
+
+
+async def test_github_404_degrades_to_error_not_a_crash():
+    r = await screen_candidate(
+        jd_text=JD, pasted_text=STRONG, llm=LLMClient("mock"),
+        github_username="ghost-user", github_fetch=make_fetch(not_found=True))
+    assert r["extensions"]["authenticity"]["sources_used"]["github"] == "error"
+    assert r["recommendation"] in ("Shortlist", "Review Manually", "Not Recommended")
 
 
 async def test_ai_text_indicators_have_zero_weight_on_the_score():
