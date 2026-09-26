@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "c48e42d3",
+    "candidate_id": "fbdb8482",
     "candidate_profile": {
       "summary": "Priya Raman [CONTACT] | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -521,7 +521,7 @@
       "human_decides": "A human recruiter always makes the final call."
     },
     "authenticity": {
-      "candidate_id": "c48e42d3",
+      "candidate_id": "fbdb8482",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,

@@ -100,11 +100,24 @@ def check_role_overlap(experience: list[dict], *, tolerance_months: int = 2) -> 
     return out
 
 
+def _ratio(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
 def check_linkedin_consistency(
     resume_experience: list[dict], li: LinkedInEvidence, *, date_tolerance_months: int = 2,
-    title_threshold: int = 80,
+    title_threshold: int = 80, company_threshold: int = 60,
 ) -> list[dict]:
-    """Date conflicts and title/employer mismatch, resume vs LinkedIn export."""
+    """Date conflicts and title/employer mismatch, resume vs LinkedIn export.
+
+    Roles are paired by EMPLOYER first, not by title: matching the closest
+    title across different companies produced false date-conflicts between
+    two genuinely different jobs (caught live against the real GitHub/
+    LinkedIn-shaped data, not a hypothetical - see ASSUMPTIONS.md). A resume
+    role with no company match on LinkedIn is left uncompared, not flagged -
+    a role LinkedIn simply doesn't list is missing evidence, never a
+    contradiction (Spec 2.4).
+    """
     if li.status != "ok" or not li.roles:
         return []
     out = []
@@ -112,20 +125,16 @@ def check_linkedin_consistency(
     for r in resume_experience:
         r_title = (r.get("title") or "").strip().lower()
         r_company = (r.get("company") or "").strip().lower()
-        if not r_title:
-            continue
+        if not r_title or not r_company:
+            continue  # can't pair by employer without one
         best = max(
-            li.roles,
-            key=lambda lr: difflib.SequenceMatcher(None, r_title, lr.title.lower()).ratio(),
-            default=None,
+            li.roles, key=lambda lr: _ratio(r_company, lr.company.lower()), default=None
         )
-        if best is None:
-            continue
-        ratio = difflib.SequenceMatcher(None, r_title, best.title.lower()).ratio()
-        if ratio * 100 < title_threshold and r_company and best.company:
-            company_ratio = difflib.SequenceMatcher(None, r_company, best.company.lower()).ratio()
-            if company_ratio * 100 < title_threshold:
-                continue  # not the same role at all - nothing to compare
+        if best is None or _ratio(r_company, best.company.lower()) * 100 < company_threshold:
+            continue  # no corresponding employer on LinkedIn - not comparable, not a finding
+
+        ratio = _ratio(r_title, best.title.lower())
+        if ratio * 100 < title_threshold:
             out.append(
                 {
                     "type": "title_mismatch",

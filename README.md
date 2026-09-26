@@ -55,7 +55,7 @@ Resume ──┴─► [0 Parse] ─► [1 Integrity Guard A] ─► visible tex
 |---|---|---|
 | Core | `modules/core_screening/` | built |
 | A Integrity Guard | `modules/integrity_guard/` | built (PDF spans need PyMuPDF) |
-| B Authenticity | `modules/authenticity_engine/` | Stages 1, 4, 5, 6, 7 + live GitHub + LinkedIn collectors/judge |
+| B Authenticity | `modules/authenticity_engine/` | Stages 1, 4, 5, 6, 7 + live GitHub, LinkedIn and portfolio collectors/judge |
 | C Skill Intelligence | `modules/skill_intelligence/` | built |
 | D Interview Questions | `modules/interview_questions/` | built |
 | Policy | `policy/scoring.py`, `policy/recommendation.py` | built - all arithmetic lives here |
@@ -95,6 +95,6 @@ estimated (Spec 0.5 forbids fabricating results).
 
 ## Not built
 
-See PLAN.md and ASSUMPTIONS.md. In short: Module B's portfolio collector, a real
-annotated dataset for Module B's harder metrics, SQLite persistence, Docker, and the
-Vite/React frontend.
+See PLAN.md and ASSUMPTIONS.md. In short: Module B's Stage 3 judge is deterministic
+rule-based rather than an LLM judge, a real annotated dataset for Module B's harder
+metrics, SQLite persistence, Docker, and the Vite/React frontend.

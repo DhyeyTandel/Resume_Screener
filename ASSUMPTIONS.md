@@ -51,6 +51,27 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   `contradictions` and `authenticity_flags`, just not promoted to the headline band. This
   is a genuine spec ambiguity; the alternative (contradiction always wins) is one line to
   flip in `engine.py` if the Module B owner prefers it.
+- **A-7 (portfolio collector).** `collectors/portfolio.py` fetches the page and a
+  dependency-light HTML-text extractor is used when BeautifulSoup is not installed (same
+  zero-cost-first pattern as the PDF loader, A-5). robots.txt is honoured with a minimal
+  stdlib-only parser that only reads `User-agent: *` rules (no per-agent identification) -
+  a conservative simplification: a `*` disallow still blocks the collector, it just won't
+  notice a rule aimed at a different, named agent. A dead live-demo link is recorded as the
+  `dead_demo_link` flag and is explicitly never added to `contradictions` (Spec 11 Stage 2:
+  "dead link = weak evidence only, never a contradiction") - tested directly.
+- **A-8 (a real bug caught while building A-6b/A-7, not a hypothetical one).** The first
+  version of `check_linkedin_consistency` and `judge_role_claim` paired a resume role with
+  the closest-TITLED LinkedIn role regardless of employer. Tested against a live LinkedIn
+  export during manual verification, this matched "Backend Engineer" at Corvid Systems
+  against "Senior Backend Engineer" at a completely different company (Northwind Payments)
+  purely because the titles were similar, and reported a false `date_conflict` between two
+  unrelated jobs. Fixed by pairing on employer first (fuzzy match >= 60%) and only then
+  comparing title/dates within that pair; a resume role with no matching employer on
+  LinkedIn is left uncompared - missing evidence, never a contradiction (Spec 2.4).
+  Regression tests in `test_linkedin_consistency.py`. This was found by manually exercising
+  the live API with a real upload, not by the unit tests alone - the existing tests all
+  happened to use matching companies on both sides, which is exactly the case this bug
+  doesn't trigger on.
 - **A-7.** Storage is in-process (dicts) rather than SQLite. The audit log is append-only
   in behaviour but does not survive a restart.
 - **A-8.** The frontend is a single dependency-free HTML page served by FastAPI rather than

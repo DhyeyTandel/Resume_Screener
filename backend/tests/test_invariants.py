@@ -8,6 +8,7 @@ from app.llm.client import LLMClient
 from app.pipeline.orchestrator import screen_candidate
 from app.schemas.vocab import MISSING
 from tests.fixtures.github_fixtures import make_fetch
+from tests.fixtures.portfolio_fixtures import make_fetch as make_portfolio_fetch
 
 SAMPLES = Path(__file__).resolve().parents[2] / "sample_data"
 JD = (SAMPLES / "jd_backend_engineer.txt").read_text()
@@ -196,6 +197,19 @@ async def test_linkedin_export_corroborates_a_role_claim():
     role_claims = [c for c in a["claims"] if c["type"] == "ROLE"
                   and c["text"] == "Senior Backend Engineer"]
     assert role_claims and role_claims[0]["status"] == "CORROBORATED"
+
+
+async def test_portfolio_evidence_reaches_the_pipeline():
+    r = await screen_candidate(
+        jd_text=JD, pasted_text=STRONG, llm=LLMClient("mock"),
+        portfolio_url="https://priya.dev", portfolio_fetch=make_portfolio_fetch())
+    a = r["extensions"]["authenticity"]
+    assert a["sources_used"]["portfolio"] == "ok"
+    kafka_claims = [c for c in a["claims"] if c["type"] == "SKILL" and c["text"].lower() == "kafka"]
+    assert kafka_claims and kafka_claims[0]["status"] == "WEAK"
+    assert any(f["flag"] == "dead_demo_link" for f in a["authenticity_flags"])
+    # Dead demo link never blocks a shortlist - it is weak evidence, not a contradiction.
+    assert not any(c["type"] == "dead_demo_link" for c in a["contradictions"])
 
 
 async def test_determinism_same_input_three_times():

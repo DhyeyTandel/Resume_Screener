@@ -46,6 +46,10 @@ async def create_screening(
     pasted_resumes: list[str] = Form(default=[]),
     github_usernames: list[str] = Form(default=[]),
     portfolio_urls: list[str] = Form(default=[]),
+    linkedin_files: list[UploadFile] = File(default=[]),  # aligned by index with `files`
+    consent_github: bool = Form(True),
+    consent_linkedin: bool = Form(True),
+    consent_portfolio: bool = Form(True),
 ):
     if not jd_text or not jd_text.strip():
         return JSONResponse(
@@ -64,9 +68,24 @@ async def create_screening(
             ),
         )
 
+    consent = {"github": consent_github, "linkedin": consent_linkedin, "portfolio": consent_portfolio}
     sid = str(uuid.uuid4())[:8]
     inputs: list[dict] = []
     for i, f in enumerate(files):
+        linkedin_export = None
+        if i < len(linkedin_files) and linkedin_files[i] and linkedin_files[i].filename:
+            content = (await linkedin_files[i].read()).decode("utf-8", "replace")
+            # A .json upload is a structured export; anything else is treated as a
+            # "Save to PDF" text export (Spec 11: no scraping, export only).
+            import json as _json
+
+            if (linkedin_files[i].filename or "").lower().endswith(".json"):
+                try:
+                    linkedin_export = {"type": "structured_json", "content": _json.loads(content)}
+                except ValueError:
+                    linkedin_export = {"type": "pdf_export", "content": content}
+            else:
+                linkedin_export = {"type": "pdf_export", "content": content}
         inputs.append(
             {
                 "filename": f.filename,
@@ -74,6 +93,8 @@ async def create_screening(
                 "candidate_name": (f.filename or "").rsplit(".", 1)[0].replace("_", " ").title(),
                 "github_username": github_usernames[i] if i < len(github_usernames) else None,
                 "portfolio_url": portfolio_urls[i] if i < len(portfolio_urls) else None,
+                "linkedin_export": linkedin_export,
+                "consent": consent,
             }
         )
     for text in pasted_resumes:
@@ -82,6 +103,7 @@ async def create_screening(
                 {
                     "pasted_text": text,
                     "candidate_name": text.strip().splitlines()[0][:60] or "Pasted candidate",
+                    "consent": consent,
                 }
             )
 

@@ -77,3 +77,31 @@ def test_role_claim_corroborated_from_linkedin():
 def test_role_claim_unverifiable_with_no_linkedin():
     j = judge_role_claim("Backend Engineer", LinkedInEvidence(status="missing"))
     assert j["status"] == "UNVERIFIABLE"
+
+
+def test_different_employer_roles_are_never_compared():
+    """Regression: title-only matching once paired a resume role at one
+    company against the closest-titled LinkedIn role at a DIFFERENT company,
+    producing a false date_conflict between two genuinely unrelated jobs
+    (caught live, not hypothetically - see ASSUMPTIONS.md)."""
+    from app.modules.authenticity_engine.collectors.linkedin import LinkedInRole
+
+    exp = [
+        {"title": "Backend Engineer", "company": "Corvid Systems", "start": "2019", "end": "2021"},
+    ]
+    li = LinkedInEvidence(status="ok", roles=[
+        LinkedInRole(title="Senior Backend Engineer", company="Northwind Payments",
+                    start="2021", end="Present"),
+    ])
+    assert check_linkedin_consistency(exp, li) == []
+
+
+def test_role_claim_not_corroborated_by_a_different_employer():
+    from app.modules.authenticity_engine.collectors.linkedin import LinkedInRole
+
+    li = LinkedInEvidence(status="ok", roles=[
+        LinkedInRole(title="Senior Backend Engineer", company="Northwind Payments",
+                    start="2021", end="Present"),
+    ])
+    j = judge_role_claim("Backend Engineer", li, company="Corvid Systems")
+    assert j["status"] != "CORROBORATED"

@@ -56,6 +56,7 @@ async def screen_candidate(
     consent: dict | None = None,
     llm: LLMClient | None = None,
     github_fetch=None,  # test seam: inject a recorded fetch instead of a live one
+    portfolio_fetch=None,  # test seam for the portfolio collector
 ) -> dict:
     started = time.perf_counter()
     llm = llm or LLMClient()
@@ -104,6 +105,7 @@ async def screen_candidate(
                 sources={"github": github_username, "portfolio": portfolio_url,
                         "linkedin": linkedin_export},
                 github_fetch=github_fetch,
+                portfolio_fetch=portfolio_fetch,
             )
 
     async def run_narrative() -> dict:

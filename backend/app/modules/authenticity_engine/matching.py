@@ -12,6 +12,7 @@ import re
 from ...config import cfg
 from .collectors.github import GitHubEvidence, RepoEvidence
 from .collectors.linkedin import LinkedInEvidence
+from .collectors.portfolio import PortfolioEvidence
 
 STATUS_V = {
     "VERIFIED": 1.00, "CORROBORATED": 0.75, "WEAK": 0.40,
@@ -120,9 +121,15 @@ def _flag_detail(flag: str, repo: RepoEvidence) -> str:
     }.get(flag, flag)
 
 
-def judge_role_claim(role_title: str, li: LinkedInEvidence) -> dict:
+def judge_role_claim(role_title: str, li: LinkedInEvidence, company: str | None = None) -> dict:
     """Resume vs LinkedIn are both self-reported, so this can only ever reach
-    CORROBORATED (Spec 11 Stage 3 rule), never VERIFIED."""
+    CORROBORATED (Spec 11 Stage 3 rule), never VERIFIED.
+
+    Pairs by employer first when `company` is known - matching by title alone
+    can corroborate a role against the wrong employer's listing on LinkedIn
+    (the same class of bug fixed in consistency.check_linkedin_consistency;
+    see ASSUMPTIONS.md). Without a company (older claim sites, or a resume
+    role with no parsed company) this falls back to title-only matching."""
     if li.status != "ok" or not li.roles:
         return {
             "status": "UNVERIFIABLE", "evidence": [],
@@ -131,14 +138,27 @@ def judge_role_claim(role_title: str, li: LinkedInEvidence) -> dict:
         }
     import difflib
 
-    best = max(li.roles, key=lambda r: difflib.SequenceMatcher(None, role_title.lower(), r.title.lower()).ratio())
+    candidates = li.roles
+    if company:
+        by_company = [r for r in li.roles
+                      if difflib.SequenceMatcher(None, company.lower(), r.company.lower()).ratio() >= 0.6]
+        if by_company:
+            candidates = by_company
+        else:
+            return {
+                "status": "UNSUPPORTED", "evidence": [],
+                "rationale": f"No role at '{company}' was found in the LinkedIn export.",
+                "judge_confidence": 0.5,
+            }
+
+    best = max(candidates, key=lambda r: difflib.SequenceMatcher(None, role_title.lower(), r.title.lower()).ratio())
     ratio = difflib.SequenceMatcher(None, role_title.lower(), best.title.lower()).ratio()
     if ratio >= 0.6:
         return {
             "status": "CORROBORATED",
             "evidence": [{"source": "linkedin", "citation": f"linkedin_export:role:{best.title}",
                          "note": f"title similarity {ratio:.2f}"}],
-            "rationale": f"A matching role appears in the candidate's LinkedIn export.",
+            "rationale": "A matching role appears in the candidate's LinkedIn export.",
             "judge_confidence": 0.7,
         }
     return {
@@ -146,3 +166,32 @@ def judge_role_claim(role_title: str, li: LinkedInEvidence) -> dict:
         "rationale": "No matching role was found in the LinkedIn export.",
         "judge_confidence": 0.5,
     }
+
+
+def judge_skill_claim_with_portfolio(skill: str, gh: GitHubEvidence, pf: PortfolioEvidence,
+                                     required: bool) -> dict:
+    """Combines GitHub (can VERIFY) with a portfolio (can only WEAK-corroborate,
+    since a portfolio page is self-authored - same rule as resume vs LinkedIn)."""
+    gh_judged = judge_skill_claim(skill, gh, required)
+    if gh_judged["status"] == "VERIFIED":
+        return gh_judged
+    if pf.status == "ok" and skill.lower() in {t.lower() for t in pf.tech_mentions}:
+        if gh_judged["status"] == "UNVERIFIABLE":
+            return {
+                "status": "WEAK",
+                "evidence": [{"source": "portfolio", "citation": pf.url,
+                             "note": f"{skill} appears on the candidate's portfolio page"}],
+                "rationale": f"The candidate's own portfolio mentions {skill}, but a "
+                "self-authored page is weaker evidence than code.",
+                "judge_confidence": 0.35,
+            }
+    return gh_judged
+
+
+def portfolio_flags(pf: PortfolioEvidence) -> list[dict]:
+    """Dead demo links are WEAK evidence only, never a contradiction (Spec 11 Stage 2)."""
+    return [
+        {"flag": "dead_demo_link", "repo": pf.url,
+         "detail": f"The live demo link {c['url']} did not return a successful response."}
+        for c in pf.live_demo_checks if not c["ok"]
+    ]

@@ -23,6 +23,7 @@ from perturb import (ALL_TEXT_PERTURBATIONS, p1_skill_injection, p2_metric_infla
 
 sys.path.insert(0, str(ROOT / "backend" / "tests"))
 from fixtures.github_fixtures import make_fetch  # noqa: E402
+from fixtures.portfolio_fixtures import make_fetch as make_portfolio_fetch  # noqa: E402
 
 JD = (ROOT / "sample_data/jd_backend_engineer.txt").read_text()
 RESUMES = sorted((ROOT / "sample_data/resumes").glob("*.txt"))
@@ -252,7 +253,19 @@ async def eval_e2e_and_perturb() -> tuple[Section, Section]:
     detect_hits += 1 if p6_pass else 0
     rows.append(f"| P6 no GitHub | band={auth6.get('band')}, score={r6['overall_match_score']} vs base {base['overall_match_score']} | INSUFFICIENT_EVIDENCE, score unchanged | {'✅' if p6_pass else '❌'} |")
 
-    pert.line(fmt_target("Perturbation checks passing (P1/P2/P3/P4/P5/P6)", f"{detect_hits}/{detect_total}",
+    # Portfolio: a dead demo link is weak evidence, never wired into contradictions.
+    r_pf = await screen_candidate(jd_text=JD, pasted_text=base_text, candidate_name="portfolio",
+                                  llm=LLMClient("mock"), portfolio_url="https://priya.dev",
+                                  portfolio_fetch=make_portfolio_fetch())
+    auth_pf = r_pf["extensions"]["authenticity"] or {}
+    pf_flags = {f["flag"] for f in auth_pf.get("authenticity_flags", [])}
+    pf_pass = ("dead_demo_link" in pf_flags
+              and not any(c["type"] == "dead_demo_link" for c in auth_pf.get("contradictions", [])))
+    detect_total += 1
+    detect_hits += 1 if pf_pass else 0
+    rows.append(f"| Portfolio: dead demo link is weak, not a contradiction | flags={sorted(pf_flags)} | dead_demo_link flagged, never a contradiction | {'✅' if pf_pass else '❌'} |")
+
+    pert.line(fmt_target("Perturbation checks passing (P1/P2/P3/P4/P5/P6+portfolio)", f"{detect_hits}/{detect_total}",
                          "≥ 0.80 recall each (spec target)", detect_hits == detect_total,
                          "Pass/fail per synthetic case, not a recall rate over a labeled corpus - "
                          "see Known Limitations."))

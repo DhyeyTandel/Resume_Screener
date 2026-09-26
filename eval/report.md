@@ -53,7 +53,7 @@ Fixture count: 7 cases (small set - see Known Limitations).
 
 ## Perturbations (Spec 16.1 P1-P6)
 
-| Perturbation checks passing (P1/P2/P3/P4/P5/P6) | 6/6 | ≥ 0.80 recall each (spec target) | ✅ |
+| Perturbation checks passing (P1/P2/P3/P4/P5/P6+portfolio) | 7/7 | ≥ 0.80 recall each (spec target) | ✅ |
   - Pass/fail per synthetic case, not a recall rate over a labeled corpus - see Known Limitations.
 | Perturbation | Result | Expectation | |
 |---|---|---|---|
@@ -63,6 +63,7 @@ Fixture count: 7 cases (small set - see Known Limitations).
 | P4 date/role contradiction | contradictions found: ['overlapping_roles'] | overlapping_roles present | ✅ |
 | P5 forked repo claimed as own | flags=['fork_claimed_as_own', 'tutorial_clone'] | fork_claimed_as_own present | ✅ |
 | P6 no GitHub | band=INSUFFICIENT_EVIDENCE, score=100 vs base 100 | INSUFFICIENT_EVIDENCE, score unchanged | ✅ |
+| Portfolio: dead demo link is weak, not a contradiction | flags=['dead_demo_link'] | dead_demo_link flagged, never a contradiction | ✅ |
 
 ## Determinism
 

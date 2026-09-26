@@ -339,7 +339,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "b5597da4",
+    "candidate_id": "8dd55a79",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Software engineer. Open to backend roles.",
       "skills": [
@@ -439,7 +439,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "b5597da4",
+      "candidate_id": "8dd55a79",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.672,
@@ -807,7 +807,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 1,
+          "latency_ms": 2,
           "status": "ok"
         },
         "authenticity": {
@@ -830,7 +830,7 @@
       "llm_provider": "mock",
       "mock_mode": true,
       "config_version": "1.0.0",
-      "latency_ms": 1,
+      "latency_ms": 3,
       "llm_calls": 2
     }
   }

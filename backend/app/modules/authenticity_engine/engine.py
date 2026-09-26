@@ -12,9 +12,10 @@ import re
 from ...config import cfg
 from .collectors.github import GitHubEvidence, collect_github
 from .collectors.linkedin import LinkedInEvidence, collect_linkedin
+from .collectors.portfolio import PortfolioEvidence, collect_portfolio
 from .consistency import check_anachronisms, check_linkedin_consistency, check_role_overlap
 from .matching import (STATUS_V, authenticity_flags, judge_project_claim, judge_role_claim,
-                       judge_skill_claim)
+                       judge_skill_claim, judge_skill_claim_with_portfolio, portfolio_flags)
 
 BUZZWORDS = {
     "synergy", "rockstar", "ninja", "guru", "passionate", "dynamic", "results-driven",
@@ -124,6 +125,7 @@ async def assess(
     consent: dict | None = None,
     sources: dict | None = None,
     github_fetch=None,
+    portfolio_fetch=None,
 ) -> dict:
     """Stages 1, 5, 6, 7 + live Stage 2/3 for GitHub. Sources absent => UNVERIFIABLE
     => confidence drops only, never a negative judgment (Spec 2.4)."""
@@ -159,6 +161,14 @@ async def assess(
         if li.status == "error":
             source_status["linkedin"] = "error"
 
+    pf = PortfolioEvidence(url="", status="missing")
+    if source_status["portfolio"] == "ok":
+        pf = await collect_portfolio(sources.get("portfolio"), fetch=portfolio_fetch)
+        if pf.status != "ok":
+            # "disallowed" (robots.txt) folds into "error" for sources_used - the spec's
+            # enum is ok|missing|no_consent|error; the exact reason stays on pf.error.
+            source_status["portfolio"] = "error"
+
     n_sources = sum(1 for v in source_status.values() if v == "ok")
 
     cw = cfg("authenticity.claim_weights")
@@ -174,11 +184,14 @@ async def assess(
         total_w += w
 
         if c["type"] == "SKILL":
-            judged = judge_skill_claim(c["text"], gh, required)
+            judged = judge_skill_claim_with_portfolio(c["text"], gh, pf, required)
         elif c["type"] == "PROJECT":
             judged = judge_project_claim(c["text"], gh)
         elif c["type"] == "ROLE":
-            judged = judge_role_claim(c["text"], li)
+            role_company = next(
+                (e.get("company") for e in parsed["experience"] if e.get("title") == c["text"]), None
+            )
+            judged = judge_role_claim(c["text"], li, company=role_company)
         elif c["type"] == "METRIC":
             # Spec 11 Stage 3: METRIC is VERIFIED only with a code/artifact trace,
             # never UNSUPPORTED by default without one.
@@ -291,7 +304,7 @@ async def assess(
         ],
         "claims": out_claims,
         "contradictions": contradictions,
-        "authenticity_flags": authenticity_flags(gh),
+        "authenticity_flags": authenticity_flags(gh) + portfolio_flags(pf),
         "verification_gaps": gaps,
         "recruiter_summary": _recruiter_summary(
             gh, out_claims, confidence, n_sources
