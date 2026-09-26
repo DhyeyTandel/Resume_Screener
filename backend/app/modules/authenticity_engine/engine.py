@@ -11,8 +11,10 @@ import re
 
 from ...config import cfg
 from .collectors.github import GitHubEvidence, collect_github
-from .consistency import check_anachronisms
-from .matching import STATUS_V, authenticity_flags, judge_project_claim, judge_skill_claim
+from .collectors.linkedin import LinkedInEvidence, collect_linkedin
+from .consistency import check_anachronisms, check_linkedin_consistency, check_role_overlap
+from .matching import (STATUS_V, authenticity_flags, judge_project_claim, judge_role_claim,
+                       judge_skill_claim)
 
 BUZZWORDS = {
     "synergy", "rockstar", "ninja", "guru", "passionate", "dynamic", "results-driven",
@@ -151,6 +153,12 @@ async def assess(
         if gh.status == "error":
             source_status["github"] = "error"
 
+    li = LinkedInEvidence(status="missing")
+    if source_status["linkedin"] == "ok":
+        li = collect_linkedin(sources.get("linkedin"))
+        if li.status == "error":
+            source_status["linkedin"] = "error"
+
     n_sources = sum(1 for v in source_status.values() if v == "ok")
 
     cw = cfg("authenticity.claim_weights")
@@ -169,6 +177,8 @@ async def assess(
             judged = judge_skill_claim(c["text"], gh, required)
         elif c["type"] == "PROJECT":
             judged = judge_project_claim(c["text"], gh)
+        elif c["type"] == "ROLE":
+            judged = judge_role_claim(c["text"], li)
         elif c["type"] == "METRIC":
             # Spec 11 Stage 3: METRIC is VERIFIED only with a code/artifact trace,
             # never UNSUPPORTED by default without one.
@@ -198,11 +208,21 @@ async def assess(
             }
         )
 
+    consistency_findings = (
+        check_anachronisms(resume_text)
+        + check_role_overlap(parsed["experience"])
+        + check_linkedin_consistency(parsed["experience"], li)
+    )
     contradictions = [
         {"type": c["type"], "detail": c["detail"], "sources": c["sources"]}
-        for c in check_anachronisms(resume_text)
+        for c in consistency_findings
     ]
-    checks_performed = max(1, len(re.findall(r"\d+\s*\+?\s*years?", resume_text, re.I)))
+    checks_performed = max(
+        1,
+        len(re.findall(r"\d+\s*\+?\s*years?", resume_text, re.I))
+        + max(0, len(parsed["experience"]) - 1)  # pairs of roles checked for overlap
+        + (len(parsed["experience"]) if li.status == "ok" else 0),
+    )
     consistency = round(1 - len(contradictions) / checks_performed, 3)
 
     coverage = round(verifiable_w / total_w, 3) if total_w else 0.0

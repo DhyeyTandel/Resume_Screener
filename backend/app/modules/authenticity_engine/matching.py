@@ -11,6 +11,7 @@ import re
 
 from ...config import cfg
 from .collectors.github import GitHubEvidence, RepoEvidence
+from .collectors.linkedin import LinkedInEvidence
 
 STATUS_V = {
     "VERIFIED": 1.00, "CORROBORATED": 0.75, "WEAK": 0.40,
@@ -117,3 +118,31 @@ def _flag_detail(flag: str, repo: RepoEvidence) -> str:
         "fork_claimed_as_own": f"{repo.name} is a fork with no commits from the candidate.",
         "tutorial_clone": f"{repo.name}'s README references tutorial or coursework material.",
     }.get(flag, flag)
+
+
+def judge_role_claim(role_title: str, li: LinkedInEvidence) -> dict:
+    """Resume vs LinkedIn are both self-reported, so this can only ever reach
+    CORROBORATED (Spec 11 Stage 3 rule), never VERIFIED."""
+    if li.status != "ok" or not li.roles:
+        return {
+            "status": "UNVERIFIABLE", "evidence": [],
+            "rationale": "No accessible LinkedIn export could confirm this role.",
+            "judge_confidence": 0.0,
+        }
+    import difflib
+
+    best = max(li.roles, key=lambda r: difflib.SequenceMatcher(None, role_title.lower(), r.title.lower()).ratio())
+    ratio = difflib.SequenceMatcher(None, role_title.lower(), best.title.lower()).ratio()
+    if ratio >= 0.6:
+        return {
+            "status": "CORROBORATED",
+            "evidence": [{"source": "linkedin", "citation": f"linkedin_export:role:{best.title}",
+                         "note": f"title similarity {ratio:.2f}"}],
+            "rationale": f"A matching role appears in the candidate's LinkedIn export.",
+            "judge_confidence": 0.7,
+        }
+    return {
+        "status": "UNSUPPORTED", "evidence": [],
+        "rationale": "No matching role was found in the LinkedIn export.",
+        "judge_confidence": 0.5,
+    }

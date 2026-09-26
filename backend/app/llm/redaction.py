@@ -4,6 +4,10 @@ import re
 
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 PHONE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
+# A bare "2019 - 2026" year range satisfies the loose PHONE pattern above; it
+# must never be redacted (dates are job-relevant, kept for scoring). Skip a
+# PHONE match that is exactly two 4-digit years joined by one dash/space run.
+_YEAR_RANGE = re.compile(r"^(19|20)\d{2}\s*[-–]\s*(19|20)\d{2}$")
 URL = re.compile(r"https?://\S+|(?:www\.)\S+")
 _DROP = re.compile(
     r"^\s*(date of birth|dob|age|gender|sex|marital status|nationality|"
@@ -30,7 +34,7 @@ def redact_for_scoring(text: str, *, candidate_name: str | None = None) -> str:
             if len(part) > 2:
                 out = re.sub(rf"\b{re.escape(part)}\b", "[CANDIDATE]", out, flags=re.I)
     out = EMAIL.sub("[CONTACT]", out)
-    out = PHONE.sub("[CONTACT]", out)
+    out = PHONE.sub(lambda m: m.group(0) if _YEAR_RANGE.match(m.group(0).strip()) else "[CONTACT]", out)
     out = URL.sub("[CONTACT]", out)
     out = _INSTITUTION.sub("[INSTITUTION]", out)
     return re.sub(r"\n{3,}", "\n\n", out).strip()

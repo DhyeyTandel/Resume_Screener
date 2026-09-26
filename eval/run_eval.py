@@ -225,7 +225,12 @@ async def eval_e2e_and_perturb() -> tuple[Section, Section]:
             detect_hits += 1 if passed else 0
             rows.append(f"| P3 AI rewrite (facts unchanged) | score {r['overall_match_score']} vs base {base['overall_match_score']} | must be equal | {'✅' if passed else '❌'} |")
         elif meta["type"] == "P4":
-            rows.append(f"| P4 date/title contradiction | not asserted | {meta.get('known_gap', meta['expect'])} | ⚠️ known gap |")
+            auth = r["extensions"].get("authenticity") or {}
+            found = [c["type"] for c in auth.get("contradictions", [])]
+            passed = "overlapping_roles" in found
+            detect_total += 1
+            detect_hits += 1 if passed else 0
+            rows.append(f"| P4 date/role contradiction | contradictions found: {found or 'none'} | overlapping_roles present | {'✅' if passed else '❌'} |")
 
     # P5: forked/tutorial repo claimed as own (GitHub-side).
     r5 = await screen_candidate(jd_text=JD, pasted_text=base_text, candidate_name="p5",
@@ -247,11 +252,10 @@ async def eval_e2e_and_perturb() -> tuple[Section, Section]:
     detect_hits += 1 if p6_pass else 0
     rows.append(f"| P6 no GitHub | band={auth6.get('band')}, score={r6['overall_match_score']} vs base {base['overall_match_score']} | INSUFFICIENT_EVIDENCE, score unchanged | {'✅' if p6_pass else '❌'} |")
 
-    pert.line(fmt_target("Perturbation checks passing (P1/P2/P3/P5/P6)", f"{detect_hits}/{detect_total}",
+    pert.line(fmt_target("Perturbation checks passing (P1/P2/P3/P4/P5/P6)", f"{detect_hits}/{detect_total}",
                          "≥ 0.80 recall each (spec target)", detect_hits == detect_total,
                          "Pass/fail per synthetic case, not a recall rate over a labeled corpus - "
-                         "see Known Limitations. P4 (date/title contradiction) is not implemented "
-                         "(ASSUMPTIONS.md A-6b) and is reported as a known gap, not a pass."))
+                         "see Known Limitations."))
     pert.lines.extend(rows)
     return e2e, pert
 
@@ -312,10 +316,10 @@ async def main() -> None:
         "and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.\n"
         "- Module D's non-accusatory check is a keyword screen, not the LLM-judge or human "
         "spot-check rubric the spec describes.\n"
-        "- Perturbations P1/P2/P3/P5/P6 are checked as single synthetic cases (pass/fail), "
-        "not a recall rate over many labeled examples. P4 (date/title contradiction) is not "
-        "implemented at all (ASSUMPTIONS.md A-6b) — this build's Stage 4 covers technology "
-        "anachronism only, not role-overlap or LinkedIn cross-checks.\n"
+        "- Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a "
+        "recall rate over many labeled examples. P4 checks role-overlap only (from the "
+        "resume alone); Stage 4's LinkedIn date-conflict and title-mismatch checks exist "
+        "(consistency.py) but have no perturbation exercising them yet.\n"
         f"- Total eval wall time: {time.time() - started:.1f}s, all in mock mode with no "
         "network calls.\n"
     )

@@ -31,10 +31,18 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   commits, not diff size, so `bulk_import` detection is approximate). With no source
   collected at all, every claim is still `UNVERIFIABLE` -> `INSUFFICIENT_EVIDENCE`, per the
   spec's own rule - never a negative judgment.
-- **A-6b.** Stage 4 (consistency) implements technology-anachronism detection
-  deterministically (`consistency.py`, `data/tech_release_dates.yaml`). Date-conflict and
-  title/employer-mismatch checks need a second source (LinkedIn) that is not collected, so
-  they are not implemented; only anachronism contributes to the `consistency` score.
+- **A-6b (updated).** Stage 4 (consistency) now implements three checks deterministically:
+  technology anachronism, overlapping full-time roles (from the resume alone - no second
+  source needed), and date-conflict / title-mismatch against a candidate-provided LinkedIn
+  export (`consistency.py`, `collectors/linkedin.py`). LinkedIn accepts a `structured_json`
+  export reliably; a `pdf_export` is parsed with a best-effort heuristic since LinkedIn's
+  PDF layout is not a stable format (noted in the collector's own docstring). **A real bug
+  was found and fixed while wiring this in:** `redact_for_scoring`'s phone-number regex was
+  loose enough to match a bare `"2019 - 2026"` date range and silently replace it with
+  `[CONTACT]`, which would have made Stage 4's overlap check permanently blind on any
+  resume that had already been redacted (i.e. every real screening). Fixed with a guard
+  that exempts year-range matches from phone redaction; regression tests added in
+  `test_redaction.py`.
 - **A-6c.** Band priority when both apply: `assessment_confidence < 0.40` -> 
   `INSUFFICIENT_EVIDENCE` is checked *before* the contradiction-forcing rule, matching the
   literal order the spec states them in (Section 11 Stage 6). A contradiction found on a

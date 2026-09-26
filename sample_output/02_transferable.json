@@ -8,7 +8,7 @@
     "disclaimer": "AI-writing indicators are uncertain and should not be used as a sole hiring decision.",
     "evidence": [
       "buzzword_density: 0.0",
-      "specificity_gap: 0.394",
+      "specificity_gap: 0.418",
       "skill_list_bloat: 0.111",
       "unanchored_metrics: 0.0",
       "opener_repetition: 0.176"
@@ -203,7 +203,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "",
-      "notes": "5 years computed from dated roles.",
+      "notes": "7 years computed from dated roles.",
       "transferability": {}
     },
     {
@@ -335,7 +335,7 @@
     "AWS: Exact Match: No - no adjacent experience found for AWS either."
   ],
   "education_assessment": "A degree at or above the required level was found.",
-  "experience_assessment": "5 years computed from dated roles.",
+  "experience_assessment": "7 years computed from dated roles.",
   "strengths": [
     "Evidence found for Python",
     "Evidence found for Docker",
@@ -358,7 +358,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "47031b7f",
+    "candidate_id": "bc01beb8",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Python web developer with four years building REST services.",
       "skills": [
@@ -381,8 +381,15 @@
           "relevant_points": [
             "Built Django REST APIs for the order management system",
             "Tuned MySQL queries and added indexes, reducing report time by 45 percent",
-            "Containerised services with Docker for staging deploys",
-            "Junior Developer at Halcyon Labs, [CONTACT]",
+            "Containerised services with Docker for staging deploys"
+          ]
+        },
+        {
+          "title": "Junior Developer",
+          "company": "Halcyon Labs",
+          "start": "2019",
+          "end": "2021",
+          "relevant_points": [
             "Maintained Flask microservices and wrote pytest coverage"
           ]
         }
@@ -398,7 +405,7 @@
       ],
       "certifications": [],
       "achievements": [],
-      "total_years": 5.0
+      "total_years": 7.0
     },
     "score_breakdown": {
       "base_score": 72.6,
@@ -492,19 +499,19 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "47031b7f",
+      "candidate_id": "bc01beb8",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.686,
         "reliability": 0.5,
         "consistency": 1.0,
         "coverage": 0.0,
-        "inflation_index": 0.136,
+        "inflation_index": 0.141,
         "assessment_confidence": 0.0
       },
       "inflation_sub_signals": {
         "buzzword_density": 0.0,
-        "specificity_gap": 0.394,
+        "specificity_gap": 0.418,
         "skill_list_bloat": 0.111,
         "unanchored_metrics": 0.0,
         "opener_repetition": 0.176
@@ -688,7 +695,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -727,14 +734,14 @@
         },
         {
           "claim_id": "C15",
-          "type": "ACHIEVEMENT",
-          "text": "Junior Developer at Halcyon Labs, [CONTACT]",
+          "type": "ROLE",
+          "text": "Junior Developer",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
-          "weight": 0.7
+          "weight": 1.0
         },
         {
           "claim_id": "C16",
@@ -1122,7 +1129,7 @@
       "llm_provider": "mock",
       "mock_mode": true,
       "config_version": "1.0.0",
-      "latency_ms": 2,
+      "latency_ms": 3,
       "llm_calls": 2
     }
   }

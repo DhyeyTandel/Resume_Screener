@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "673e6196",
+    "candidate_id": "31ba8d6e",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -476,7 +476,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "673e6196",
+      "candidate_id": "31ba8d6e",
       "band": "NEEDS_VERIFICATION",
       "scores": {
         "authenticity": 0.431,
@@ -652,7 +652,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -1047,7 +1047,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 1,
+          "latency_ms": 2,
           "status": "ok"
         },
         "authenticity": {

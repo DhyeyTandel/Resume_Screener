@@ -8,7 +8,7 @@
     "disclaimer": "AI-writing indicators are uncertain and should not be used as a sole hiring decision.",
     "evidence": [
       "buzzword_density: 0.0",
-      "specificity_gap: 0.389",
+      "specificity_gap: 0.411",
       "skill_list_bloat: 0.111",
       "unanchored_metrics: 0.0",
       "opener_repetition: 0.278"
@@ -199,7 +199,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "",
-      "notes": "5 years computed from dated roles.",
+      "notes": "7 years computed from dated roles.",
       "transferability": {}
     },
     {
@@ -327,7 +327,7 @@
   "missing_or_unclear_skills": [],
   "technical_gaps": [],
   "education_assessment": "A degree at or above the required level was found.",
-  "experience_assessment": "5 years computed from dated roles.",
+  "experience_assessment": "7 years computed from dated roles.",
   "strengths": [
     "Evidence found for Python",
     "Evidence found for FastAPI",
@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "3568677f",
+    "candidate_id": "e1e7b23a",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -375,8 +375,15 @@
             "Built and shipped FastAPI services handling 4000 requests per second, reducing p95 latency from 380ms to 120ms",
             "Designed PostgreSQL schemas and rewrote the settlement query, cutting run time by 60 percent",
             "Ran Kafka consumer groups for the ledger event stream across 12 partitions",
-            "Owned Docker images and the CI/CD pipeline in GitHub Actions",
-            "Backend Engineer at Corvid Systems, [CONTACT]",
+            "Owned Docker images and the CI/CD pipeline in GitHub Actions"
+          ]
+        },
+        {
+          "title": "Backend Engineer",
+          "company": "Corvid Systems",
+          "start": "2019",
+          "end": "2021",
+          "relevant_points": [
             "Wrote Python services and pytest suites for the reconciliation platform"
           ]
         }
@@ -392,7 +399,7 @@
       ],
       "certifications": [],
       "achievements": [],
-      "total_years": 5.0
+      "total_years": 7.0
     },
     "score_breakdown": {
       "base_score": 100.0,
@@ -487,19 +494,19 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "3568677f",
+      "candidate_id": "e1e7b23a",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
         "reliability": 0.5,
         "consistency": 1.0,
         "coverage": 0.0,
-        "inflation_index": 0.156,
+        "inflation_index": 0.16,
         "assessment_confidence": 0.0
       },
       "inflation_sub_signals": {
         "buzzword_density": 0.0,
-        "specificity_gap": 0.389,
+        "specificity_gap": 0.411,
         "skill_list_bloat": 0.111,
         "unanchored_metrics": 0.0,
         "opener_repetition": 0.278
@@ -683,7 +690,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -733,14 +740,14 @@
         },
         {
           "claim_id": "C16",
-          "type": "ACHIEVEMENT",
-          "text": "Backend Engineer at Corvid Systems, [CONTACT]",
+          "type": "ROLE",
+          "text": "Backend Engineer",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
-          "weight": 0.7
+          "weight": 1.0
         },
         {
           "claim_id": "C17",
@@ -1103,7 +1110,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0,
+      "_latency_seconds": 0.0001,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}

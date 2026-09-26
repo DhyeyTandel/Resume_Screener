@@ -61,18 +61,12 @@ def p3_ai_rewrite_same_facts(text: str) -> tuple[str, dict]:
 
 def p4_date_contradiction(text: str) -> tuple[str, dict]:
     """Shifts a role's end year forward so two roles overlap full-time.
-    Expect: a consistency finding (this build's Stage 4 covers anachronism
-    only - see ASSUMPTIONS.md A-6b - so this perturbation is recorded as a
-    known gap, not asserted against)."""
+    Expect: Stage 4's role-overlap check flags this from the resume alone."""
     years = re.findall(r"(\d{4})\s*-\s*(\d{4}|Present)", text)
     if len(years) < 2:
         return text, {"type": "P4", "note": "fewer than 2 dated roles", "expect": "n/a"}
     out = re.sub(r"(\d{4})\s*-\s*(\d{4})", lambda m: f"{m.group(1)} - {int(m.group(1))+5}", text, count=1)
-    return out, {
-        "type": "P4", "expect": "a consistency check should flag the overlap",
-        "known_gap": "Stage 4 in this build only checks technology anachronism, "
-                     "not role-overlap - see ASSUMPTIONS.md A-6b",
-    }
+    return out, {"type": "P4", "expect": "a consistency check should flag the overlap"}
 
 
 def p6_no_github(resume_kwargs: dict) -> tuple[dict, dict]:

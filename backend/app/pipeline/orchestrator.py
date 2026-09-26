@@ -52,6 +52,7 @@ async def screen_candidate(
     candidate_name: str | None = None,
     github_username: str | None = None,
     portfolio_url: str | None = None,
+    linkedin_export: dict | None = None,  # {"type": "pdf_export"|"structured_json", "content": ...}
     consent: dict | None = None,
     llm: LLMClient | None = None,
     github_fetch=None,  # test seam: inject a recorded fetch instead of a live one
@@ -100,7 +101,8 @@ async def screen_candidate(
                 parsed,
                 [r["requirement"] for r in requirements],
                 consent=consent,
-                sources={"github": github_username, "portfolio": portfolio_url},
+                sources={"github": github_username, "portfolio": portfolio_url,
+                        "linkedin": linkedin_export},
                 github_fetch=github_fetch,
             )
 

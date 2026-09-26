@@ -53,14 +53,14 @@ Fixture count: 7 cases (small set - see Known Limitations).
 
 ## Perturbations (Spec 16.1 P1-P6)
 
-| Perturbation checks passing (P1/P2/P3/P5/P6) | 5/5 | ≥ 0.80 recall each (spec target) | ✅ |
-  - Pass/fail per synthetic case, not a recall rate over a labeled corpus - see Known Limitations. P4 (date/title contradiction) is not implemented (ASSUMPTIONS.md A-6b) and is reported as a known gap, not a pass.
+| Perturbation checks passing (P1/P2/P3/P4/P5/P6) | 6/6 | ≥ 0.80 recall each (spec target) | ✅ |
+  - Pass/fail per synthetic case, not a recall rate over a labeled corpus - see Known Limitations.
 | Perturbation | Result | Expectation | |
 |---|---|---|---|
 | P1 skill injection | 0 injected skills read Matched | none should | ✅ |
 | P2 metric inflation | authenticity 0.684 vs base 0.684 | should not increase | ✅ |
 | P3 AI rewrite (facts unchanged) | score 100 vs base 100 | must be equal | ✅ |
-| P4 date/title contradiction | not asserted | Stage 4 in this build only checks technology anachronism, not role-overlap - see ASSUMPTIONS.md A-6b | ⚠️ known gap |
+| P4 date/role contradiction | contradictions found: ['overlapping_roles'] | overlapping_roles present | ✅ |
 | P5 forked repo claimed as own | flags=['fork_claimed_as_own', 'tutorial_clone'] | fork_claimed_as_own present | ✅ |
 | P6 no GitHub | band=INSUFFICIENT_EVIDENCE, score=100 vs base 100 | INSUFFICIENT_EVIDENCE, score unchanged | ✅ |
 
@@ -79,5 +79,5 @@ Module B's claim-extraction F1, claim-status macro-F1, false-accusation rate, P3
 - Module A's fixture set is 8 hand-built cases, not the larger red-team corpus the spec implies; the recall/FPR figures above are exact but small-sample.
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
-- Perturbations P1/P2/P3/P5/P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. P4 (date/title contradiction) is not implemented at all (ASSUMPTIONS.md A-6b) — this build's Stage 4 covers technology anachronism only, not role-overlap or LinkedIn cross-checks.
+- Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. P4 checks role-overlap only (from the resume alone); Stage 4's LinkedIn date-conflict and title-mismatch checks exist (consistency.py) but have no perturbation exercising them yet.
 - Total eval wall time: 0.1s, all in mock mode with no network calls.

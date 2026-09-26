@@ -8,7 +8,7 @@
     "disclaimer": "AI-writing indicators are uncertain and should not be used as a sole hiring decision.",
     "evidence": [
       "buzzword_density: 0.0",
-      "specificity_gap: 0.414",
+      "specificity_gap: 0.443",
       "skill_list_bloat: 0.0",
       "unanchored_metrics: 0.0",
       "opener_repetition: 0.333"
@@ -193,7 +193,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "",
-      "notes": "6 years computed from dated roles.",
+      "notes": "7 years computed from dated roles.",
       "transferability": {}
     },
     {
@@ -325,7 +325,7 @@
     "Pytest: Exact Match: No - no adjacent experience found for Pytest either."
   ],
   "education_assessment": "A degree at or above the required level was found.",
-  "experience_assessment": "6 years computed from dated roles.",
+  "experience_assessment": "7 years computed from dated roles.",
   "strengths": [
     "Evidence found for Python",
     "Evidence found for FastAPI",
@@ -348,7 +348,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "6f44a22e",
+    "candidate_id": "d7cefb9d",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Backend engineer, four years, mostly on closed-source enterprise systems under NDA.",
       "skills": [
@@ -369,8 +369,15 @@
           "relevant_points": [
             "Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA",
             "Ran Kafka pipelines for appointment event processing",
-            "Deployed with Docker across an on-prem cluster",
-            "Backend Developer at Ridgeline Analytics, [CONTACT]",
+            "Deployed with Docker across an on-prem cluster"
+          ]
+        },
+        {
+          "title": "Backend Developer",
+          "company": "Ridgeline Analytics",
+          "start": "2019",
+          "end": "2020",
+          "relevant_points": [
             "Python services for internal reporting, no public repositories"
           ]
         }
@@ -381,7 +388,7 @@
       ],
       "certifications": [],
       "achievements": [],
-      "total_years": 6.0
+      "total_years": 7.0
     },
     "score_breakdown": {
       "base_score": 87.5,
@@ -475,19 +482,19 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "6f44a22e",
+      "candidate_id": "d7cefb9d",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
-        "authenticity": 0.685,
+        "authenticity": 0.684,
         "reliability": 0.5,
         "consistency": 1.0,
         "coverage": 0.0,
-        "inflation_index": 0.149,
+        "inflation_index": 0.155,
         "assessment_confidence": 0.0
       },
       "inflation_sub_signals": {
         "buzzword_density": 0.0,
-        "specificity_gap": 0.414,
+        "specificity_gap": 0.443,
         "skill_list_bloat": 0.0,
         "unanchored_metrics": 0.0,
         "opener_repetition": 0.333
@@ -626,7 +633,7 @@
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
           "weight": 1.0
         },
@@ -665,14 +672,14 @@
         },
         {
           "claim_id": "C12",
-          "type": "ACHIEVEMENT",
-          "text": "Backend Developer at Ridgeline Analytics, [CONTACT]",
+          "type": "ROLE",
+          "text": "Backend Developer",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
+          "rationale": "No accessible LinkedIn export could confirm this role.",
           "judge_confidence": 0.0,
-          "weight": 0.7
+          "weight": 1.0
         },
         {
           "claim_id": "C13",
@@ -1057,7 +1064,7 @@
       "llm_provider": "mock",
       "mock_mode": true,
       "config_version": "1.0.0",
-      "latency_ms": 2,
+      "latency_ms": 3,
       "llm_calls": 2
     }
   }

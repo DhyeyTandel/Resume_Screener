@@ -55,7 +55,7 @@ Resume ──┴─► [0 Parse] ─► [1 Integrity Guard A] ─► visible tex
 |---|---|---|
 | Core | `modules/core_screening/` | built |
 | A Integrity Guard | `modules/integrity_guard/` | built (PDF spans need PyMuPDF) |
-| B Authenticity | `modules/authenticity_engine/` | Stages 1, 4 (anachronism), 5, 6, 7 + live GitHub collector/judge |
+| B Authenticity | `modules/authenticity_engine/` | Stages 1, 4, 5, 6, 7 + live GitHub + LinkedIn collectors/judge |
 | C Skill Intelligence | `modules/skill_intelligence/` | built |
 | D Interview Questions | `modules/interview_questions/` | built |
 | Policy | `policy/scoring.py`, `policy/recommendation.py` | built - all arithmetic lives here |
@@ -80,7 +80,7 @@ Not by prompt wording - by code, with a test for each:
 | `01_strong_match` | Shortlist, 100 | every must-have evidenced |
 | `02_transferable` | Review Manually, 73 | FastAPI/PostgreSQL Strongly Transferable, not Missing |
 | `05_private_work` | Shortlist, 88 | no GitHub given -> INSUFFICIENT_EVIDENCE, never blocks shortlist |
-| `06_inflated_contradicted` | Review Manually, band NEEDS_VERIFICATION | a fork with 0 candidate commits + a "12 years of FastAPI" anachronism |
+| `06_inflated_contradicted` | Review Manually, band NEEDS_VERIFICATION | a fork with 0 candidate commits + a "12 years of FastAPI" anachronism, once GitHub evidence clears the 0.40 confidence floor |
 | `07_brief` | Review Manually, 100 | caught on confidence 0.24, not on score |
 | `03_hidden_text_attack` | Review Manually, base 100 × 0.40 = 40 | both numbers shown |
 
@@ -95,6 +95,6 @@ estimated (Spec 0.5 forbids fabricating results).
 
 ## Not built
 
-See PLAN.md and ASSUMPTIONS.md. In short: Module B's LinkedIn/portfolio collectors and
-the date/title consistency check that depends on them (P4), a real annotated dataset for
-Module B's harder metrics, SQLite persistence, Docker, and the Vite/React frontend.
+See PLAN.md and ASSUMPTIONS.md. In short: Module B's portfolio collector, a real
+annotated dataset for Module B's harder metrics, SQLite persistence, Docker, and the
+Vite/React frontend.

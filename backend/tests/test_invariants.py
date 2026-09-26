@@ -158,6 +158,46 @@ async def test_every_gap_reaches_module_d_and_no_strong_item_gets_a_question():
     assert not (asked & set(d["skipped_strong_evidence"]))
 
 
+async def test_overlapping_roles_is_detected_and_forces_review_once_confidence_clears_the_floor():
+    """P4: a resume claiming two full-time roles at once is a real contradiction
+    the pipeline can catch without any second source. The contradiction is
+    always visible in `contradictions`; per A-6c it is promoted to the
+    NEEDS_VERIFICATION band once assessment_confidence clears the 0.40 floor
+    (with too few sources it shows as INSUFFICIENT_EVIDENCE instead - the same
+    priority already exercised by the 06_inflated_contradicted scenario)."""
+    overlapping = STRONG.replace(
+        "Backend Engineer at Corvid Systems, 2019 - 2021",
+        "Backend Engineer at Corvid Systems, 2019 - 2026",
+    )
+    bare = await run(overlapping)
+    a0 = bare["extensions"]["authenticity"]
+    assert any(c["type"] == "overlapping_roles" for c in a0["contradictions"])
+    assert a0["band"] == "INSUFFICIENT_EVIDENCE"  # too few sources to reach 0.40
+
+    with_gh = await screen_candidate(
+        jd_text=JD, pasted_text=overlapping, llm=LLMClient("mock"),
+        github_username="priya", github_fetch=make_fetch("priya"))
+    a1 = with_gh["extensions"]["authenticity"]
+    assert any(c["type"] == "overlapping_roles" for c in a1["contradictions"])
+    assert a1["band"] == "NEEDS_VERIFICATION"
+    assert with_gh["recommendation"] == "Review Manually"
+
+
+async def test_linkedin_export_corroborates_a_role_claim():
+    r = await run(
+        STRONG,
+        linkedin_export={"type": "structured_json", "content": {
+            "roles": [{"title": "Senior Backend Engineer", "company": "Northwind Payments",
+                      "start": "2021", "end": "Present"}],
+        }},
+    )
+    a = r["extensions"]["authenticity"]
+    assert a["sources_used"]["linkedin"] == "ok"
+    role_claims = [c for c in a["claims"] if c["type"] == "ROLE"
+                  and c["text"] == "Senior Backend Engineer"]
+    assert role_claims and role_claims[0]["status"] == "CORROBORATED"
+
+
 async def test_determinism_same_input_three_times():
     runs = [await run(TRANSFERABLE) for _ in range(3)]
     bands = {(r["overall_match_score"], r["recommendation"],

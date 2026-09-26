@@ -36,3 +36,21 @@ def test_job_relevant_content_survives():
 def test_detector():
     assert has_protected_attributes(RESUME)
     assert not has_protected_attributes("Built FastAPI services and tuned PostgreSQL queries.")
+
+
+def test_year_ranges_survive_redaction():
+    """Regression: the phone-number regex is loose enough to match a bare
+    "2019 - 2026" date range. Dates are job-relevant and must never be
+    redacted, or Stage 4's overlap detection loses its input silently."""
+    text = "Backend Engineer at Acme, 2019 - 2026\nJunior Dev at Old Co, 2018 - 2019"
+    out = redact_for_scoring(text)
+    assert "2019 - 2026" in out
+    assert "2018 - 2019" in out
+    assert "[CONTACT]" not in out
+
+
+def test_real_phone_number_still_redacted_next_to_a_year():
+    text = "Contact: +1 555 0100\nExperience 2019 - 2026 at Acme"
+    out = redact_for_scoring(text)
+    assert "555" not in out
+    assert "2019 - 2026" in out

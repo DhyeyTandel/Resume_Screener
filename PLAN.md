@@ -12,7 +12,7 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 | M1 parsing + Module A scanner + interpreter + red-team tests | **done** (PDF span geometry needs PyMuPDF, A-5) |
 | M2 Core + scoring/recommendation policy + `POST /v1/screenings` | **done** |
 | M3 Module C graph, semantic matching, transferability | **done** (lexical+graph similarity, A-4) |
-| M4-M5 Module B | **partial**: Stages 1, 4 (anachronism only), 5, 6, 7 + a live GitHub collector and a deterministic Stage-3 judge done. LinkedIn/portfolio collectors + LLM judge not built (A-6) |
+| M4-M5 Module B | **partial**: Stages 1, 4, 5, 6, 7 + live GitHub and LinkedIn collectors and a deterministic Stage-3 judge done. Portfolio collector + LLM judge not built (A-6) |
 | M6 Module D + adapter + orchestrator + unified report + invariants | **done** |
 | M7 Frontend | **done** as a single-file dashboard (A-8) |
 | M8 `perturb.py` + eval harness + `report.md` | **done** - see eval/report.md, measured not estimated |
@@ -20,9 +20,9 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 
 ## Risks
 
-1. **Module B still lacks LinkedIn and portfolio collectors.** GitHub evidence alone can
-   verify or leave `UNSUPPORTED` a skill/project claim; it cannot catch a LinkedIn
-   date conflict or a title mismatch (Stage 4's fuller form).
+1. **Module B still lacks a portfolio collector.** GitHub + LinkedIn cover skill,
+   project and role claims; a live-demo-link / project-description cross-check against a
+   candidate's portfolio site is not built.
 2. **No eval harness yet**, so none of the Section 16.2 targets have measured values. No
    threshold in `config.yaml` has been tuned against data; they are the spec's defaults.
 3. **PDF integrity detection is dependency-gated** (A-5). Install PyMuPDF before demoing
@@ -34,8 +34,8 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 ## Next, in order
 
 1. `pip install PyMuPDF pdfplumber`, then add PDF red-team fixtures generated as real files.
-2. Module B: LinkedIn export parser (Stage 2) + date/title consistency checks (P4, Stage 4)
-   + portfolio collector (trafilatura/BS4 + robots.txt).
+2. Module B: portfolio collector (trafilatura/BS4 + robots.txt) + graduation-year
+   consistency check (experience dates vs education, Spec 11 Stage 4).
 3. Collect a real, consenting-candidate dataset and re-run `eval/run_eval.py`'s "Not
    evaluated here" metrics (claim-extraction F1, AUROC, fairness gap, calibration ECE);
    only then tune thresholds, on a held-out split (never the test set).
