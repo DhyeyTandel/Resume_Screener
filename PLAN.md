@@ -15,7 +15,7 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 | M4-M5 Module B | **partial**: Stages 1, 4 (anachronism only), 5, 6, 7 + a live GitHub collector and a deterministic Stage-3 judge done. LinkedIn/portfolio collectors + LLM judge not built (A-6) |
 | M6 Module D + adapter + orchestrator + unified report + invariants | **done** |
 | M7 Frontend | **done** as a single-file dashboard (A-8) |
-| M8 `perturb.py` + eval harness + `report.md` | **not built** |
+| M8 `perturb.py` + eval harness + `report.md` | **done** - see eval/report.md, measured not estimated |
 | M9 README, Docker, demo script | README done; Docker not built |
 
 ## Risks
@@ -34,8 +34,9 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 ## Next, in order
 
 1. `pip install PyMuPDF pdfplumber`, then add PDF red-team fixtures generated as real files.
-2. Module B: LinkedIn export parser (Stage 2) + date/title consistency checks (Stage 4)
+2. Module B: LinkedIn export parser (Stage 2) + date/title consistency checks (P4, Stage 4)
    + portfolio collector (trafilatura/BS4 + robots.txt).
-3. `eval/perturb.py` (P1-P6) and `eval/run_eval.py`; only then tune thresholds, on a
-   held-out split.
+3. Collect a real, consenting-candidate dataset and re-run `eval/run_eval.py`'s "Not
+   evaluated here" metrics (claim-extraction F1, AUROC, fairness gap, calibration ECE);
+   only then tune thresholds, on a held-out split (never the test set).
 4. SQLite persistence for screenings, candidates and the audit log.

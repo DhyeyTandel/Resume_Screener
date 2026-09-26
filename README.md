@@ -84,9 +84,17 @@ Not by prompt wording - by code, with a test for each:
 | `07_brief` | Review Manually, 100 | caught on confidence 0.24, not on score |
 | `03_hidden_text_attack` | Review Manually, base 100 × 0.40 = 40 | both numbers shown |
 
+## Evaluation
+
+`make eval` runs `eval/run_eval.py` against real code (Module A scanner, Module C
+transferability, Module D generation, the full pipeline, and 5 of the 6 spec
+perturbations) and writes `eval/report.md` from measured values only. Numbers that would
+need a real hand-labeled dataset - claim-extraction F1, AUROC, calibration ECE, the
+fairness false-flag gap - are listed as **not evaluated**, with the reason, rather than
+estimated (Spec 0.5 forbids fabricating results).
+
 ## Not built
 
 See PLAN.md and ASSUMPTIONS.md. In short: Module B's LinkedIn/portfolio collectors and
-the date/title consistency checks that depend on them, the eval harness and
-`eval/report.md`, SQLite persistence, Docker, and the Vite/React frontend.
-**No evaluation numbers are claimed anywhere, because no eval has been run.**
+the date/title consistency check that depends on them (P4), a real annotated dataset for
+Module B's harder metrics, SQLite persistence, Docker, and the Vite/React frontend.
