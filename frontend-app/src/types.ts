@@ -68,6 +68,7 @@ export interface Authenticity {
 export interface IntegrityFinding {
   code: string;
   plain_explanation: string;
+  quoted_evidence?: string;
   why_it_matters: string;
   benign_alternative: string;
 }

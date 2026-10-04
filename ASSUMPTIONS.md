@@ -128,3 +128,9 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   text boxes, comments and field codes; background is assumed white. The upload size limit
   is now `ingest.max_bytes` in config. DOCTYPE/ENTITY declarations in document.xml are
   rejected to avoid entity-expansion attacks.
+- **A-14 (hidden-text quote).** Spec 8.2 requires the integrity report to quote at most 15
+  words of hidden text, always labelled `hidden text reads: "..."`. This was missing until
+  the end-to-end tests showed the Integrity tab never displayed it. The quote is built in
+  code from the scanner's own evidence (never from model output, so a model cannot forge
+  one) and only for HIDDEN_TEXT / INJECTION_HIDDEN findings. The Playwright suite asserts
+  the injected phrase appears nowhere on the page outside those labelled quotes.

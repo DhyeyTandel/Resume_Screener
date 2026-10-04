@@ -109,6 +109,19 @@ def enforce_guardrails(result: dict, scanner: dict, base_score: float) -> dict:
         for f in scanner["flags"]
     ]
 
+    # Spec 8.2: quote at most 15 words of hidden text, always labelled. Built here from
+    # the scanner's own (already <=15-word) evidence, never from model output, so the
+    # recruiter sees exactly what the file contained and the label marks it as inert data.
+    evidence_by_code = {f["code"]: f.get("evidence", "") for f in scanner["flags"]}
+    for f in out["findings"]:
+        ev = evidence_by_code.get(f["code"], "")
+        if f["code"] in ("HIDDEN_TEXT", "INJECTION_HIDDEN") and ev:
+            words = ev.split()
+            quoted = " ".join(words[:15]) + ("..." if len(words) > 15 and not ev.endswith("...") else "")
+            f["quoted_evidence"] = f'hidden text reads: "{quoted}"'
+        else:
+            f.pop("quoted_evidence", None)
+
     # No guilt language anywhere in the prose.
     for key in ("headline", "intent_reasoning", "audit_log_entry"):
         text = str(out.get(key, ""))

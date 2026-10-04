@@ -276,6 +276,11 @@ export function IntegrityTab({ r }: { r: Report }) {
             <li key={k} className="rounded-lg border border-line border-l-4 border-l-stop p-3">
               <strong>{f.code.replace(/_/g, " ")}</strong>
               <p>{f.plain_explanation}</p>
+              {f.quoted_evidence && (
+                <p className="my-1 rounded bg-canvas px-2 py-1 font-mono text-xs text-ink" data-testid="quoted-evidence">
+                  {f.quoted_evidence}
+                </p>
+              )}
               <p className="text-xs text-muted">Why it matters: {f.why_it_matters}</p>
               <p className="text-xs text-muted">Possible innocent explanation: {f.benign_alternative}</p>
             </li>

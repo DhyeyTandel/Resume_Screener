@@ -35,10 +35,10 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 ## Next, in order
 
 1. `pip install PyMuPDF pdfplumber`, then add PDF red-team fixtures generated as real files.
-2. Frontend tests (component/e2e); the React app is verified by hand in a browser
-   at desktop and phone width but has no automated UI tests yet.
+2. Frontend coverage beyond the current 29 component and 5 Playwright tests (DOCX upload
+   through the UI, keyboard-only walkthrough of every tab).
 3. Collect a real, consenting-candidate dataset and re-run `eval/run_eval.py`'s "Not
    evaluated here" metrics (claim-extraction F1, AUROC, fairness gap, calibration ECE);
    only then tune thresholds, on a held-out split (never the test set).
-4. Real PDF and DOCX uploads through the React UI have only been exercised via the
-   API, not by clicking through the browser.
+4. Integrity on real-world (not synthetic) resumes: theme colours, headers/footers,
+   text boxes and docDefaults sizing in DOCX are not modelled (ASSUMPTIONS.md A-13).

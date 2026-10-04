@@ -99,4 +99,5 @@ estimated (Spec 0.5 forbids fabricating results).
 
 See PLAN.md and ASSUMPTIONS.md. In short: Module B's Stage 3 judge is deterministic
 rule-based rather than an LLM judge, a real annotated dataset for Module B's harder
-metrics, and automated frontend tests. The Docker image is built and health-checked in CI.
+metrics. CI runs backend tests, lint, eval, 29 frontend component tests, 5 Playwright
+end-to-end tests against the real backend, and a Docker build with a health check.
