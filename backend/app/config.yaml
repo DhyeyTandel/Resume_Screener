@@ -7,6 +7,7 @@ llm:
   temperature: 0
   max_retries: 2
   timeout_s: 60
+ingest: { max_bytes: 10485760 }
 integrity:
   hidden_font_pt_max: 4.0
   min_contrast_ratio: 1.3

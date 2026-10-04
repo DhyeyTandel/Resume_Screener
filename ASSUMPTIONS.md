@@ -111,3 +111,20 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   review before merge found that without this, the model could cite any authored repo
   (for example a Python service, for a Kafka claim) and turn an unsupported claim into a
   verified one. The judge proposes nothing in mock mode, so sample outputs are unchanged.
+- **A-13 (real-DOCX bugs).** Running the integrity scanner against generated Word files
+  (`backend/tests/fixtures/docx/`, stdlib-only generator, checked to render correctly in
+  LibreOffice) exposed three bugs in the original DOCX loader, each confirmed by running
+  the previous committed loader against the same files:
+  (1) **Quarantine bypass:** text hidden through a Word *style* (rather than direct run
+  formatting) was treated as visible, so a style-hidden prompt injection scored as a clean
+  document and went straight into the scoring prompts. Styles (paragraph, character,
+  `basedOn` chains) are now resolved.
+  (2) **Fairness bug:** visibility was decided per paragraph from its first colour, so one
+  white run in a paragraph made the loader drop the candidate's genuine visible text in that
+  paragraph (in the fixture, their degree line). Visibility is now decided per run.
+  (3) Every hidden-text DOCX raised a spurious PARSER_DIVERGENCE because the loader listed
+  the same parse twice as two "parsers".
+  Not modelled: theme colours, `docDefaults` sizing, highlight/shading, headers, footers,
+  text boxes, comments and field codes; background is assumed white. The upload size limit
+  is now `ingest.max_bytes` in config. DOCTYPE/ENTITY declarations in document.xml are
+  rejected to avoid entity-expansion attacks.

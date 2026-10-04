@@ -10,7 +10,8 @@ import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
 
-MAX_BYTES = 10 * 1024 * 1024
+from ..config import cfg
+
 SUPPORTED = (".pdf", ".docx", ".txt", ".md")
 
 
@@ -41,8 +42,13 @@ class ParsedDoc:
 
 
 def load(filename: str, data: bytes) -> ParsedDoc:
-    if len(data) > MAX_BYTES:
-        raise UnreadableFile("File is larger than 10 MB.", "Compress the file or paste the text.")
+    max_bytes = int(cfg("ingest.max_bytes", 10 * 1024 * 1024))
+    if len(data) > max_bytes:
+        mb = max_bytes / (1024 * 1024)
+        raise UnreadableFile(
+            f"File is larger than the {mb:g} MB upload limit.",
+            "Compress or re-export the file under the limit, or paste the text instead.",
+        )
     low = filename.lower()
     if not low.endswith(SUPPORTED):
         raise UnreadableFile(
@@ -64,40 +70,131 @@ def from_text(text: str, source: str = "pasted") -> ParsedDoc:
     )
 
 
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_OFF = ("0", "false", "off")
+
+
+def _wval(el) -> str | None:
+    return None if el is None else el.get(_W + "val")
+
+
+def _rpr_props(rpr) -> dict:
+    """Run properties that matter for visibility: vanish, colour, size (pt)."""
+    out: dict = {}
+    if rpr is None:
+        return out
+    v = rpr.find(_W + "vanish")
+    if v is not None:
+        out["vanish"] = (_wval(v) or "true").lower() not in _OFF
+    c = _wval(rpr.find(_W + "color"))
+    if c is not None:
+        out["color"] = int(c, 16) if re.fullmatch(r"[0-9A-Fa-f]{6}", c) else 0x000000
+    sz = _wval(rpr.find(_W + "sz"))
+    if sz and sz.isdigit():
+        out["size"] = int(sz) / 2  # w:sz is in half-points
+    return out
+
+
+def _style_table(styles_xml: str) -> dict[str, tuple[str | None, dict]]:
+    """styleId -> (basedOn, props). Only the visibility-related props are kept."""
+    import xml.etree.ElementTree as ET
+
+    table: dict[str, tuple[str | None, dict]] = {}
+    try:
+        root = ET.fromstring(styles_xml)
+    except ET.ParseError:
+        return table
+    for st in root.iter(_W + "style"):
+        sid = st.get(_W + "styleId")
+        if sid:
+            table[sid] = (_wval(st.find(_W + "basedOn")), _rpr_props(st.find(_W + "rPr")))
+    return table
+
+
+def _resolve_style(table: dict, sid: str | None) -> dict:
+    """Props of a style merged down its basedOn chain (child wins)."""
+    chain: list[dict] = []
+    seen: set[str] = set()
+    while sid and sid in table and sid not in seen:
+        seen.add(sid)
+        based, props = table[sid]
+        chain.append(props)
+        sid = based
+    merged: dict = {}
+    for props in reversed(chain):
+        merged.update(props)
+    return merged
+
+
+def _run_text(run) -> str:
+    parts: list[str] = []
+    for el in run:
+        if el.tag == _W + "t":
+            parts.append(el.text or "")
+        elif el.tag == _W + "tab":
+            parts.append("\t")
+        elif el.tag in (_W + "br", _W + "cr"):
+            parts.append("\n")
+    return "".join(parts)
+
+
 def _docx(data: bytes, filename: str) -> ParsedDoc:
+    import html
+    import xml.etree.ElementTree as ET
+
     try:
         with zipfile.ZipFile(BytesIO(data)) as z:
-            xml = z.read("word/document.xml").decode("utf-8", "replace")
-            core = ""
-            if "docProps/core.xml" in z.namelist():
-                core = z.read("docProps/core.xml").decode("utf-8", "replace")
+            names = z.namelist()
+            raw = z.read("word/document.xml")
+            if b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw.upper():
+                raise ValueError("DTD or entity declarations are not allowed")
+            root = ET.fromstring(raw)
+            core = z.read("docProps/core.xml").decode("utf-8", "replace") if "docProps/core.xml" in names else ""
+            styles_xml = z.read("word/styles.xml").decode("utf-8", "replace") if "word/styles.xml" in names else ""
     except Exception as exc:
         raise UnreadableFile(
             f"The DOCX file could not be opened ({exc}).", "Re-export as PDF or paste the text."
         ) from exc
+    styles = _style_table(styles_xml) if styles_xml else {}
+
+    from ..modules.integrity_guard.scanner import is_hidden
+
     spans: list[Span] = []
-    visible: list[str] = []
-    for para in re.findall(r"<w:p[ >].*?</w:p>", xml, re.S) or re.findall(r"<w:p\b.*?</w:p>", xml, re.S):
-        text = "".join(re.findall(r"<w:t[^>]*>(.*?)</w:t>", para, re.S))
-        text = re.sub(r"<[^>]+>", "", text).strip()
-        if not text:
-            continue
-        hidden = "<w:vanish" in para
-        m = re.search(r'<w:color w:val="([0-9A-Fa-f]{6})"', para)
-        color = int(m.group(1), 16) if m else 0x000000
-        sz = re.search(r'<w:sz w:val="(\d+)"', para)
-        size = int(sz.group(1)) / 2 if sz else 11.0
-        spans.append(Span(text=text, size=0.5 if hidden else size, color=color))
-        if not hidden and color != 0xFFFFFF and size > 4.0:
-            visible.append(text)
+    visible_paras: list[str] = []
+    for para in root.iter(_W + "p"):
+        ppr = para.find(_W + "pPr")
+        para_style = _resolve_style(styles, _wval(ppr.find(_W + "pStyle")) if ppr is not None else None)
+        visible_runs: list[str] = []
+        for run in para.iter(_W + "r"):
+            text = _run_text(run)
+            if not text.strip():
+                if text:
+                    visible_runs.append(text)  # keep spacing between runs
+                continue
+            rpr = run.find(_W + "rPr")
+            # Precedence: paragraph style < character style < direct formatting.
+            props = dict(para_style)
+            props.update(_resolve_style(styles, _wval(rpr.find(_W + "rStyle")) if rpr is not None else None))
+            props.update(_rpr_props(rpr))
+            hidden = bool(props.get("vanish"))
+            size = float(props.get("size", 11.0))
+            span = Span(text=text, size=0.5 if hidden else size, color=int(props.get("color", 0)))
+            spans.append(span)
+            if not is_hidden(span, (612.0, 792.0)):
+                visible_runs.append(text)
+        line = "".join(visible_runs).strip()
+        if line:
+            visible_paras.append(line)
     meta = {
-        k: v
-        for k, v in re.findall(r"<(?:dc|cp):(\w+)>([^<]*)</(?:dc|cp):\w+>", core)
+        k: html.unescape(v)
+        for k, v in re.findall(r"<(?:dc|cp):(\w+)(?:\s[^>]*)?>([^<]*)</(?:dc|cp):\w+>", core)
     }
-    body = "\n".join(visible)
+    body = "\n".join(visible_paras)
     return ParsedDoc(
         visible_text=body,
-        raw_text_by_parser={"docx": body, "docx_all": "\n".join(s.text for s in spans)},
+        # One entry only: the hidden runs are not a second parser's view, and a second
+        # entry would make the scanner report spurious PARSER_DIVERGENCE.
+        raw_text_by_parser={"docx": body},
         spans=spans,
         metadata=meta,
         source=filename,

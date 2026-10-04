@@ -96,7 +96,87 @@ async def eval_module_a() -> Section:
     s.line(fmt_target("False-positive rate on clean+OCR", f"{fpr:.2f} ({fp_hits}/{fp_total})", "≤ 0.02", fpr <= 0.02))
     s.line(fmt_target("Injection invariance", f"{invariance_ok}/1", "100%", invariance_ok == 1))
     s.line(f"\nFixture count: {recall_total + fp_total} cases (small set - see Known Limitations).")
+    _real_file_table(s)
     return s
+
+
+# Expected outcome per real fixture file: (verdict, flag codes that must be present,
+# flag codes that must be absent, group). "attack_set" files count toward recall,
+# "clean_set" files toward the false-positive rate.
+_HID = {"HIDDEN_TEXT"}
+_INJ = {"HIDDEN_TEXT", "INJECTION_HIDDEN"}
+REAL_EXPECT = {
+    "pdfs/clean.pdf": ("clean", set(), _HID, "clean_set"),
+    "pdfs/ocr_layer.pdf": ("clean", {"OCR_LAYER"}, _HID, "clean_set"),
+    "pdfs/white_text.pdf": ("suspicious", _HID, set(), "attack_set"),
+    "pdfs/tiny_font.pdf": ("suspicious", _HID, set(), "attack_set"),
+    "pdfs/offpage.pdf": ("suspicious", _HID, set(), "attack_set"),
+    "pdfs/injection_hidden.pdf": ("attack", _INJ, set(), "attack_set"),
+    "pdfs/jd_clone_hidden.pdf": ("attack", {"HIDDEN_TEXT", "JD_CLONE"}, set(), "attack_set"),
+    "pdfs/metadata_stuffed.pdf": ("suspicious", {"METADATA_STUFF"}, set(), "attack_set"),
+    "docx/clean.docx": ("clean", set(), _HID, "clean_set"),
+    "docx/vanish.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/white_text.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/tiny_font.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/mixed_run.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/style_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/injection_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/jd_clone_hidden.docx": ("attack", {"HIDDEN_TEXT", "JD_CLONE"}, set(), "attack_set"),
+    "docx/metadata_stuffed.docx": ("suspicious", {"METADATA_STUFF"}, set(), "attack_set"),
+}
+
+
+def _real_file_table(s: Section) -> None:
+    """Module A on real generated PDF/DOCX files, through the real loader."""
+    from app.parsing.loader import load
+
+    fixtures = ROOT / "backend/tests/fixtures"
+    rows, hits, attack_total, fp, clean_total, exact = [], 0, 0, 0, 0, 0
+    on_disk = {f"{p.parent.name}/{p.name}" for ext in ("pdfs/*.pdf", "docx/*.docx") for p in fixtures.glob(ext)}
+    for rel in sorted(on_disk | set(REAL_EXPECT)):
+        path = fixtures / rel
+        if rel not in REAL_EXPECT:
+            rows.append(f"| {rel} | (no expectation defined) | - | ❌ |")
+            continue
+        verdict, must, must_not, group = REAL_EXPECT[rel]
+        if not path.exists():
+            rows.append(f"| {rel} | file missing | {verdict} | ❌ |")
+            continue
+        try:
+            doc = load(path.name, path.read_bytes())
+            out = scan(doc, JD)
+        except Exception as exc:  # a real failure to read is a real finding
+            rows.append(f"| {rel} | load error: {exc} | {verdict} | ❌ |")
+            continue
+        got = {f["code"] for f in out["flags"]}
+        ok = out["verdict"] == verdict and must <= got and not (must_not & got)
+        flagged = out["verdict"] != "clean"
+        if group == "attack_set":
+            attack_total += 1
+            hits += 1 if flagged else 0
+        else:
+            clean_total += 1
+            fp += 1 if flagged else 0
+        exact += 1 if ok else 0
+        expected = verdict + (" + " + ", ".join(sorted(must)) if must else "")
+        rows.append(f"| {rel} | {out['verdict']} ({', '.join(sorted(got)) or 'no flags'}) | "
+                    f"{expected} | {'✅' if ok else '❌'} |")
+    recall = hits / attack_total if attack_total else 0.0
+    fpr = fp / clean_total if clean_total else 0.0
+    s.line("\n### Real files (generated PDF and DOCX, run through the real loader)\n")
+    s.line("| Metric | Measured | Target | |")
+    s.line("|---|---|---|---|")
+    s.line(fmt_target("Recall on real hidden-text/injection/stuffing files",
+                      f"{recall:.2f} ({hits}/{attack_total})", "≥ 0.95", recall >= 0.95))
+    s.line(fmt_target("False-positive rate on real clean+OCR files",
+                      f"{fpr:.2f} ({fp}/{clean_total})", "≤ 0.02", fpr <= 0.02))
+    s.line(fmt_target("Per-file expected verdict and flags", f"{exact}/{len(rows)}", "all", exact == len(rows)))
+    s.line("\n| File | Measured | Expected | |")
+    s.line("|---|---|---|---|")
+    for r in rows:
+        s.line(r)
+    s.line("\nFiles are small synthetic fixtures made by make_pdfs.py and make_docx.py. "
+           "Style-based hiding is covered for run, character and paragraph styles only.")
 
 
 async def eval_module_c() -> Section:
