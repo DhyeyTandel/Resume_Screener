@@ -348,7 +348,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "227a6d84",
+    "candidate_id": "ce23921b",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Backend engineer, four years, mostly on closed-source enterprise systems under NDA.",
       "skills": [
@@ -482,7 +482,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "227a6d84",
+      "candidate_id": "ce23921b",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -504,6 +504,7 @@
         "linkedin": "missing",
         "portfolio": "missing"
       },
+      "source_details": {},
       "skill_evidence": [
         {
           "skill": "Docker",
@@ -739,7 +740,8 @@
         "config_version": "1.0.0",
         "latency_ms": 0,
         "llm_calls": 0
-      }
+      },
+      "verification_gaps_contract": "verification_gaps.v1"
     },
     "skill_intelligence": [
       {
@@ -1065,8 +1067,9 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 2,
-      "llm_calls": 2
+      "latency_ms": 3,
+      "llm_calls": 2,
+      "schema_valid": true
     }
   }
 }

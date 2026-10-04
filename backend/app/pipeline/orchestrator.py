@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import uuid
 
@@ -10,18 +11,20 @@ from ..llm.client import LLMClient
 from ..llm.redaction import redact_for_scoring
 from ..modules.authenticity_engine.engine import assess
 from ..modules.core_screening.core import extract_requirements, match_requirements, structure_resume
-from ..modules.integrity_guard.interpreter import interpret
+from ..modules.integrity_guard.interpreter import enforce_guardrails, interpret
 from ..modules.integrity_guard.scanner import scan
 from ..modules.interview_questions.generator import generate_interview_questions
-from ..parsing.loader import NoTextLayer, ParsedDoc, UnreadableFile, from_text, load
+from ..parsing.loader import NoTextLayer, UnreadableFile, from_text, load
 from ..policy.recommendation import decide
 from ..policy.scoring import apply_penalty, compose
+from ..schemas.report import VERIFICATION_GAPS_CONTRACT, UnifiedReport
 from ..schemas.vocab import NOT_ENOUGH, evidence_level, jd_priority, weakest
 
 FAIRNESS_NOTICE = (
     "This is a decision-support tool. A human recruiter must review all recommendations. "
     "Do not use protected characteristics or proxies in screening."
 )
+log = logging.getLogger(__name__)
 AI_DISCLAIMER = (
     "AI-writing indicators are uncertain and should not be used as a sole hiring decision."
 )
@@ -44,7 +47,42 @@ class Stage:
         return True  # every stage degrades gracefully; the pipeline always returns
 
 
-async def screen_candidate(
+def validate_report(report: dict) -> dict:
+    """Validate against the unified schema (Spec 13) and record the outcome in meta.
+
+    Never raises: a schema failure must not crash the pipeline (Spec: never crash the demo).
+    The report is returned either way, with `schema_valid` and, on failure, `schema_errors`.
+    """
+    try:
+        ext = report.get("extensions")
+        auth = ext.get("authenticity") if isinstance(ext, dict) else None
+        if isinstance(auth, dict):
+            # Version tag for the verification_gaps item shape (Spec 3.3); additive sibling key.
+            auth.setdefault("verification_gaps_contract", VERIFICATION_GAPS_CONTRACT)
+        UnifiedReport.model_validate(report)
+        valid, errors = True, []
+    except Exception as exc:  # ValidationError, or a malformed report that is not even a dict
+        valid = False
+        errors = [
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in getattr(exc, "errors", lambda: [])()
+        ] or [f"{type(exc).__name__}: {exc}"]
+        log.warning("report failed schema validation: %s", errors[:5])
+    try:
+        meta = report["extensions"].setdefault("meta", {})
+        meta["schema_valid"] = valid
+        if not valid:
+            meta["schema_errors"] = errors[:20]
+    except Exception:
+        pass  # a report too malformed to carry meta is still returned as-is
+    return report
+
+
+async def screen_candidate(*args, **kwargs) -> dict:
+    """Run the pipeline and validate whatever it returns (normal, error and no-text paths)."""
+    return validate_report(await _screen_candidate(*args, **kwargs))
+
+
+async def _screen_candidate(
     *,
     jd_text: str,
     filename: str | None = None,
@@ -81,7 +119,6 @@ async def screen_candidate(
         return _no_text_report(candidate_id, candidate_name, jd_text, stages, started, llm)
     if stages["parse"]["status"] == "error":
         return _error_report(candidate_id, candidate_name, stages, started, llm)
-    doc: ParsedDoc
 
     # --- Stage 1: Module A -------------------------------------------------
     with Stage(stages, "integrity"):
@@ -140,10 +177,26 @@ async def screen_candidate(
     narrative = narrative if isinstance(narrative, dict) else {}
 
     # --- Stage 5: aggregation (deterministic) ------------------------------
+    integrity = None  # stays None if the interpreter raises (Stage swallows it); handled below
     with Stage(stages, "integrity_interpret"):
         integrity = await interpret(scanner, scores["base_score"], jd_text, llm)
     if not isinstance(integrity, dict):
-        integrity = {"recommended_action": "proceed", "penalty": 1.0, "findings": []}
+        # The interpreter only writes prose. Penalty, intent and action are deterministic
+        # facts from the scanner and must not be lost when the interpreter fails: an attack
+        # file must still get its 0.40 penalty and disqualify_review. enforce_guardrails
+        # derives all of them from the scanner alone, with no LLM.
+        integrity = enforce_guardrails(
+            {
+                "headline": "The integrity explanation was unavailable; the scanner's findings "
+                "and penalty still apply.",
+                "intent_reasoning": "Derived from the scanner's findings without the interpreter.",
+                "findings": [],
+                "audit_log_entry": f"Integrity scan returned verdict '{scanner['verdict']}'; the "
+                "interpreter was unavailable and the scanner penalty was applied.",
+            },
+            scanner,
+            scores["base_score"],
+        )
 
     penalty = float(integrity.get("penalty", scanner["penalty"]))
     overall = apply_penalty(scores["base_score"], penalty)
@@ -157,6 +210,7 @@ async def screen_candidate(
     )
 
     # --- Stage 6: Module D --------------------------------------------------
+    questions = None  # stays None if Module D raises (Stage swallows it); handled below
     with Stage(stages, "interview"):
         d_input = _build_d_input(matched, authenticity)
         questions = await generate_interview_questions(d_input, llm=llm)
@@ -317,7 +371,9 @@ def _no_text_report(cid, name, jd_text, stages, started, llm) -> dict:
         "recommendation": "Review Manually",
         "summary": NO_TEXT_NOTE + " Open the original file and review it manually, or ask for a text-based copy.",
         "ai_text_indicators": {"level": "Low", "disclaimer": AI_DISCLAIMER, "evidence": []},
-        "requirement_match": matched,
+        "requirement_match": [
+            {k: v for k, v in m.items() if k != "category"} for m in matched  # category is internal
+        ],
         "matched_skills": [],
         "missing_or_unclear_skills": [r["requirement"] for r in matched],
         "technical_gaps": [],
@@ -337,7 +393,8 @@ def _no_text_report(cid, name, jd_text, stages, started, llm) -> dict:
             },
             "integrity": {
                 "headline": "The integrity scan did not run because the file has no text layer.",
-                "intent": "benign", "manipulation_attempted": False, "findings": [],
+                "intent": "benign", "intent_reasoning": "No text was available to scan.",
+                "manipulation_attempted": False, "findings": [],
                 "recommended_action": "proceed", "penalty": 1.0,
             },
             "authenticity": None, "skill_intelligence": [],

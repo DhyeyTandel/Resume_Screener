@@ -161,15 +161,24 @@ async def assess(
         else:
             source_status[name] = "missing"
 
+    source_details: dict[str, dict] = {}
     gh = GitHubEvidence(username="", status="missing")
     if source_status["github"] == "ok":
         gh = await collect_github(
             sources.get("github"),
             token=os.getenv(cfg("authenticity.github.token_env", "GITHUB_TOKEN")),
             fetch=github_fetch,
+            skills=[c["text"] for c in claims if c["type"] == "SKILL"] + list(required_skills),
         )
-        if gh.status == "error":
+        if gh.status in ("error", "partial"):
+            # The spec enum is ok|missing|no_consent|error: "partial" folds into "error";
+            # the detail stays in source_details (and the recruiter summary).
             source_status["github"] = "error"
+            source_details["github"] = {
+                "status": gh.status,
+                "reason": gh.partial_reason or gh.error,
+                "requests_made": gh.requests_made,
+            }
 
     li = LinkedInEvidence(status="missing")
     if source_status["linkedin"] == "ok":
@@ -186,6 +195,8 @@ async def assess(
             source_status["portfolio"] = "error"
 
     n_sources = sum(1 for v in source_status.values() if v == "ok")
+    if gh.status == "partial" and any(r.analyzed for r in gh.repos):
+        n_sources += 1  # partly checked still produced real evidence
 
     cw = cfg("authenticity.claim_weights")
     mult = float(cfg("authenticity.weights.required_skill_multiplier", 1.5))
@@ -332,6 +343,7 @@ async def assess(
         },
         "inflation_sub_signals": infl["sub_signals"],
         "sources_used": source_status,
+        "source_details": source_details,
         "skill_evidence": [
             {
                 "skill": c["text"],
@@ -344,7 +356,9 @@ async def assess(
         ],
         "claims": out_claims,
         "contradictions": contradictions,
-        "authenticity_flags": authenticity_flags(gh) + portfolio_flags(pf),
+        "authenticity_flags": authenticity_flags(
+            gh, out_claims, [p.get("name", "") for p in parsed.get("projects", [])]
+        ) + portfolio_flags(pf),
         "verification_gaps": gaps,
         "recruiter_summary": _recruiter_summary(
             gh, out_claims, confidence, n_sources
@@ -361,7 +375,7 @@ async def assess(
 def _build_evidence_index(gh: GitHubEvidence, li: LinkedInEvidence, pf: PortfolioEvidence) -> dict:
     """Stable citation id -> short structured summary of each collected artifact."""
     idx: dict[str, dict] = {}
-    if gh.status == "ok":
+    if gh.has_data:
         for repo in gh.repos:
             idx[f"github.com/{gh.username}/{repo.name}"] = {
                 "source": "github", "authorship_ratio": repo.authorship_ratio,
@@ -387,7 +401,21 @@ def _build_evidence_index(gh: GitHubEvidence, li: LinkedInEvidence, pf: Portfoli
     return idx
 
 
+_PARTIAL_NOTE = (
+    "GitHub could only be partly checked ({reason}). This is a limit of our data collection "
+    "and is not evidence against the candidate; claims that depended on the unchecked "
+    "repositories are marked unverifiable rather than unsupported."
+)
+
+
 def _recruiter_summary(gh: GitHubEvidence, claims: list[dict], confidence: float, n_sources: int) -> str:
+    text = _recruiter_summary_core(gh, claims, confidence, n_sources)
+    if gh.status == "partial":
+        return _PARTIAL_NOTE.format(reason=gh.partial_reason) + " " + text
+    return text
+
+
+def _recruiter_summary_core(gh: GitHubEvidence, claims: list[dict], confidence: float, n_sources: int) -> str:
     if n_sources == 0:
         return (
             f"No external source was available for this candidate, so {len(claims)} resume "

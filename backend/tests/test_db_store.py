@@ -128,3 +128,45 @@ def test_screening_cut_off_by_restart_is_marked_interrupted(tmp_path):
     Store(tmp_path / "b.db").create_screening("s1", total=2)
     reopened = Store(tmp_path / "b.db")  # simulates a server restart
     assert reopened.get_screening("s1")["status"] == "interrupted"
+
+
+def test_retention_purges_old_reports_but_never_the_audit_log(tmp_path):
+    """Spec 2.9: candidate data older than privacy.retain_raw_days is deleted."""
+    import sqlite3
+
+    from app.db.store import Store
+
+    db = tmp_path / "r.db"
+    s = Store(db)
+    s.create_screening("s1", total=2)
+    s.save_candidate("old", "s1", {"candidate_name": "Old Person"}, {"candidate_id": "old"})
+    s.save_candidate("new", "s1", {"candidate_name": "New Person"}, {"candidate_id": "new"})
+    s.append_audit("old", "recruiter_decision", {"decision": "Hold"})
+    conn = sqlite3.connect(db)
+    with conn:
+        conn.execute("UPDATE candidates SET created_at='2000-01-01T00:00:00+00:00' WHERE id='old'")
+    conn.close()
+
+    out = s.purge_expired(days=30)
+    assert out["candidates"] == 1
+    assert s.get_candidate("old") is None
+    assert s.get_candidate("new")["candidate_name"] == "New Person"
+    assert len(s.list_audit("old")) == 1  # audit log untouched
+    assert any(a["event"] == "retention_purge" for a in s.list_audit("*"))
+    assert s.purge_expired(days=30)["candidates"] == 0  # idempotent
+
+
+def test_purge_runs_on_startup(tmp_path):
+    import sqlite3
+
+    from app.db.store import Store
+
+    db = tmp_path / "s.db"
+    s = Store(db)
+    s.create_screening("s1", total=1)
+    s.save_candidate("old", "s1", {"candidate_name": "X"}, {"candidate_id": "old"})
+    conn = sqlite3.connect(db)
+    with conn:
+        conn.execute("UPDATE candidates SET created_at='2000-01-01T00:00:00+00:00'")
+    conn.close()
+    assert Store(db).get_candidate("old") is None  # a restart applies retention

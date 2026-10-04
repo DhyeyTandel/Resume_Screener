@@ -165,7 +165,7 @@ def scan(doc: Any, jd_text: str = "") -> dict:
                 "severity": "low",
                 "title": "Instruction-like phrasing in the visible text",
                 "detail": "May be innocent wording; carries little weight on its own.",
-                "evidence": _quote(_INJECTION_RE.search(doc.visible_text).group(0)),
+                "evidence": _quote(_INJECTION_RE.search(doc.visible_text).group(0)),  # type: ignore[union-attr]  # guarded by the enclosing if
             }
         )
 

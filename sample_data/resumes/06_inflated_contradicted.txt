@@ -13,7 +13,7 @@ Skills
 Python, FastAPI, PostgreSQL, Kafka, Docker
 
 Projects
-Starter Kit: forked repository redeployed as an internal tool
+Tutorial Clone: e-commerce platform I designed and built from scratch
 
 Education
 B.S. in Computer Science, Marlowe University, 2016

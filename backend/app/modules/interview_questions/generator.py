@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import time
+from typing import Any
 
 from ...config import cfg
 from ...llm.client import LLMClient, LLMTruncated
@@ -78,13 +79,13 @@ async def generate_interview_questions(
             "_usage": {},
         }
 
-    todo.sort(key=lambda r: (_ORDER.get(r.get("jd_priority"), 1), r["skill"]))
+    todo.sort(key=lambda r: (_ORDER.get(r.get("jd_priority"), 1), r["skill"]))  # type: ignore[arg-type]  # priority may be None; .get default covers it
     expected = {r["skill"] for r in todo}
     client, model = _pick_client(llm)
     cap = int(cfg("interview.max_tokens_cap", 4000))
     budget = min(cap, 400 + 250 * len(todo))
     temperature = float(cfg("interview.temperature", 0.3))
-    last_raw = ""
+    last_raw: Any = ""
     error = "no attempt made"
     attempts = 0
     for attempt in range(1, max_retries + 2):

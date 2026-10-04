@@ -364,7 +364,11 @@ async def eval_e2e_and_perturb() -> tuple[Section, Section]:
             rows.append(f"| P4 date/role contradiction | contradictions found: {found or 'none'} | overlapping_roles present | {'✅' if passed else '❌'} |")
 
     # P5: forked/tutorial repo claimed as own (GitHub-side).
-    r5 = await screen_candidate(jd_text=JD, pasted_text=base_text, candidate_name="p5",
+    # P5 means a resume that CLAIMS a forked repo as original work. Forking a repo and never
+    # mentioning it is normal and must not be flagged, so the perturbation adds the claim.
+    p5_text = base_text.replace(
+        "Projects\n", "Projects\nTutorial Clone: storefront I designed and built from scratch\n", 1)
+    r5 = await screen_candidate(jd_text=JD, pasted_text=p5_text, candidate_name="p5",
                                 llm=LLMClient("mock"), github_username="derek",
                                 github_fetch=make_fetch("derek"))
     auth5 = r5["extensions"]["authenticity"] or {}

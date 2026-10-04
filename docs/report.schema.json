@@ -1,0 +1,1563 @@
+{
+  "$defs": {
+    "AiTextIndicators": {
+      "additionalProperties": false,
+      "properties": {
+        "disclaimer": {
+          "title": "Disclaimer",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "level": {
+          "enum": [
+            "Low",
+            "Medium",
+            "High"
+          ],
+          "title": "Level",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "disclaimer"
+      ],
+      "title": "AiTextIndicators",
+      "type": "object"
+    },
+    "Authenticity": {
+      "additionalProperties": true,
+      "properties": {
+        "authenticity_flags": {
+          "items": {
+            "$ref": "#/$defs/AuthenticityFlag"
+          },
+          "title": "Authenticity Flags",
+          "type": "array"
+        },
+        "band": {
+          "enum": [
+            "HIGH_TRUST",
+            "MODERATE",
+            "NEEDS_VERIFICATION",
+            "INSUFFICIENT_EVIDENCE"
+          ],
+          "title": "Band",
+          "type": "string"
+        },
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "contradictions": {
+          "items": {
+            "$ref": "#/$defs/Contradiction"
+          },
+          "title": "Contradictions",
+          "type": "array"
+        },
+        "inflation_sub_signals": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Inflation Sub Signals",
+          "type": "object"
+        },
+        "meta": {
+          "$ref": "#/$defs/AuthenticityMeta"
+        },
+        "recruiter_summary": {
+          "default": "",
+          "title": "Recruiter Summary",
+          "type": "string"
+        },
+        "scores": {
+          "$ref": "#/$defs/AuthenticityScores"
+        },
+        "skill_evidence": {
+          "items": {
+            "$ref": "#/$defs/SkillEvidence"
+          },
+          "title": "Skill Evidence",
+          "type": "array"
+        },
+        "sources_used": {
+          "$ref": "#/$defs/SourcesUsed"
+        },
+        "verification_gaps": {
+          "items": {
+            "$ref": "#/$defs/VerificationGapV1"
+          },
+          "title": "Verification Gaps",
+          "type": "array"
+        },
+        "verification_gaps_contract": {
+          "const": "verification_gaps.v1",
+          "default": "verification_gaps.v1",
+          "title": "Verification Gaps Contract",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "band",
+        "scores",
+        "sources_used",
+        "meta"
+      ],
+      "title": "Authenticity",
+      "type": "object"
+    },
+    "AuthenticityFlag": {
+      "additionalProperties": true,
+      "properties": {
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "flag": {
+          "title": "Flag",
+          "type": "string"
+        },
+        "repo": {
+          "default": "",
+          "title": "Repo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "flag"
+      ],
+      "title": "AuthenticityFlag",
+      "type": "object"
+    },
+    "AuthenticityMeta": {
+      "additionalProperties": true,
+      "properties": {
+        "config_version": {
+          "title": "Config Version",
+          "type": "string"
+        },
+        "latency_ms": {
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "llm_calls": {
+          "title": "Llm Calls",
+          "type": "integer"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "config_version",
+        "latency_ms",
+        "llm_calls"
+      ],
+      "title": "AuthenticityMeta",
+      "type": "object"
+    },
+    "AuthenticityScores": {
+      "additionalProperties": true,
+      "properties": {
+        "assessment_confidence": {
+          "title": "Assessment Confidence",
+          "type": "number"
+        },
+        "authenticity": {
+          "title": "Authenticity",
+          "type": "number"
+        },
+        "consistency": {
+          "title": "Consistency",
+          "type": "number"
+        },
+        "coverage": {
+          "title": "Coverage",
+          "type": "number"
+        },
+        "inflation_index": {
+          "title": "Inflation Index",
+          "type": "number"
+        },
+        "reliability": {
+          "title": "Reliability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "authenticity",
+        "reliability",
+        "consistency",
+        "coverage",
+        "inflation_index",
+        "assessment_confidence"
+      ],
+      "title": "AuthenticityScores",
+      "type": "object"
+    },
+    "CandidateProfile": {
+      "additionalProperties": true,
+      "properties": {
+        "achievements": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Achievements",
+          "type": "array"
+        },
+        "certifications": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Certifications",
+          "type": "array"
+        },
+        "contact": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contact"
+        },
+        "education": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Education",
+          "type": "array"
+        },
+        "experience": {
+          "items": {
+            "$ref": "#/$defs/ExperienceItem"
+          },
+          "title": "Experience",
+          "type": "array"
+        },
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectItem"
+          },
+          "title": "Projects",
+          "type": "array"
+        },
+        "skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "summary": {
+          "default": "",
+          "title": "Summary",
+          "type": "string"
+        },
+        "total_years": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Years"
+        }
+      },
+      "title": "CandidateProfile",
+      "type": "object"
+    },
+    "Claim": {
+      "additionalProperties": true,
+      "properties": {
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "epistemic_tag": {
+          "enum": [
+            "FACT",
+            "EVIDENCE",
+            "INFERENCE",
+            "UNKNOWN"
+          ],
+          "title": "Epistemic Tag",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "judge_confidence": {
+          "title": "Judge Confidence",
+          "type": "number"
+        },
+        "rationale": {
+          "default": "",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "CORROBORATED",
+            "WEAK",
+            "UNSUPPORTED",
+            "CONTRADICTED",
+            "UNVERIFIABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "SKILL",
+            "PROJECT",
+            "ROLE",
+            "METRIC",
+            "ACHIEVEMENT",
+            "EDUCATION",
+            "CERTIFICATION"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "claim_id",
+        "type",
+        "text",
+        "status",
+        "epistemic_tag",
+        "judge_confidence"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "Contradiction": {
+      "additionalProperties": true,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "detail"
+      ],
+      "title": "Contradiction",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "additionalProperties": true,
+      "properties": {
+        "citation": {
+          "title": "Citation",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "citation"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "ExperienceItem": {
+      "additionalProperties": true,
+      "properties": {
+        "company": {
+          "default": "",
+          "title": "Company",
+          "type": "string"
+        },
+        "end": {
+          "default": "",
+          "title": "End",
+          "type": "string"
+        },
+        "relevant_points": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Relevant Points",
+          "type": "array"
+        },
+        "start": {
+          "default": "",
+          "title": "Start",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "title": "ExperienceItem",
+      "type": "object"
+    },
+    "Extensions": {
+      "additionalProperties": true,
+      "properties": {
+        "authenticity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Authenticity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Id"
+        },
+        "candidate_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CandidateProfile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "human_review_required": {
+          "const": true,
+          "title": "Human Review Required",
+          "type": "boolean"
+        },
+        "integrity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Integrity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "interview_questions_detailed": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InterviewQuestionsDetailed"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "meta": {
+          "$ref": "#/$defs/Meta"
+        },
+        "recommendation_reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Recommendation Reasons",
+          "type": "array"
+        },
+        "remediation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remediation"
+        },
+        "score_breakdown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreBreakdown"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "skill_intelligence": {
+          "items": {
+            "$ref": "#/$defs/SkillIntelligenceItem"
+          },
+          "title": "Skill Intelligence",
+          "type": "array"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "Not Enough Evidence",
+                "Error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "required": [
+        "human_review_required",
+        "meta"
+      ],
+      "title": "Extensions",
+      "type": "object"
+    },
+    "Integrity": {
+      "additionalProperties": true,
+      "description": "Appendix A output plus the code-added fields. `penalty` and `human_decides` are only\nadded by the guardrail step, so a clean (no-flag) report does not carry them.",
+      "properties": {
+        "audit_log_entry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audit Log Entry"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/IntegrityFinding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "headline": {
+          "title": "Headline",
+          "type": "string"
+        },
+        "human_decides": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Human Decides"
+        },
+        "intent": {
+          "enum": [
+            "benign",
+            "questionable",
+            "deliberate"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "intent_reasoning": {
+          "title": "Intent Reasoning",
+          "type": "string"
+        },
+        "manipulation_attempted": {
+          "title": "Manipulation Attempted",
+          "type": "boolean"
+        },
+        "penalty": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Penalty"
+        },
+        "recommended_action": {
+          "enum": [
+            "proceed",
+            "flag_for_review",
+            "disqualify_review"
+          ],
+          "title": "Recommended Action",
+          "type": "string"
+        },
+        "score_adjustment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreAdjustment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "headline",
+        "intent",
+        "intent_reasoning",
+        "manipulation_attempted",
+        "recommended_action"
+      ],
+      "title": "Integrity",
+      "type": "object"
+    },
+    "IntegrityFinding": {
+      "additionalProperties": true,
+      "properties": {
+        "benign_alternative": {
+          "title": "Benign Alternative",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "plain_explanation": {
+          "title": "Plain Explanation",
+          "type": "string"
+        },
+        "quoted_evidence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quoted Evidence"
+        },
+        "why_it_matters": {
+          "title": "Why It Matters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "plain_explanation",
+        "why_it_matters",
+        "benign_alternative"
+      ],
+      "title": "IntegrityFinding",
+      "type": "object"
+    },
+    "InterviewQuestion": {
+      "additionalProperties": true,
+      "properties": {
+        "evidence_level": {
+          "enum": [
+            "claimed",
+            "not_demonstrated",
+            "transferable"
+          ],
+          "title": "Evidence Level",
+          "type": "string"
+        },
+        "purpose": {
+          "title": "Purpose",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "risk_if_unanswered": {
+          "title": "Risk If Unanswered",
+          "type": "string"
+        },
+        "skill": {
+          "title": "Skill",
+          "type": "string"
+        }
+      },
+      "required": [
+        "skill",
+        "evidence_level",
+        "question",
+        "purpose",
+        "risk_if_unanswered"
+      ],
+      "title": "InterviewQuestion",
+      "type": "object"
+    },
+    "InterviewQuestionsDetailed": {
+      "additionalProperties": true,
+      "description": "Module D output (Spec 12) plus its bookkeeping and failure fields.",
+      "properties": {
+        "_attempts": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempts"
+        },
+        "_latency_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Seconds"
+        },
+        "_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "_usage": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Usage"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "interview_questions": {
+          "items": {
+            "$ref": "#/$defs/InterviewQuestion"
+          },
+          "title": "Interview Questions",
+          "type": "array"
+        },
+        "raw_output": {
+          "default": null,
+          "title": "Raw Output"
+        },
+        "skipped_strong_evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skipped Strong Evidence",
+          "type": "array"
+        }
+      },
+      "title": "InterviewQuestionsDetailed",
+      "type": "object"
+    },
+    "Meta": {
+      "additionalProperties": true,
+      "properties": {
+        "config_version": {
+          "title": "Config Version",
+          "type": "string"
+        },
+        "interview_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interview Model"
+        },
+        "latency_ms": {
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "llm_calls": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Llm Calls"
+        },
+        "llm_provider": {
+          "title": "Llm Provider",
+          "type": "string"
+        },
+        "mock_mode": {
+          "title": "Mock Mode",
+          "type": "boolean"
+        },
+        "schema_errors": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Errors"
+        },
+        "schema_valid": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schema Valid"
+        },
+        "stages": {
+          "additionalProperties": {
+            "$ref": "#/$defs/StageInfo"
+          },
+          "title": "Stages",
+          "type": "object"
+        }
+      },
+      "required": [
+        "llm_provider",
+        "mock_mode",
+        "config_version",
+        "latency_ms"
+      ],
+      "title": "Meta",
+      "type": "object"
+    },
+    "ProjectItem": {
+      "additionalProperties": true,
+      "properties": {
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "title": "ProjectItem",
+      "type": "object"
+    },
+    "RequirementContribution": {
+      "additionalProperties": true,
+      "properties": {
+        "contribution": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contribution"
+        },
+        "excluded": {
+          "title": "Excluded",
+          "type": "boolean"
+        },
+        "requirement": {
+          "title": "Requirement",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "weight": {
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "requirement",
+        "weight",
+        "excluded"
+      ],
+      "title": "RequirementContribution",
+      "type": "object"
+    },
+    "RequirementMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "Must Have",
+            "Preferred"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "requirement": {
+          "title": "Requirement",
+          "type": "string"
+        },
+        "resume_evidence": {
+          "default": "",
+          "title": "Resume Evidence",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "Matched",
+            "Partially Matched",
+            "Missing",
+            "Not Enough Evidence"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "transferability": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillIntelligenceItem"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "requirement",
+        "priority",
+        "status"
+      ],
+      "title": "RequirementMatch",
+      "type": "object"
+    },
+    "ScoreAdjustment": {
+      "additionalProperties": true,
+      "properties": {
+        "adjusted_score": {
+          "title": "Adjusted Score",
+          "type": "number"
+        },
+        "base_score": {
+          "title": "Base Score",
+          "type": "number"
+        },
+        "explanation": {
+          "title": "Explanation",
+          "type": "string"
+        },
+        "penalty": {
+          "title": "Penalty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base_score",
+        "penalty",
+        "adjusted_score",
+        "explanation"
+      ],
+      "title": "ScoreAdjustment",
+      "type": "object"
+    },
+    "ScoreBreakdown": {
+      "additionalProperties": true,
+      "properties": {
+        "base_score": {
+          "title": "Base Score",
+          "type": "number"
+        },
+        "integrity_penalty": {
+          "title": "Integrity Penalty",
+          "type": "number"
+        },
+        "per_requirement_contribution": {
+          "items": {
+            "$ref": "#/$defs/RequirementContribution"
+          },
+          "title": "Per Requirement Contribution",
+          "type": "array"
+        },
+        "score_confidence": {
+          "title": "Score Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "base_score",
+        "integrity_penalty",
+        "score_confidence"
+      ],
+      "title": "ScoreBreakdown",
+      "type": "object"
+    },
+    "SkillEvidence": {
+      "additionalProperties": true,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "skill": {
+          "title": "Skill",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "VERIFIED",
+            "CORROBORATED",
+            "WEAK",
+            "UNSUPPORTED",
+            "CONTRADICTED",
+            "UNVERIFIABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "skill",
+        "required",
+        "status"
+      ],
+      "title": "SkillEvidence",
+      "type": "object"
+    },
+    "SkillIntelligenceItem": {
+      "additionalProperties": true,
+      "properties": {
+        "classification": {
+          "enum": [
+            "Exact Match",
+            "Strongly Transferable",
+            "Moderately Transferable",
+            "Weakly Transferable",
+            "No Evidence"
+          ],
+          "title": "Classification",
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "High",
+            "Medium",
+            "Low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "factors": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransferFactors"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missing_concepts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Concepts",
+          "type": "array"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "recruiter_suggestion": {
+          "title": "Recruiter Suggestion",
+          "type": "string"
+        },
+        "required_skill": {
+          "title": "Required Skill",
+          "type": "string"
+        },
+        "semantic_level": {
+          "enum": [
+            "Very High",
+            "High",
+            "Moderate",
+            "Low"
+          ],
+          "title": "Semantic Level",
+          "type": "string"
+        },
+        "semantic_match": {
+          "title": "Semantic Match",
+          "type": "number"
+        },
+        "supporting_projects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Projects",
+          "type": "array"
+        },
+        "supporting_skills": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Skills",
+          "type": "array"
+        },
+        "transferability_score": {
+          "title": "Transferability Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "required_skill",
+        "semantic_match",
+        "semantic_level",
+        "transferability_score",
+        "classification",
+        "recruiter_suggestion",
+        "reasoning",
+        "confidence"
+      ],
+      "title": "SkillIntelligenceItem",
+      "type": "object"
+    },
+    "SourcesUsed": {
+      "additionalProperties": true,
+      "properties": {
+        "github": {
+          "enum": [
+            "ok",
+            "missing",
+            "no_consent",
+            "error"
+          ],
+          "title": "Github",
+          "type": "string"
+        },
+        "linkedin": {
+          "enum": [
+            "ok",
+            "missing",
+            "no_consent",
+            "error"
+          ],
+          "title": "Linkedin",
+          "type": "string"
+        },
+        "portfolio": {
+          "enum": [
+            "ok",
+            "missing",
+            "no_consent",
+            "error"
+          ],
+          "title": "Portfolio",
+          "type": "string"
+        }
+      },
+      "required": [
+        "github",
+        "linkedin",
+        "portfolio"
+      ],
+      "title": "SourcesUsed",
+      "type": "object"
+    },
+    "StageInfo": {
+      "additionalProperties": true,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "title": "StageInfo",
+      "type": "object"
+    },
+    "TransferFactors": {
+      "additionalProperties": true,
+      "properties": {
+        "concept_overlap": {
+          "title": "Concept Overlap",
+          "type": "number"
+        },
+        "experience_years": {
+          "title": "Experience Years",
+          "type": "number"
+        },
+        "learning_curve": {
+          "title": "Learning Curve",
+          "type": "number"
+        },
+        "project_evidence": {
+          "title": "Project Evidence",
+          "type": "number"
+        },
+        "skill_similarity": {
+          "title": "Skill Similarity",
+          "type": "number"
+        },
+        "tech_proximity": {
+          "title": "Tech Proximity",
+          "type": "number"
+        }
+      },
+      "required": [
+        "skill_similarity",
+        "concept_overlap",
+        "experience_years",
+        "project_evidence",
+        "tech_proximity",
+        "learning_curve"
+      ],
+      "title": "TransferFactors",
+      "type": "object"
+    },
+    "VerificationGapV1": {
+      "additionalProperties": false,
+      "description": "Item of the versioned `verification_gaps.v1` contract (Spec 3.3). Do not change the\nfields without a version bump; extra keys are forbidden so drift is caught.",
+      "properties": {
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "med",
+            "low"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "what_to_verify": {
+          "title": "What To Verify",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "what_to_verify",
+        "priority"
+      ],
+      "title": "VerificationGapV1",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Spec 13. Base contract keys are exact (extra keys forbidden); extensions is open.",
+  "properties": {
+    "ai_text_indicators": {
+      "$ref": "#/$defs/AiTextIndicators"
+    },
+    "candidate_name": {
+      "title": "Candidate Name",
+      "type": "string"
+    },
+    "education_assessment": {
+      "default": "",
+      "title": "Education Assessment",
+      "type": "string"
+    },
+    "experience_assessment": {
+      "default": "",
+      "title": "Experience Assessment",
+      "type": "string"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "fairness_notice": {
+      "title": "Fairness Notice",
+      "type": "string"
+    },
+    "interview_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Interview Questions",
+      "type": "array"
+    },
+    "matched_skills": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Matched Skills",
+      "type": "array"
+    },
+    "missing_or_unclear_skills": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Or Unclear Skills",
+      "type": "array"
+    },
+    "overall_match_score": {
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Overall Match Score",
+      "type": "integer"
+    },
+    "recommendation": {
+      "enum": [
+        "Shortlist",
+        "Review Manually",
+        "Not Recommended"
+      ],
+      "title": "Recommendation",
+      "type": "string"
+    },
+    "requirement_match": {
+      "items": {
+        "$ref": "#/$defs/RequirementMatch"
+      },
+      "title": "Requirement Match",
+      "type": "array"
+    },
+    "risks": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Risks",
+      "type": "array"
+    },
+    "strengths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Strengths",
+      "type": "array"
+    },
+    "summary": {
+      "default": "",
+      "title": "Summary",
+      "type": "string"
+    },
+    "technical_gaps": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Technical Gaps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "candidate_name",
+    "overall_match_score",
+    "recommendation",
+    "ai_text_indicators",
+    "fairness_notice",
+    "extensions"
+  ],
+  "title": "UnifiedReport",
+  "type": "object"
+}

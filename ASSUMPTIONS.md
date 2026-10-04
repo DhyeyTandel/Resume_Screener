@@ -171,3 +171,37 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   the contact-line condition stops a title such as "Senior Backend Engineer" being taken for
   a name) when no name is supplied. Module endpoints added: `POST /v1/authenticity/assess`,
   `GET /v1/authenticity/{id}`, `POST /v1/skills/analyze`.
+- **A-18 (GitHub request budget and a fairness bug).** Measured: the collector made 12 API
+  requests per repo, up to 361 per candidate, with no cache, against GitHub's 60/hour
+  unauthenticated limit. Worse, a rate limit hit partway through was read as "not found", so
+  a rate-limited repo that did contain a skill made the claim UNSUPPORTED instead of
+  UNVERIFIABLE: our own rate limit counted against the candidate. Now: one git-trees call per
+  repo instead of nine, forks never opened, repos ranked by relevance to the claimed skills,
+  early stop once required skills are covered, an 8-repo / 45-request cap, X-RateLimit-
+  Remaining respected, and a SQLite response cache (TTL `cache.ttl_hours`; only 200/404
+  cached; the token never stored). Measured after: 25 -> 5 requests for the fixture,
+  361 -> 33 for a simulated 30-repo user, 0 on a repeat. A rate-limited collection is
+  `partial`; claims it could have answered are UNVERIFIABLE, and the recruiter summary says
+  plainly this is a data-collection limit, not evidence against the candidate.
+- **A-19 (repo flags only for repos the resume relies on).** `fork_claimed_as_own` used to
+  fire for any untouched fork, including one the candidate never mentioned (forking public
+  repos is normal), and even fired on the original scenario-06 resume, which openly said
+  "forked repository". Repo flags are now reported only for repos cited as evidence or named
+  by a project claim. Flags are display-only and never changed a score or band. Scenario 06
+  and the P5 perturbation were rewritten to test what the spec describes: a resume claiming
+  a fork as original work. `fork_claimed_as_own` is now inferred from the listing
+  (pushed_at <= created_at) because forks are no longer opened; this is weaker than the old
+  commit check, and a fork with its own commits is never flagged.
+- **A-20 (unified report schema).** `backend/app/schemas/report.py` models the whole Spec 13
+  report (exported to `docs/report.schema.json`). Every report is validated before it is
+  returned; a failure never crashes the pipeline but is recorded as `meta.schema_valid:
+  false`. The schema exposed shape bugs, including two pipeline crashes (`UnboundLocalError`
+  when Module A's interpreter or Module D failed) and, found in review, a safety bug: if the
+  interpreter failed, the fallback used penalty 1.0 and "proceed", so an attack file scored
+  at full value. Penalty, intent and action now always come from the scanner via
+  `enforce_guardrails`. `verification_gaps.v1` is tagged on the authenticity block.
+  mypy (lenient, Spec 4 "mypy-lite") is clean on all of `backend/app` and runs in CI.
+- **A-21 (retention).** Candidate and authenticity reports older than
+  `privacy.retain_raw_days` (30) are purged at startup and on demand (`Store.purge_expired`).
+  Screening rows (no personal data) and the append-only audit log are kept; each purge is
+  itself audited.

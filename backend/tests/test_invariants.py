@@ -246,3 +246,26 @@ async def test_mock_mode_is_not_claimed_when_module_d_used_a_real_model(monkeypa
     r = await run(STRONG)
     assert r["extensions"]["meta"]["mock_mode"] is False
     assert r["extensions"]["meta"]["interview_model"] == "claude-sonnet-4-6"
+
+
+async def test_attack_penalty_survives_an_interpreter_failure(monkeypatch):
+    """Regression: if the interpreter raised, the fallback used penalty 1.0 and 'proceed',
+    so an attack file scored at full value. Penalty and action come from the scanner."""
+    import app.pipeline.orchestrator as orch
+    from app.parsing.loader import load
+
+    async def boom(*a, **k):
+        raise RuntimeError("interpreter unavailable")
+
+    monkeypatch.setattr(orch, "interpret", boom)
+    pdf = (Path(__file__).parent / "fixtures/pdfs/injection_hidden.pdf").read_bytes()
+    assert load("injection_hidden.pdf", pdf)  # fixture readable
+    r = await screen_candidate(jd_text=JD, filename="injection_hidden.pdf", data=pdf,
+                               llm=LLMClient("mock"))
+    i = r["extensions"]["integrity"]
+    b = r["extensions"]["score_breakdown"]
+    assert b["integrity_penalty"] == 0.40
+    assert r["overall_match_score"] == round(b["base_score"] * 0.40)
+    assert i["recommended_action"] == "disqualify_review" and i["intent"] == "deliberate"
+    assert r["recommendation"] != "Shortlist"
+    assert r["extensions"]["meta"]["schema_valid"] is True

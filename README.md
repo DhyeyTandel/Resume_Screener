@@ -20,6 +20,29 @@ make docker-up   # same, in Docker (add the ollama profile with make docker-up-o
 Open <http://localhost:8077>, press **Load sample JD**, paste a resume from
 `sample_data/resumes/`, and press **Screen candidates**. API docs are at `/docs`.
 
+## Demo walkthrough (about 5 minutes, no API key needed)
+
+1. `make dev`, open <http://localhost:8077>. The dashboard opens on six precomputed sample
+   candidates, labelled as sample data, with the fairness notice and the "Mock analysis
+   mode" badge.
+2. **Strong match (Priya Raman):** Suggested Shortlist. Open the drawer: the Overview tab
+   shows the score breakdown chart and the policy rules that fired.
+3. **Transferable (Marcus Ito):** FastAPI and PostgreSQL read *Partially Matched*, not
+   Missing. The Skill Intelligence tab shows the supporting skills and the remaining gap.
+4. **Hidden-text attack:** score shown as base 100 x 0.40 = 40. The Integrity tab quotes the
+   hidden text behind a `hidden text reads:` label, explains each finding in plain language,
+   and states that a human decides.
+5. **Private work (Alicia Ferreira):** no GitHub, so authenticity reads *Insufficient
+   evidence* with no number. It does not block the shortlist.
+6. **Contradicted (Derek Voss):** a forked repo with no commits from the candidate plus a
+   "12 years of FastAPI" anachronism put authenticity at *Needs verification*, so the
+   suggestion is Review Manually, with reasons.
+7. **Run your own:** press *Load sample JD*, drop `backend/tests/fixtures/pdfs/injection_hidden.pdf`
+   into the upload area, press *Screen candidates*. It is caught as INJECTION_HIDDEN and the
+   injected sentence never reaches the summary or scoring.
+8. **Audit:** on your own candidate, record a decision in the Audit tab; it is appended to an
+   append-only log (the database rejects edits and deletes).
+
 ## Swapping the LLM provider
 
 `llm.provider` in `backend/app/config.yaml`, or the `LLM_PROVIDER` env var:
@@ -53,14 +76,14 @@ Resume ──┴─► [0 Parse] ─► [1 Integrity Guard A] ─► visible tex
                           [6 Interview Questions D] ─► report ─► API ─► dashboard
 ```
 
-| Module | Where | State |
-|---|---|---|
-| Core | `modules/core_screening/` | built |
-| A Integrity Guard | `modules/integrity_guard/` | built (PDF spans need PyMuPDF) |
-| B Authenticity | `modules/authenticity_engine/` | Stages 1, 4, 5, 6, 7 + live GitHub, LinkedIn and portfolio collectors/judge |
-| C Skill Intelligence | `modules/skill_intelligence/` | built |
-| D Interview Questions | `modules/interview_questions/` | built |
-| Policy | `policy/scoring.py`, `policy/recommendation.py` | built - all arithmetic lives here |
+| Module | Owner (Spec 1.1) | Where | State |
+|---|---|---|---|
+| Core | Teammate 1 | `modules/core_screening/` | built |
+| A Integrity Guard | Teammate 2 | `modules/integrity_guard/` | built; tested on real PDF and DOCX files |
+| B Authenticity | Shane | `modules/authenticity_engine/` | all 7 stages; GitHub, LinkedIn and portfolio collectors; rule-based judge plus guarded LLM judge |
+| C Skill Intelligence | Teammate 3 | `modules/skill_intelligence/` | built |
+| D Interview Questions | Teammate 4 | `modules/interview_questions/` | built |
+| Policy | shared | `policy/scoring.py`, `policy/recommendation.py` | built - all arithmetic lives here |
 
 ## How the safeguards are enforced
 

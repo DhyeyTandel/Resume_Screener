@@ -42,3 +42,12 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
    only then tune thresholds, on a held-out split (never the test set).
 4. Integrity on real-world (not synthetic) resumes: theme colours, headers/footers,
    text boxes and docDefaults sizing in DOCX are not modelled (ASSUMPTIONS.md A-13).
+
+## Status after the hardening rounds
+
+All milestones M0-M9 are built. The remaining gaps are external, not code:
+1. **No real model has been run.** Anthropic and Ollama paths are tested only against
+   simulated HTTP. Needs an API key or a local Ollama.
+2. **No real labelled dataset.** Claim-extraction F1, AUROC, calibration ECE and the
+   fairness false-flag gap stay "not evaluated" in eval/report.md.
+3. **Detection rates are on synthetic fixtures only** (25/25 attacks, 0/8 false positives).

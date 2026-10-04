@@ -128,4 +128,4 @@ Module B's claim-extraction F1, claim-status macro-F1, false-accusation rate, P3
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
 - Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. P4 checks role-overlap only (from the resume alone); Stage 4's LinkedIn date-conflict and title-mismatch checks exist (consistency.py) but have no perturbation exercising them yet.
-- Total eval wall time: 0.3s, all in mock mode with no network calls.
+- Total eval wall time: 0.4s, all in mock mode with no network calls.

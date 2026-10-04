@@ -476,7 +476,7 @@ def _docx(data: bytes, filename: str) -> ParsedDoc:
             # Footnotes and endnotes: visible only when the body references them.
             note_lines: list[str] = []
             for kind in ("footnote", "endnote"):
-                path = next((p for t, p in rels.values() if t == kind + "s"), None)
+                path = next((p for t, p in rels.values() if t == kind + "s"), None)  # type: ignore[assignment]  # reuses the name `path` from the loop above
                 part_root = optional(path)
                 if part_root is None:
                     continue
@@ -523,7 +523,7 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         try:
             import pymupdf as fitz  # PyMuPDF >= 1.24.3
         except ImportError:
-            import fitz  # older PyMuPDF
+            import fitz  # type: ignore[no-redef]  # older PyMuPDF
 
         doc = fitz.open(stream=data, filetype="pdf")
         if doc.needs_pass:
@@ -533,7 +533,7 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         pages = doc.page_count
         meta = {k: str(v) for k, v in (doc.metadata or {}).items() if v}
         text_parts = []
-        for page in doc:
+        for page in doc:  # type: ignore[attr-defined]  # pymupdf stubs omit Document.__iter__
             page_size = (page.rect.width, page.rect.height)
             # Span dicts carry no render mode, so take invisible (mode 3) runs
             # from the text trace and match spans to them by position.
@@ -626,12 +626,12 @@ def _ocr_pdf(data: bytes) -> str | None:
         try:
             import pymupdf as fitz
         except ImportError:
-            import fitz
+            import fitz  # type: ignore[no-redef]
 
         doc = fitz.open(stream=data, filetype="pdf")
         limit = int(cfg("ingest.ocr_max_pages", 5))
         out = []
-        for page in list(doc)[:limit]:
+        for page in list(doc)[:limit]:  # type: ignore[call-overload]  # pymupdf stubs omit __iter__
             pix = page.get_pixmap(dpi=200)
             out.append(pytesseract.image_to_string(Image.open(BytesIO(pix.tobytes("png")))))
         return "\n".join(out).strip() or None

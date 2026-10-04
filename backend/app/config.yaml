@@ -7,6 +7,7 @@ llm:
   temperature: 0
   max_retries: 2
   timeout_s: 60
+cache: { enabled: true, ttl_hours: 24 }
 ingest: { max_bytes: 10485760 }
 integrity:
   hidden_font_pt_max: 4.0
@@ -30,6 +31,7 @@ authenticity:
   weights: { alpha: 0.6, beta: 0.3, gamma: 0.1, required_skill_multiplier: 1.5 }
   claim_weights: { PROJECT: 1.0, ROLE: 1.0, METRIC: 1.0, CERTIFICATION: 0.8, EDUCATION: 0.8, SKILL: 0.6, ACHIEVEMENT: 0.7 }
   bands: { min_confidence: 0.40, high_trust: 0.75, moderate: 0.50 }
+  github: { max_repos: 30, max_repos_analyzed: 8, max_commits_per_repo: 100, max_requests: 45, rate_limit_reserve: 1, bulk_import_ratio: 0.80, authorship_ratio_min: 0.30, token_env: GITHUB_TOKEN }
 ai_indicators: { low_max: 0.33, medium_max: 0.66 }
 policy: { shortlist_min: 75, not_recommended_max: 40, min_score_confidence: 0.5, not_recommended_missing_must_haves: 2 }
 interview: { model: claude-sonnet-4-6, temperature: 0.3, max_retries: 2, max_tokens_cap: 4000 }

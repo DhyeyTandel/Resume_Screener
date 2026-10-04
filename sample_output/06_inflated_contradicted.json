@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "ae6bc280",
+    "candidate_id": "d4752979",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -373,8 +373,8 @@
       ],
       "projects": [
         {
-          "name": "Starter Kit",
-          "description": "forked repository redeployed as an internal tool"
+          "name": "Tutorial Clone",
+          "description": "e-commerce platform I designed and built from scratch"
         }
       ],
       "education": [
@@ -476,7 +476,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "ae6bc280",
+      "candidate_id": "d4752979",
       "band": "NEEDS_VERIFICATION",
       "scores": {
         "authenticity": 0.581,
@@ -498,6 +498,7 @@
         "linkedin": "missing",
         "portfolio": "missing"
       },
+      "source_details": {},
       "skill_evidence": [
         {
           "skill": "Docker",
@@ -637,7 +638,7 @@
         {
           "claim_id": "C6",
           "type": "PROJECT",
-          "text": "forked repository redeployed as an internal tool",
+          "text": "e-commerce platform I designed and built from scratch",
           "status": "UNSUPPORTED",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -701,14 +702,14 @@
       ],
       "authenticity_flags": [
         {
-          "flag": "tutorial_clone",
-          "repo": "old-tutorial-clone",
-          "detail": "old-tutorial-clone's README references tutorial or coursework material."
-        },
-        {
           "flag": "fork_claimed_as_own",
           "repo": "old-tutorial-clone",
           "detail": "old-tutorial-clone is a fork with no commits from the candidate."
+        },
+        {
+          "flag": "tutorial_clone",
+          "repo": "old-tutorial-clone",
+          "detail": "old-tutorial-clone's README references tutorial or coursework material."
         }
       ],
       "verification_gaps": [
@@ -744,7 +745,8 @@
         "config_version": "1.0.0",
         "latency_ms": 0,
         "llm_calls": 0
-      }
+      },
+      "verification_gaps_contract": "verification_gaps.v1"
     },
     "skill_intelligence": [
       {
@@ -1047,7 +1049,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 1,
+          "latency_ms": 2,
           "status": "ok"
         },
         "authenticity": {
@@ -1071,8 +1073,9 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 2,
-      "llm_calls": 2
+      "latency_ms": 3,
+      "llm_calls": 2,
+      "schema_valid": true
     }
   }
 }

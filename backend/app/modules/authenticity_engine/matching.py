@@ -11,9 +11,11 @@ from __future__ import annotations
 import re
 
 from ...config import cfg
-from .collectors.github import GitHubEvidence, RepoEvidence
+from .collectors.github import GitHubEvidence, RepoEvidence, repo_covers_skill
 from .collectors.linkedin import LinkedInEvidence
 from .collectors.portfolio import PortfolioEvidence
+
+_repo_covers_skill = repo_covers_skill  # kept for judge.py, which imports the old name
 
 STATUS_V = {
     "VERIFIED": 1.00, "CORROBORATED": 0.75, "WEAK": 0.40,
@@ -21,29 +23,24 @@ STATUS_V = {
 }
 
 
-def _repo_covers_skill(repo: RepoEvidence, skill: str) -> bool:
-    s = skill.lower()
-    if any(s in lang.lower() for lang in repo.languages):
-        return True
-    if any(s in t.lower() for t in repo.topics):
-        return True
-    manifest_hits = {
-        "requirements.txt": {"python", "fastapi", "django", "flask"},
-        "pyproject.toml": {"python", "fastapi", "django", "flask"},
-        "package.json": {"javascript", "typescript", "react", "vue", "node"},
-        "pom.xml": {"java"},
-        "go.mod": {"go", "golang"},
-        "Dockerfile": {"docker"},
+def _partial_unverifiable(what: str, gh: GitHubEvidence) -> dict:
+    """Our own rate limit or a transport error is not the candidate's problem: when a repo
+    that could have answered was not fully checked, the honest answer is 'could not check'."""
+    names = ", ".join(r.name for r in gh.incomplete_repos[:3])
+    return {
+        "status": "UNVERIFIABLE", "evidence": [],
+        "rationale": f"GitHub could only be partly checked ({names or 'some repositories'} "
+        f"not fully examined), so {what} could not be confirmed or ruled out.",
+        "judge_confidence": 0.0,
     }
-    for m in repo.manifests_found:
-        if s in manifest_hits.get(m, set()):
-            return True
-    return s in repo.readme_excerpt.lower() if repo.readme_excerpt else False
 
 
 def judge_skill_claim(skill: str, gh: GitHubEvidence, required: bool) -> dict:
-    """Returns {status, evidence[], rationale, judge_confidence}."""
-    if gh.status != "ok":
+    """Returns {status, evidence[], rationale, judge_confidence}.
+
+    UNSUPPORTED only when every relevant check completed; if any repo's data is incomplete
+    and nothing positive was found, the result is UNVERIFIABLE (Spec 2.4)."""
+    if not gh.has_data:
         return {
             "status": "UNVERIFIABLE", "evidence": [],
             "rationale": "No accessible GitHub source could confirm this claim.",
@@ -53,7 +50,7 @@ def judge_skill_claim(skill: str, gh: GitHubEvidence, required: bool) -> dict:
     evidence = []
     best_status = "UNSUPPORTED"
     for repo in gh.repos:
-        if not _repo_covers_skill(repo, skill):
+        if not repo_covers_skill(repo, skill):
             continue
         if repo.authorship_ratio >= min_auth or (repo.owned and repo.commits_total == 0):
             evidence.append(
@@ -68,6 +65,8 @@ def judge_skill_claim(skill: str, gh: GitHubEvidence, required: bool) -> dict:
                  "note": f"low authorship_ratio={repo.authorship_ratio}, evidence is weak"}
             )
             best_status = "WEAK" if best_status == "UNSUPPORTED" else best_status
+    if best_status == "UNSUPPORTED" and gh.incomplete_repos:
+        return _partial_unverifiable(f"use of {skill}", gh)
     rationale = {
         "VERIFIED": f"Code and manifests in an owned, authored repository use {skill}.",
         "WEAK": f"A repository mentions {skill} but authorship could not be confirmed.",
@@ -80,7 +79,7 @@ def judge_skill_claim(skill: str, gh: GitHubEvidence, required: bool) -> dict:
 
 
 def judge_project_claim(project_text: str, gh: GitHubEvidence) -> dict:
-    if gh.status != "ok":
+    if not gh.has_data:
         return {
             "status": "UNVERIFIABLE", "evidence": [],
             "rationale": "No accessible GitHub source could confirm this project.",
@@ -99,6 +98,8 @@ def judge_project_claim(project_text: str, gh: GitHubEvidence) -> dict:
                 "rationale": f"A repository named '{repo.name}' matches this project claim.",
                 "judge_confidence": 0.8 if status == "VERIFIED" else 0.45,
             }
+    if gh.incomplete_repos:
+        return _partial_unverifiable("this project", gh)
     return {
         "status": "UNSUPPORTED", "evidence": [],
         "rationale": "No repository name or description matches this project.",
@@ -106,9 +107,36 @@ def judge_project_claim(project_text: str, gh: GitHubEvidence) -> dict:
     }
 
 
-def authenticity_flags(gh: GitHubEvidence) -> list[dict]:
+_GENERIC = {"app", "api", "service", "project", "my", "the", "a", "and", "of", "for", "with", "old", "new"}
+
+
+def _tokens(text: str) -> set[str]:
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in _GENERIC and len(w) > 2}
+
+
+def authenticity_flags(gh: GitHubEvidence, claims: list[dict] | None = None,
+                       project_names: list[str] | None = None) -> list[dict]:
+    """Repo flags only for repos the resume actually relies on: cited as evidence for a
+    claim, or named by a PROJECT claim. Forking a public repo and never touching it is
+    normal, so a fork the candidate never mentions is not reported as 'claimed as own'.
+    claims=None (direct unit use) reports every flagged repo."""
+    relied_on = None
+    if claims is not None:
+        relied_on = set()
+        for c in claims:
+            for e in c.get("evidence", []):
+                relied_on.add(str(e.get("citation", "")).rsplit("/", 1)[-1])
+        # PROJECT claim text is the project's description; its name is passed separately.
+        project_tokens = [_tokens(c["text"]) for c in claims if c.get("type") == "PROJECT"]
+        project_tokens += [_tokens(n) for n in project_names or []]
+        for repo in gh.repos:
+            name_tokens = _tokens(repo.name.replace("-", " ").replace("_", " "))
+            if name_tokens and any(name_tokens & pt for pt in project_tokens):
+                relied_on.add(repo.name)
     out = []
     for repo in gh.repos:
+        if relied_on is not None and repo.name not in relied_on:
+            continue
         for flag in repo.flags:
             out.append({"flag": flag, "repo": repo.name, "detail": _flag_detail(flag, repo)})
     return out

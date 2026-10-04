@@ -71,6 +71,28 @@ class Store:
             # A screening still "processing" when the store opens was cut off by a
             # restart; nothing resumes it, so mark it rather than let the UI poll forever.
             c.execute("UPDATE screenings SET status='interrupted' WHERE status='processing'")
+        self.purge_expired()
+
+    def purge_expired(self, days: float | None = None) -> dict:
+        """Spec 2.9 retention: delete candidate reports and authenticity reports older than
+        privacy.retain_raw_days (they hold candidate names and resume-derived profiles).
+        Screening rows hold no personal data and are kept. The audit log is append-only and
+        is never purged; the purge itself is recorded there."""
+        days = float(cfg("privacy.retain_raw_days", 30) if days is None else days)
+        cutoff = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)).isoformat()
+        conn = self._conn()
+        try:
+            with conn:
+                cand = conn.execute("DELETE FROM candidates WHERE created_at < ?", (cutoff,)).rowcount
+                auth = conn.execute(
+                    "DELETE FROM authenticity_reports WHERE created_at < ?", (cutoff,)
+                ).rowcount
+        finally:
+            conn.close()
+        result = {"candidates": cand, "authenticity_reports": auth, "retain_days": days}
+        if cand or auth:
+            self.append_audit("*", "retention_purge", result)
+        return result
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)

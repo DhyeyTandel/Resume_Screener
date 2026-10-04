@@ -148,7 +148,7 @@ def check_linkedin_consistency(
         r_start, r_end = _parse_year(r.get("start", "")), _parse_year(r.get("end", ""), is_end=True)
         li_start, li_end = _parse_year(best.start), _parse_year(best.end, is_end=True)
         if None not in (r_start, r_end, li_start, li_end):
-            if abs(r_start - li_start) > tol_years or abs(r_end - li_end) > tol_years:
+            if abs(r_start - li_start) > tol_years or abs(r_end - li_end) > tol_years:  # type: ignore[operator]  # None excluded by the `None not in (...)` guard
                 out.append(
                     {
                         "type": "date_conflict",

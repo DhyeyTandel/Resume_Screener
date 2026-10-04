@@ -69,3 +69,27 @@ async def test_authenticity_flags_cite_the_repo():
     gh = await collect_github("priya", fetch=make_fetch("priya"))
     flags = authenticity_flags(gh)
     assert any(f["flag"] == "fork_claimed_as_own" and f["repo"] == "old-tutorial-clone" for f in flags)
+
+
+async def test_unmentioned_fork_is_not_reported_as_claimed():
+    """Forking a public repo and never touching it is normal; only a fork the resume
+    relies on (cited, or named by a project claim) may be reported."""
+    gh = await collect_github("priya", fetch=make_fetch("priya"))
+    unrelated = [{"type": "PROJECT", "text": "Ledger Service: settlement ledger", "evidence": []}]
+    assert not any(f["flag"] == "fork_claimed_as_own" for f in authenticity_flags(gh, unrelated))
+    claims_fork = [{"type": "PROJECT", "text": "Tutorial Clone: storefront I built from scratch",
+                    "evidence": []}]
+    assert any(f["flag"] == "fork_claimed_as_own" and f["repo"] == "old-tutorial-clone"
+               for f in authenticity_flags(gh, claims_fork))
+
+
+
+async def test_fork_claim_matched_through_the_project_name_as_the_engine_sees_it():
+    """Regression: PROJECT claim text is only the description, so a fork named after the
+    project was never matched. The engine passes project names separately."""
+    gh = await collect_github("priya", fetch=make_fetch("priya"))
+    desc_only = [{"type": "PROJECT", "text": "storefront I designed and built from scratch",
+                  "evidence": []}]
+    assert not any(f["flag"] == "fork_claimed_as_own" for f in authenticity_flags(gh, desc_only))
+    flags = authenticity_flags(gh, desc_only, project_names=["Tutorial Clone"])
+    assert any(f["flag"] == "fork_claimed_as_own" for f in flags)

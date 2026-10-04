@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
 from ....config import cfg
+from ....db.cache import cache_enabled, cached_fetch
 from ...skill_intelligence.transfer import canonical
 
 Fetch = Callable[[str], Awaitable[tuple[int, str]]]
@@ -99,7 +100,9 @@ async def collect_portfolio(
     """Stage 2 portfolio collector. Never raises: failures become status='error'."""
     if not url:
         return PortfolioEvidence(url="", status="missing")
-    fetch = fetch or _default_fetch
+    if fetch is None:
+        # The default fetch is the cache seam; injected fetches are used as given.
+        fetch = cached_fetch(_default_fetch) if cache_enabled() else _default_fetch
     parsed = urlparse(url if "://" in url else f"https://{url}")
     origin = f"{parsed.scheme}://{parsed.netloc}"
 
@@ -122,7 +125,7 @@ async def collect_portfolio(
     text = _extract_with_bs4(html) or _strip_html(html)
     projects = [_strip_html(t)[:120] for t in _TITLE_TAGS.findall(html)][:10]
     words = set(re.findall(r"[a-z0-9+#.]+", text.lower()))
-    tech = sorted({canonical(w) for w in words if canonical(w)})
+    tech = sorted({c for c in (canonical(w) for w in words) if c})
     links = sorted(set(_LINK.findall(html)))[:30]
     outbound = [
         urljoin(url, link) for link in links
