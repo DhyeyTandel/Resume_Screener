@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Callable
 
 from ..config import cfg
-from ..llm.client import LLMClient
+from ..llm.client import MOCK_TASKS, LLMClient
 from ..llm.redaction import redact_for_scoring
 from ..modules.authenticity_engine.engine import assess
 from ..modules.core_screening.core import extract_requirements, match_requirements, structure_resume
@@ -261,18 +261,32 @@ async def _screen_candidate(
 
     async def run_narrative() -> dict:
         with Stage(stages, "narrative", _emit):
+            facts = {
+                "matched": [r["requirement"] for r in matched if r["status"] == "Matched"],
+                "missing": [r["requirement"] for r in matched if r["status"] == "Missing"],
+                "base_score": scores["base_score"],
+                "total_requirements": len(matched),
+            }
             res = await llm.complete_json(
                 "You write short, factual recruiter-facing prose from structured screening "
-                "facts. You never invent facts and never state a hiring decision.",
-                {
-                    "matched": [r["requirement"] for r in matched if r["status"] == "Matched"],
-                    "missing": [r["requirement"] for r in matched if r["status"] == "Missing"],
-                    "base_score": scores["base_score"],
-                    "total_requirements": len(matched),
-                },
+                "facts. You never invent facts and never state a hiring decision.\n\n"
+                'Return ONLY JSON with exactly these keys: {"summary": "<2-4 sentences>", '
+                '"strengths": ["<short phrase>", ...], "risks": ["<short phrase>", ...], '
+                '"rationale": "<1 sentence>"}. Use only the facts given.',
+                facts,
                 task="summary",
             )
-            return res.data
+            data = res.data if isinstance(res.data, dict) else {}
+            ok = (isinstance(data.get("summary"), str) and data["summary"].strip()
+                  and isinstance(data.get("strengths", []), list)
+                  and isinstance(data.get("risks", []), list))
+            if ok:
+                return data
+            # A real model returned the wrong shape (measured: every report blank against a
+            # local 7B model before the keys were stated). Fall back to the deterministic,
+            # fact-only template rather than ship an empty explanation, and say so in meta.
+            stages.setdefault("narrative", {})["fallback"] = "template: model output lacked the required keys"
+            return MOCK_TASKS["summary"](facts)
 
     auth_task = asyncio.create_task(run_authenticity())
     narr_task = asyncio.create_task(run_narrative())

@@ -348,7 +348,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "d5521afd",
+    "candidate_id": "254bd3c8",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Backend engineer, four years, mostly on closed-source enterprise systems under NDA.",
       "skills": [
@@ -482,7 +482,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "d5521afd",
+      "candidate_id": "254bd3c8",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1023,7 +1023,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0,
+      "_latency_seconds": 0.0001,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1043,7 +1043,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 6,
           "status": "ok"
         },
         "authenticity": {
@@ -1067,7 +1067,7 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 2,
+      "latency_ms": 8,
       "llm_calls": 2,
       "schema_valid": true
     }

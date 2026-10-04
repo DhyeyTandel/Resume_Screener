@@ -1538,7 +1538,7 @@
       "type": "array"
     },
     "summary": {
-      "default": "",
+      "minLength": 1,
       "title": "Summary",
       "type": "string"
     },
@@ -1554,6 +1554,7 @@
     "candidate_name",
     "overall_match_score",
     "recommendation",
+    "summary",
     "ai_text_indicators",
     "fairness_notice",
     "extensions"

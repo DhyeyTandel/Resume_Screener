@@ -147,8 +147,8 @@ Corpus: 300 candidates (seed 20261004), fixed stratified split 90 train / 210 te
 | Fairness claim-extraction F1 gap, non-native minus native (pp) | 0.000 | [0.000, 0.000] | 1945 | <= 5 pp (absolute) | yes |
 | Name-swap invariance (identical scores, band, recommendation) | 1.000 | [1.000, 1.000] | 112 | 100% | yes |
 | Determinism (same input x3 -> same band + recommendation) | 1.000 | [1.000, 1.000] | 210 | 100% | yes |
-| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.004 | [0.004, 0.004] | 210 | <= 25 s with real GitHub | n/a |
-| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.006 | [0.006, 0.007] | 210 | <= 60 s with real GitHub | n/a |
+| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.005 | [0.005, 0.005] | 210 | <= 25 s with real GitHub | n/a |
+| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.019 | [0.016, 0.022] | 210 | <= 60 s with real GitHub | n/a |
 | Citation validity (evidence citation resolves to a collected artifact) | 1.000 | [1.000, 1.000] | 1736 | 100% | yes |
 | Spurious fork/tutorial flag on genuine candidates | 0.000 | [0.000, 0.000] | 112 | informational | n/a |
 
@@ -176,7 +176,7 @@ Notes on the rows above:
 - Citation validity (evidence citation resolves to a collected artifact): 0 unresolved citations
 - Spurious fork/tutorial flag on genuine candidates: genuine candidates never claim a fork or tutorial repo as their own
 
-Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.004 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 4.9 s.
+Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.005 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 8.2 s.
 
 ### Claim status confusion matrix (rows = ground truth, columns = predicted)
 
@@ -276,4 +276,4 @@ Module B's synthetic metrics are above and are labelled SYNTHETIC-ONLY: they do 
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
 - Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. The synthetic corpus above does measure P1, P2, P4 (including LinkedIn date and title conflicts), P5 and P6 as recall rates, but only on invented data.
-- Total eval wall time: 5.4s, all in mock mode with no network calls.
+- Total eval wall time: 9.4s, all in mock mode with no network calls.

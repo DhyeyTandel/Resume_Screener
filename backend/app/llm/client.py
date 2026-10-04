@@ -205,9 +205,12 @@ class LLMClient:
     ) -> _Raw:
         try:
             if provider == "ollama":
-                options: dict[str, Any] = {"temperature": temp, "seed": OLLAMA_SEED}
-                if max_tokens:
-                    options["num_predict"] = max_tokens
+                # Always cap generation. Uncapped, a JSON-mode generation that degenerates
+                # (endless whitespace) runs until the model's own limit: measured at 22m17s on
+                # a local 7B model, long after the client timed out, blocking the single GPU
+                # queue for every later call. Anthropic always had a default cap; Ollama did not.
+                options: dict[str, Any] = {"temperature": temp, "seed": OLLAMA_SEED,
+                                           "num_predict": max_tokens or DEFAULT_MAX_TOKENS}
                 resp = await http.post(
                     f"{str(cfg('llm.ollama.base_url')).rstrip('/')}/api/chat",
                     json={

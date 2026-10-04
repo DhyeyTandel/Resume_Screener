@@ -313,3 +313,25 @@ async def test_module_d_max_tokens_stop_with_parseable_body_also_retries():
     c, _ = make(handler)
     out = await generate_interview_questions(REQS, llm=c)
     assert budgets == [900, 1800] and out["_attempts"] == 2
+
+
+async def test_ollama_generation_is_always_capped():
+    """Regression: callers that pass no max_tokens (narrative, integrity interpreter, claim
+    judge) sent Ollama no num_predict, so a degenerate JSON generation ran for 22 minutes
+    and blocked the GPU queue. Every Ollama request must carry a cap."""
+    import json as _json
+
+    import httpx
+
+    from app.llm.client import DEFAULT_MAX_TOKENS, LLMClient
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(_json.loads(request.content))
+        return httpx.Response(200, json={"message": {"content": '{"summary": "ok"}'},
+                                         "done_reason": "stop"})
+
+    llm = LLMClient("ollama", transport=httpx.MockTransport(handler))
+    await llm.complete_json("sys", {"a": 1}, task="summary")
+    assert seen["options"]["num_predict"] == DEFAULT_MAX_TOKENS

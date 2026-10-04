@@ -10,6 +10,19 @@ from ...llm.client import LLMClient, LLMTruncated
 from ...llm.prompts_common import UNTRUSTED_DATA_RULE
 from .prompt import SYSTEM_PROMPT
 
+# Appendix B stays verbatim (prompt.py) but never states the shape it asks for. Measured against
+# a real 7B model, it then invented {"questions": [{"must_have", "question"}]} with no skill,
+# purpose or risk fields, and every run produced zero questions. The Spec 12 shape is added
+# here, the same way UNTRUSTED_DATA_RULE is added, so SYSTEM_PROMPT itself is unchanged.
+OUTPUT_SCHEMA = """OUTPUT SCHEMA (exact keys, nothing else):
+{"interview_questions": [{"skill": "<exactly the input skill name>",
+  "evidence_level": "claimed | not_demonstrated | transferable (copy from the input)",
+  "question": "<1-2 sentences, one question>", "purpose": "<1 sentence>",
+  "risk_if_unanswered": "<1 sentence>"}],
+ "skipped_strong_evidence": []}
+Write exactly one entry per input requirement, in the same order, using each skill name exactly
+as given."""
+
 VALID_LEVELS = {"claimed", "not_demonstrated", "transferable"}
 _ORDER = {"must_have": 0, "nice_to_have": 1}
 
@@ -92,7 +105,7 @@ async def generate_interview_questions(
         attempts = attempt
         try:
             res = await client.complete_json(
-                f"{UNTRUSTED_DATA_RULE}\n\n{SYSTEM_PROMPT}",
+                f"{UNTRUSTED_DATA_RULE}\n\n{SYSTEM_PROMPT}\n\n{OUTPUT_SCHEMA}",
                 {"requirements": todo},
                 task="interview_questions",
                 temperature=temperature,

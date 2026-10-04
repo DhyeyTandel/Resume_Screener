@@ -1,6 +1,8 @@
 """Module A interpreter: LLM explains, Python decides (Spec 8.2)."""
 from __future__ import annotations
 
+import re
+
 from ...llm.client import LLMClient
 from ...llm.prompts_common import UNTRUSTED_DATA_RULE, wrap_untrusted
 from .prompt import SYSTEM_PROMPT
@@ -8,6 +10,12 @@ from .scanner import INFO_CODES
 
 ACTIONS = ("proceed", "flag_for_review", "disqualify_review")
 GUILT_WORDS = ("fraud", "fake", "cheat", "dishonest", "liar", "lying", "guilty")
+# Whole words with their inflections. Substring matching fired on ordinary words in real
+# model prose ("underlying", "familiar", "cheatsheet") and replaced valid explanations.
+GUILT_RE = re.compile(
+    r"\b(fraud\w*|fak(?:e|ed|es|ing)|cheat(?:s|ed|er|ers|ing)?|dishonest\w*|liars?|lying|guilt(?:y|ily)?)\b",
+    re.I,
+)
 
 
 def _benign_output(base_score: float) -> dict:
@@ -126,7 +134,7 @@ def enforce_guardrails(result: dict, scanner: dict, base_score: float) -> dict:
     # No guilt language anywhere in the prose.
     for key in ("headline", "intent_reasoning", "audit_log_entry"):
         text = str(out.get(key, ""))
-        if any(w in text.lower() for w in GUILT_WORDS):
+        if GUILT_RE.search(text):
             out[key] = "The file contains formatting that could distort an automated score."
     out["penalty"] = penalty
     out["human_decides"] = "A human recruiter always makes the final call."

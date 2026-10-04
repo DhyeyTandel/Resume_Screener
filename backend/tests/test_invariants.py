@@ -269,3 +269,44 @@ async def test_attack_penalty_survives_an_interpreter_failure(monkeypatch):
     assert i["recommended_action"] == "disqualify_review" and i["intent"] == "deliberate"
     assert r["recommendation"] != "Shortlist"
     assert r["extensions"]["meta"]["schema_valid"] is True
+
+
+async def test_narrative_falls_back_to_template_when_a_model_returns_the_wrong_shape():
+    """Regression (measured on a real 7B model): the narrative prompt never stated its keys,
+    so a real model's JSON lacked 'summary' and every report shipped a blank explanation that
+    still passed the schema. Now the keys are stated, a wrong shape falls back to the
+    deterministic template, and a blank summary fails the schema."""
+    from app.llm.client import LLMResult
+
+    class WrongShape(LLMClient):
+        def __init__(self):
+            super().__init__("mock")
+            self.provider = "fake"
+
+        async def complete_json(self, system, user, *, task, **kw):
+            if task == "summary":
+                self.prompts.append({"task": task, "system": system, "user": str(user)})
+                return LLMResult(data={"overview": "something"}, provider="fake", model="f", latency_ms=1)
+            return await super().complete_json(system, user, task=task, **kw)
+
+    llm = WrongShape()
+    r = await screen_candidate(jd_text=JD, pasted_text=STRONG, llm=llm)
+    assert r["summary"].strip()
+    assert "fallback" in r["extensions"]["meta"]["stages"]["narrative"]
+    assert r["extensions"]["meta"]["schema_valid"] is True
+    summary_prompt = next(p for p in llm.prompts if p["task"] == "summary")
+    assert '"summary"' in summary_prompt["system"] and '"strengths"' in summary_prompt["system"]
+
+
+def test_blank_summary_fails_the_report_schema():
+    import json as _json
+
+    import pytest
+    from pydantic import ValidationError
+
+    from app.schemas.report import UnifiedReport
+
+    report = _json.loads((SAMPLES.parent / "sample_output/01_strong_match.json").read_text())
+    report["summary"] = ""
+    with pytest.raises(ValidationError):
+        UnifiedReport.model_validate(report)

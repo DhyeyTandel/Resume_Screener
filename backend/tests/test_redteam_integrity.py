@@ -120,3 +120,16 @@ def test_hidden_text_is_quoted_with_label_and_at_most_15_words():
         {"findings": [{"code": "JD_CLONE", "quoted_evidence": "hidden text reads: \"forged\""}]},
         scan(doc(CLEAN + [Span(JD, color=0xFFFFFF)]), JD), 80.0)
     assert all("forged" not in f.get("quoted_evidence", "") for f in out2["findings"])
+
+
+def test_guilt_filter_matches_whole_words_only():
+    """Regression: substring matching replaced valid real-model explanations containing
+    ordinary words like 'underlying' or 'familiar'."""
+    from app.modules.integrity_guard.interpreter import GUILT_RE
+
+    for benign in ("The underlying text is hidden.", "Familiar with Pytest.", "A cheatsheet file.",
+                   "Its guiltless typography is normal."):
+        assert not GUILT_RE.search(benign), benign
+    for accusatory in ("This is fraud.", "The candidate cheated.", "He is lying.", "A fake resume.",
+                       "Fraudulent document", "guilty of hiding text"):
+        assert GUILT_RE.search(accusatory), accusatory

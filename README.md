@@ -43,6 +43,15 @@ Open <http://localhost:8077>, press **Load sample JD**, paste a resume from
 8. **Audit:** on your own candidate, record a decision in the Audit tab; it is appended to an
    append-only log (the database rejects edits and deletes).
 
+## Running with a real local model
+
+```bash
+brew install ollama && ollama serve &
+ollama pull qwen2.5:7b-instruct
+LLM_PROVIDER=ollama make dev
+.venv/bin/python eval/llm_smoke.py --runs 2   # optional: real-model safety/validity report
+```
+
 ## Swapping the LLM provider
 
 `llm.provider` in `backend/app/config.yaml`, or the `LLM_PROVIDER` env var:
@@ -50,7 +59,7 @@ Open <http://localhost:8077>, press **Load sample JD**, paste a resume from
 | Provider | Needs | Effect |
 |---|---|---|
 | `mock` (default) | nothing | Deterministic prose from heuristics. Dashboard shows "Mock analysis mode". |
-| `ollama` | Ollama on :11434 | Local model writes the prose. Zero cost. |
+| `ollama` | Ollama on :11434 | Local model writes the prose. Zero cost. Verified end to end with `qwen2.5:7b-instruct` (`eval/llm_smoke.py`, report in `eval/llm_smoke_report.md`); about 50-100s per candidate on an M4. |
 | `anthropic` | `ANTHROPIC_API_KEY` | Best prose quality. |
 
 **The provider changes wording, never numbers.** Every score, penalty, band and

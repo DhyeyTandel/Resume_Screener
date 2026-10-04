@@ -89,3 +89,17 @@ def test_json_fence_and_preamble_stripping():
     assert extract_json('Here you go:\n{"a": 1}\nHope that helps!') == {"a": 1}
     with pytest.raises(ValueError):
         extract_json("no json at all")
+
+
+async def test_module_d_prompt_states_the_output_schema():
+    """Regression (measured on a real 7B model): Appendix B never states the output shape, so
+    the model invented {"questions": [...]} and every run produced zero questions."""
+    from app.modules.interview_questions.prompt import SYSTEM_PROMPT
+
+    llm = LLMClient("mock")
+    await generate_interview_questions(MIXED, llm=llm)
+    system = llm.prompts[-1]["system"]
+    assert SYSTEM_PROMPT in system  # Appendix B itself stays verbatim
+    for key in ('"interview_questions"', '"skill"', '"evidence_level"', '"question"',
+                '"purpose"', '"risk_if_unanswered"'):
+        assert key in system

@@ -240,3 +240,28 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   profiles WITH a LinkedIn export get a band from that corroboration rather than
   INSUFFICIENT_EVIDENCE, which is defensible but misses the spec's metric), AUROC 0.82
   (0.85), ECE 0.109 (0.10). No sample candidate's score, recommendation or band changed.
+- **A-23 (first real-model run, Ollama `qwen2.5:7b-instruct` on an M4 / 16 GB).** Every LLM
+  path had only ever met the mock or simulated HTTP. `eval/llm_smoke.py` runs real screenings
+  and records which provider ACTUALLY served each call, so a silent fallback to mock cannot
+  pass as success. Report: `eval/llm_smoke_report.md` (not in CI; needs a local model).
+  Found against the real model, none visible to the mock:
+  1. **Every report's explanation was blank.** The narrative prompt never named its keys, so
+     the model's JSON had no `summary`/`strengths`/`risks`, and the report still validated
+     because an empty string is a string. Keys are now stated; a wrong shape falls back to
+     the deterministic fact-only template (noted in `meta.stages.narrative.fallback`); and the
+     schema now rejects an empty summary.
+  2. **Module D produced zero interview questions in every run.** Appendix B asks for "the
+     output schema" but never states it; the model invented `{"questions": [...]}`. The Spec 12
+     shape is now appended through a wrapper, keeping Appendix B verbatim.
+  3. **A single generation ran for 22m17s.** Only Module D sent Ollama a `num_predict` cap, so
+     a degenerate JSON-mode generation ran on long after the client's 60s timeout and blocked
+     the single GPU queue for every later call. Every Ollama call is now capped.
+  4. **The guilt-language guardrail used substring matching**, so ordinary words in real prose
+     ("underlying", "familiar", "cheatsheet") replaced valid integrity explanations. Now whole
+     words with inflections.
+  After the fixes, across 2 runs x 4 cases: every call served by Ollama (no fallback), every
+  report schema-valid, identical outcomes across runs, the attack PDF kept its 0.40 penalty
+  and disqualify_review, no injected text in any output, no accusatory words, 8 interview
+  questions per candidate that follow the evidence-level strategies. **Latency misses the
+  spec:** about 50-100s per candidate (call p50 8-10s) against a 25s p50 target. Calls share one
+  local GPU, so this is mostly hardware; it is reported, not tuned away.

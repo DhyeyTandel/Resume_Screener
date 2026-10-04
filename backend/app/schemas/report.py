@@ -324,7 +324,7 @@ class UnifiedReport(_Base):
     candidate_name: str
     overall_match_score: int = Field(ge=0, le=100)
     recommendation: Recommendation
-    summary: str = ""
+    summary: str = Field(min_length=1)  # an empty explanation is a defect, not a valid report
     ai_text_indicators: AiTextIndicators
     requirement_match: list[RequirementMatch] = Field(default_factory=list)
     matched_skills: list[str] = Field(default_factory=list)
