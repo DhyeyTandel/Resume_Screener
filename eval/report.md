@@ -126,37 +126,37 @@ Corpus: 300 candidates (seed 20261004), fixed stratified split 90 train / 210 te
 
 | Metric | Value | 95% CI | n | Target | Met |
 |---|---|---|---|---|---|
-| Claim extraction precision (type+text match) | 0.974 | [0.964, 0.983] | 3815 | informational | n/a |
-| Claim extraction recall (type+text match) | 0.955 | [0.948, 0.961] | 3815 | informational | n/a |
-| Claim extraction F1 vs generated claims | 0.964 | [0.957, 0.971] | 3815 | >= 0.85 | yes |
-| Claim status macro-F1 | 0.690 | [0.651, 0.723] | 3596 | >= 0.75 | NO |
-| Detection recall P1 (injected skill flagged UNSUPPORTED) | 0.838 | [0.780, 0.894] | 117 | >= 0.80 | yes |
-| Detection recall P2 (inflated metric flagged CONTRADICTED) | 0.000 | [0.000, 0.000] | 21 | >= 0.80 | NO |
-| Detection recall P4 (expected contradiction type raised) | 0.536 | [0.357, 0.714] | 28 | >= 0.80 | NO |
+| Claim extraction precision (type+text match) | 1.000 | [1.000, 1.000] | 3815 | informational | n/a |
+| Claim extraction recall (type+text match) | 0.986 | [0.983, 0.990] | 3815 | informational | n/a |
+| Claim extraction F1 vs generated claims | 0.993 | [0.991, 0.995] | 3815 | >= 0.85 | yes |
+| Claim status macro-F1 | 0.936 | [0.918, 0.950] | 3715 | >= 0.75 | yes |
+| Detection recall P1 (injected skill flagged UNSUPPORTED) | 0.932 | [0.892, 0.966] | 117 | >= 0.80 | yes |
+| Detection recall P2 (inflated metric flagged CONTRADICTED) | 0.619 | [0.429, 0.810] | 21 | >= 0.80 | NO |
+| Detection recall P4 (expected contradiction type raised) | 1.000 | [1.000, 1.000] | 28 | >= 0.80 | yes |
 | Detection recall P5 (flag on the fork / tutorial repo) | 1.000 | [1.000, 1.000] | 21 | >= 0.80 | yes |
-| False-accusation rate (genuine -> NEEDS_VERIFICATION) | 0.259 | [0.179, 0.339] | 112 | <= 0.05 | NO |
-| False-accusation rate, genuine with public GitHub only | 0.286 | [0.190, 0.381] | 84 | <= 0.05 | NO |
+| False-accusation rate (genuine -> NEEDS_VERIFICATION) | 0.000 | [0.000, 0.000] | 112 | <= 0.05 | yes |
+| False-accusation rate, genuine with public GitHub only | 0.000 | [0.000, 0.000] | 84 | <= 0.05 | yes |
 | P3 invariance: mean reliability drop after truthful AI rewrite | 0.000 | [0.000, 0.000] | 112 | <= 0.05 | yes |
 | P3 invariance: max reliability drop | 0.000 | n/a | 112 | <= 0.05 | yes |
-| P6 genuine no-GitHub -> INSUFFICIENT_EVIDENCE | 0.571 | [0.393, 0.750] | 28 | >= 0.95 | NO |
-| AUROC authenticity score, genuine vs perturbed | 0.699 | [0.622, 0.771] | 182 | >= 0.85 | NO |
-| Calibration ECE of judge_confidence (judged claims) | 0.126 | [0.105, 0.149] | 1936 | <= 0.10 | NO |
-| Calibration ECE, all matched claims (UNVERIFIABLE has confidence 0) | 0.517 | [0.492, 0.543] | 3596 | informational | n/a |
+| P6 genuine no-GitHub -> INSUFFICIENT_EVIDENCE | 0.786 | [0.607, 0.929] | 28 | >= 0.95 | NO |
+| AUROC authenticity score, genuine vs perturbed | 0.823 | [0.761, 0.877] | 182 | >= 0.85 | NO |
+| Calibration ECE of judge_confidence (judged claims) | 0.109 | [0.094, 0.125] | 1950 | <= 0.10 | NO |
+| Calibration ECE, all matched claims (UNVERIFIABLE has confidence 0) | 0.524 | [0.501, 0.550] | 3715 | informational | n/a |
 | Fairness false-flag gap, native vs non-native English (pp) | 0.000 | [0.000, 0.000] | 112 | <= 5 pp (absolute) | yes |
-| Fairness false-flag gap, public-heavy vs private-heavy GitHub (pp) | 3.571 | [0.000, 7.143] | 84 | <= 5 pp (absolute) | yes |
+| Fairness false-flag gap, public-heavy vs private-heavy GitHub (pp) | 0.000 | [0.000, 0.000] | 84 | <= 5 pp (absolute) | yes |
 | Fairness claim-extraction F1 gap, non-native minus native (pp) | 0.000 | [0.000, 0.000] | 1945 | <= 5 pp (absolute) | yes |
 | Name-swap invariance (identical scores, band, recommendation) | 1.000 | [1.000, 1.000] | 112 | 100% | yes |
 | Determinism (same input x3 -> same band + recommendation) | 1.000 | [1.000, 1.000] | 210 | 100% | yes |
-| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.003 | [0.003, 0.004] | 210 | <= 25 s with real GitHub | n/a |
-| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.005 | [0.005, 0.006] | 210 | <= 60 s with real GitHub | n/a |
-| Citation validity (evidence citation resolves to a collected artifact) | 1.000 | [1.000, 1.000] | 1585 | 100% | yes |
-| Spurious fork/tutorial flag on genuine candidates | 0.161 | [0.098, 0.232] | 112 | informational | n/a |
+| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.004 | [0.004, 0.004] | 210 | <= 25 s with real GitHub | n/a |
+| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.006 | [0.006, 0.007] | 210 | <= 60 s with real GitHub | n/a |
+| Citation validity (evidence citation resolves to a collected artifact) | 1.000 | [1.000, 1.000] | 1736 | 100% | yes |
+| Spurious fork/tutorial flag on genuine candidates | 0.000 | [0.000, 0.000] | 112 | informational | n/a |
 
 Notes on the rows above:
 
-- Claim extraction F1 vs generated claims: n = generated claims; TP 3642, FP 97, FN 173
-- Claim status macro-F1: over matched claims with an unambiguous label; accuracy 0.924
-- Detection recall P1 (injected skill flagged UNSUPPORTED): claim-level over 28 candidates; candidate-level any-flag 1.00, all-flagged 0.46
+- Claim extraction F1 vs generated claims: n = generated claims; TP 3762, FP 0, FN 53
+- Claim status macro-F1: over matched claims with an unambiguous label; accuracy 0.955
+- Detection recall P1 (injected skill flagged UNSUPPORTED): claim-level over 28 candidates; candidate-level any-flag 1.00, all-flagged 0.71
 - Detection recall P2 (inflated metric flagged CONTRADICTED): candidate-level; every P2 candidate has a README figure that conflicts with the resume
 - Detection recall P4 (expected contradiction type raised): candidate-level
 - Detection recall P5 (flag on the fork / tutorial repo): candidate-level
@@ -167,27 +167,27 @@ Notes on the rows above:
 - AUROC authenticity score, genuine vs perturbed: 84 genuine vs 98 perturbed (P1/P2/P4/P5); sklearn not installed, rank-based
 - Calibration ECE of judge_confidence (judged claims): 10 equal-width bins; correct = status equals ground truth
 - Calibration ECE, all matched claims (UNVERIFIABLE has confidence 0): 10 equal-width bins; correct = status equals ground truth
-- Fairness false-flag gap, native vs non-native English (pp): false-flag rate 0.259 -> 0.259; paired on the same candidates; gap = second minus first
-- Fairness false-flag gap, public-heavy vs private-heavy GitHub (pp): false-flag rate 0.286 -> 0.321; paired on the same candidates; gap = second minus first
-- Fairness claim-extraction F1 gap, non-native minus native (pp): F1 native 0.963, non-native 0.963; paired on the same genuine candidates
+- Fairness false-flag gap, native vs non-native English (pp): false-flag rate 0.000 -> 0.000; paired on the same candidates; gap = second minus first
+- Fairness false-flag gap, public-heavy vs private-heavy GitHub (pp): false-flag rate 0.000 -> 0.000; paired on the same candidates; gap = second minus first
+- Fairness claim-extraction F1 gap, non-native minus native (pp): F1 native 0.994, non-native 0.994; paired on the same genuine candidates
 - Name-swap invariance (identical scores, band, recommendation): Spec 16.3 fairness invariant, synthetic names
 - Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time): in-process only; says nothing about the real-network target
 - Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time): in-process only; says nothing about the real-network target
 - Citation validity (evidence citation resolves to a collected artifact): 0 unresolved citations
 - Spurious fork/tutorial flag on genuine candidates: genuine candidates never claim a fork or tutorial repo as their own
 
-Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.003 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 4.3 s.
+Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.004 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 4.9 s.
 
 ### Claim status confusion matrix (rows = ground truth, columns = predicted)
 
 | truth \ predicted | VERIFIED | CORROBORATED | WEAK | UNSUPPORTED | CONTRADICTED | UNVERIFIABLE |
 |---|---|---|---|---|---|---|
-| VERIFIED | 1179 | 0 | 6 | 24 | 0 | 21 |
+| VERIFIED | 867 | 0 | 99 | 0 | 0 | 1 |
 | CORROBORATED | 0 | 231 | 0 | 0 | 0 | 0 |
-| WEAK | 11 | 0 | 32 | 34 | 0 | 1 |
-| UNSUPPORTED | 56 | 0 | 4 | 264 | 0 | 0 |
-| CONTRADICTED | 0 | 24 | 0 | 4 | 0 | 21 |
-| UNVERIFIABLE | 0 | 0 | 0 | 67 | 0 | 1617 |
+| WEAK | 7 | 0 | 356 | 22 | 0 | 1 |
+| UNSUPPORTED | 3 | 0 | 1 | 322 | 0 | 23 |
+| CONTRADICTED | 0 | 0 | 0 | 0 | 41 | 8 |
+| UNVERIFIABLE | 1 | 0 | 0 | 0 | 0 | 1732 |
 
 Claims whose label is ambiguous by construction (a fork or tutorial repo claimed as the candidate's own) are left out of the status scores.
 
@@ -195,35 +195,35 @@ Claims whose label is ambiguous by construction (a fork or tutorial repo claimed
 
 | Type | Found | Missed | Extraction recall | Status accuracy (matched) |
 |---|---|---|---|---|
-| ACHIEVEMENT | 608 | 39 | 0.940 | 608/608 = 1.000 |
+| ACHIEVEMENT | 647 | 0 | 1.000 | 647/647 = 1.000 |
 | CERTIFICATION | 57 | 0 | 1.000 | 57/57 = 1.000 |
 | EDUCATION | 210 | 0 | 1.000 | 210/210 = 1.000 |
-| METRIC | 515 | 0 | 1.000 | 473/515 = 0.918 |
-| PROJECT | 422 | 0 | 1.000 | 355/401 = 0.885 |
-| ROLE | 404 | 0 | 1.000 | 376/404 = 0.931 |
-| SKILL | 1426 | 134 | 0.914 | 1244/1401 = 0.888 |
+| METRIC | 515 | 0 | 1.000 | 505/515 = 0.981 |
+| PROJECT | 422 | 0 | 1.000 | 398/401 = 0.993 |
+| ROLE | 404 | 0 | 1.000 | 404/404 = 1.000 |
+| SKILL | 1507 | 53 | 0.966 | 1328/1481 = 0.897 |
 
 ### Band distribution by candidate kind
 
 | Kind | HIGH_TRUST | MODERATE | NEEDS_VERIFICATION | INSUFFICIENT_EVIDENCE | mean authenticity | mean reliability | mean confidence |
 |---|---|---|---|---|---|---|---|
-| genuine | 4 | 53 | 24 | 3 | 0.921 | 0.916 | 0.574 |
-| P1 | 3 | 14 | 10 | 1 | 0.858 | 0.833 | 0.622 |
-| P2 | 1 | 14 | 4 | 2 | 0.922 | 0.912 | 0.573 |
-| P4 | 0 | 12 | 16 | 0 | 0.885 | 0.912 | 0.629 |
-| P5 | 0 | 14 | 6 | 1 | 0.867 | 0.822 | 0.551 |
-| P6 | 1 | 6 | 5 | 16 | 0.746 | 0.627 | 0.301 |
+| genuine | 81 | 0 | 0 | 3 | 0.886 | 0.852 | 0.586 |
+| P1 | 27 | 0 | 0 | 1 | 0.835 | 0.774 | 0.633 |
+| P2 | 20 | 0 | 0 | 1 | 0.855 | 0.801 | 0.6 |
+| P4 | 0 | 0 | 28 | 0 | 0.764 | 0.762 | 0.632 |
+| P5 | 17 | 0 | 0 | 4 | 0.846 | 0.785 | 0.488 |
+| P6 | 6 | 0 | 0 | 22 | 0.782 | 0.681 | 0.175 |
 
 ### Breakdowns
 
-- P4 recall by subtype (hit/n): date_end 4/7, date_start 2/5, overlap 2/2, title_different 5/6, title_inflate 2/8.
+- P4 recall by subtype (hit/n): date_end 7/7, date_start 5/5, overlap 2/2, title_different 6/6, title_inflate 8/8.
 - P5 recall by variant (hit/n): fork 10/10, tutorial 11/11.
-- AUROC of authenticity, genuine vs each perturbation alone: {'P1': 0.83, 'P2': 0.528, 'P4': 0.703, 'P5': 0.691}.
-- P6 band by variant: {'empty_github, linkedin=no': {'NEEDS_VERIFICATION': 2, 'MODERATE': 1}, 'empty_github, linkedin=yes': {'MODERATE': 5, 'HIGH_TRUST': 1}, 'no_github, linkedin=no': {'INSUFFICIENT_EVIDENCE': 10}, 'no_github, linkedin=yes': {'INSUFFICIENT_EVIDENCE': 6, 'NEEDS_VERIFICATION': 3}}.
-- False accusations by source availability (flagged/n): github 14/21, github+linkedin 7/37, github+linkedin+portfolio 0/12, github+portfolio 3/14, no-github 2/11, no-github+linkedin 0/8, no-github+linkedin+portfolio 3/7, no-github+portfolio 0/2.
-- Non-native English rendering: facts, numbers and technologies preserved for 112/112 candidates; mean score change (non-native minus native) {'authenticity': 0.0007, 'reliability': 0.0, 'assessment_confidence': 0.0, 'inflation_index': -0.0064}.
-- Private-heavy world: mean score change (private minus public) {'authenticity': -0.1822, 'reliability': -0.3039, 'assessment_confidence': -0.0173, 'inflation_index': 0.0}; bands {'MODERATE': 52, 'NEEDS_VERIFICATION': 27, 'HIGH_TRUST': 2, 'INSUFFICIENT_EVIDENCE': 3}.
-- Reliability diagram (judged claims): [('0.3-0.4', 22, 0.35, 1.0), ('0.4-0.5', 10, 0.45, 0.0), ('0.5-0.6', 71, 0.536, 0.648), ('0.6-0.7', 332, 0.6, 0.687), ('0.7-0.8', 255, 0.7, 0.906), ('0.8-0.9', 1246, 0.838, 0.946)].
+- AUROC of authenticity, genuine vs each perturbation alone: {'P1': 0.866, 'P2': 0.698, 'P4': 0.986, 'P5': 0.674}.
+- P6 band by variant: {'empty_github, linkedin=no': {'INSUFFICIENT_EVIDENCE': 3}, 'empty_github, linkedin=yes': {'INSUFFICIENT_EVIDENCE': 4, 'HIGH_TRUST': 2}, 'no_github, linkedin=no': {'INSUFFICIENT_EVIDENCE': 10}, 'no_github, linkedin=yes': {'INSUFFICIENT_EVIDENCE': 5, 'HIGH_TRUST': 4}}.
+- False accusations by source availability (flagged/n): github 0/21, github+linkedin 0/37, github+linkedin+portfolio 0/12, github+portfolio 0/14, no-github 0/11, no-github+linkedin 0/8, no-github+linkedin+portfolio 0/7, no-github+portfolio 0/2.
+- Non-native English rendering: facts, numbers and technologies preserved for 112/112 candidates; mean score change (non-native minus native) {'authenticity': 0.0006, 'reliability': 0.0, 'assessment_confidence': -0.0, 'inflation_index': -0.0064}.
+- Private-heavy world: mean score change (private minus public) {'authenticity': -0.1367, 'reliability': -0.2278, 'assessment_confidence': -0.0715, 'inflation_index': 0.0}; bands {'MODERATE': 42, 'HIGH_TRUST': 29, 'INSUFFICIENT_EVIDENCE': 13}.
+- Reliability diagram (judged claims): [('0.3-0.4', 39, 0.3, 1.0), ('0.5-0.6', 14, 0.543, 0.929), ('0.6-0.7', 422, 0.656, 0.765), ('0.7-0.8', 306, 0.757, 0.928), ('0.8-0.9', 314, 0.856, 0.997), ('0.9-1.0', 855, 0.944, 0.988)].
 - No exceptions, no missing authenticity block, and no schema-invalid report across the test split.
 
 ### Mechanisms behind the misses (deterministic attribution from the synthetic world)
@@ -232,41 +232,34 @@ Each bucket names why a claim label or extraction differs from ground truth, wit
 
 | Mechanism | Count | Example (candidate id: detail) |
 |---|---|---|
-| grouped_skills_line_keeps_label_as_part_of_claim | 97 | syn-0012: Databases: Mongo; syn-0012: Languages: Go |
-| github_account_with_no_public_repos_treated_as_checked | 67 | syn-0014: React; syn-0014: Docker |
-| ci_cd_in_skills_line_split_on_slash | 56 | syn-0003: CI/CD; syn-0009: CI/CD |
+| other_SKILL_VERIFIED_to_WEAK | 99 | syn-0000: MongoDB; syn-0000: React |
 | skill_name_under_3_chars_never_extracted | 53 | syn-0000: TS; syn-0000: JS |
-| skill_verified_from_manifest_file_name_alone | 51 | syn-0010: FastAPI (claimed, not used in any repo); syn-0013: Flask (claimed, not used in any repo) |
-| metric_claims_never_checked_against_readme_figures | 42 | syn-0008: CONTRADICTED -> UNVERIFIABLE; syn-0024: VERIFIED -> UNVERIFIABLE |
-| achievements_section_not_extracted | 39 | syn-0003: Won the internal hackathon, 2023; syn-0019: Employee of the quarter, 2024 |
-| portfolio_evidence_ignored_when_github_has_repos | 34 | syn-0031: MongoDB; syn-0052: React |
-| role_status_ignores_linkedin_conflict | 28 | syn-0002: Backend Engineer -> CORROBORATED; syn-0007: Lead Software Engineer -> CORROBORATED |
-| alias_spelling_not_canonicalised | 24 | syn-0000: Vue.js (skill vue); syn-0008: Apache Kafka (skill kafka) |
-| project_matched_to_unrelated_repo_by_shared_word | 19 | syn-0041: Telemetry pipeline built with CI/CD and Vue -> VERIFIED; syn-0051: Billing api in Python backed by pytest -> VERIFIED |
-| genuine_repo_flagged_tutorial_clone_for_the_word_tutorial_in_its_readme | 10 | syn-0000: scheduler-service; syn-0070: inventory-pipeline |
-| untouched_fork_flagged_claimed_as_own_because_its_name_matches_a_skill_or_project_word | 9 | syn-0003: mysql; syn-0020: awesome-python |
-| project_shadowed_by_fork_or_other_repo_named_like_a_word_in_it | 6 | syn-0020: Telemetry Dashboard - Designed and built a telemetry dashboa -> WEAK; syn-0062: Ledger dashboard in Python backed by GCP -> WEAK |
-| skill_verified_by_substring_of_unrelated_text | 1 | syn-0122: 'Java' found inside a language, topic or README string |
+| portfolio_evidence_ignored_when_github_has_repos | 22 | syn-0031: MongoDB; syn-0045: FastAPI |
+| other_SKILL_UNSUPPORTED_to_UNVERIFIABLE | 21 | syn-0138: MySQL; syn-0138: CI/CD |
+| metric_claims_never_checked_against_readme_figures | 10 | syn-0008: CONTRADICTED -> UNVERIFIABLE; syn-0054: UNVERIFIABLE -> VERIFIED |
+| skill_verified_from_manifest_file_name_alone | 10 | syn-0063: Python (claimed, not used in any repo); syn-0064: JavaScript (claimed, not used in any repo) |
+| other_PROJECT_UNSUPPORTED_to_UNVERIFIABLE | 2 | syn-0178: Booking service in JavaScript backed by Docker; syn-0251: Shipping Tool - Shipping tool in JavaScript backed |
 | other_SKILL_WEAK_to_UNVERIFIABLE | 1 | syn-0163: Apache Kafka |
+| project_matched_to_unrelated_repo_by_shared_word | 1 | syn-0198: Catalog tool built with Kubernetes and PostgreSQL -> WEAK |
 
-False accusations (genuine candidates in NEEDS_VERIFICATION): 29; by cause {'low_assessment_confidence_with_high_reliability': 19, 'low_reliability': 6, 'contradiction_raised': 4}. Spurious contradictions raised on genuine candidates: 6 ({'title_mismatch': 6}).
+False accusations (genuine candidates in NEEDS_VERIFICATION): 0; by cause {}. Spurious contradictions raised on genuine candidates: 0 ({}).
 
 ### Ten worst claim-status errors
 
 | Candidate | Kind | Type | Claim | Truth | Predicted |
 |---|---|---|---|---|---|
-| syn-0002 | P4 | ROLE | Backend Engineer | CONTRADICTED | CORROBORATED |
-| syn-0007 | P4 | ROLE | Lead Software Engineer | CONTRADICTED | CORROBORATED |
-| syn-0016 | P4 | ROLE | Lead Frontend Engineer | CONTRADICTED | CORROBORATED |
-| syn-0019 | P4 | ROLE | Data Engineer | CONTRADICTED | CORROBORATED |
-| syn-0022 | P4 | ROLE | Software Engineer | CONTRADICTED | CORROBORATED |
-| syn-0027 | P4 | ROLE | Staff Backend Engineer | CONTRADICTED | CORROBORATED |
-| syn-0042 | P4 | ROLE | Senior Data Engineer | CONTRADICTED | CORROBORATED |
-| syn-0043 | P4 | ROLE | Full Stack Developer | CONTRADICTED | CORROBORATED |
-| syn-0051 | P4 | ROLE | Data Engineer | CONTRADICTED | CORROBORATED |
-| syn-0056 | P4 | ROLE | Software Engineering Intern | CONTRADICTED | CORROBORATED |
+| syn-0008 | P2 | METRIC | Set up CI/CD workflows that cut release time by 96 percent as part of a cross-fu | CONTRADICTED | UNVERIFIABLE |
+| syn-0064 | P2 | METRIC | Spearheaded CI/CD workflows that cut release time by 99 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0097 | P2 | METRIC | Set up CI/CD workflows that cut release time by 57 percent as part of a cross-fu | CONTRADICTED | UNVERIFIABLE |
+| syn-0098 | P2 | METRIC | Set up CI/CD workflows that cut release time by 42 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0127 | P2 | METRIC | Spearheaded 8 robust services to Docker, cutting deploy time by 78 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0145 | P2 | METRIC | Migrated 7 services to Kubernetes, cutting deploy time by 78 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0175 | P2 | METRIC | Set up CI/CD workflows that cut release time by 39 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0234 | P2 | METRIC | Set up CI/CD workflows that cut release time by 63 percent | CONTRADICTED | UNVERIFIABLE |
+| syn-0153 | genuine | SKILL | Python | UNSUPPORTED | VERIFIED |
+| syn-0187 | P1 | SKILL | JavaScript | UNSUPPORTED | VERIFIED |
 
-Total claim-status errors on matched claims: 273.
+Total claim-status errors on matched claims: 166.
 
 ## Not evaluated here
 
@@ -283,4 +276,4 @@ Module B's synthetic metrics are above and are labelled SYNTHETIC-ONLY: they do 
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
 - Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. The synthetic corpus above does measure P1, P2, P4 (including LinkedIn date and title conflicts), P5 and P6 as recall rates, but only on invented data.
-- Total eval wall time: 4.9s, all in mock mode with no network calls.
+- Total eval wall time: 5.4s, all in mock mode with no network calls.

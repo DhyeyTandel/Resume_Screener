@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "d4752979",
+    "candidate_id": "b8aa0692",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -476,7 +476,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "d4752979",
+      "candidate_id": "b8aa0692",
       "band": "NEEDS_VERIFICATION",
       "scores": {
         "authenticity": 0.581,
@@ -484,7 +484,7 @@
         "consistency": 0.5,
         "coverage": 0.632,
         "inflation_index": 0.472,
-        "assessment_confidence": 0.479
+        "assessment_confidence": 0.493
       },
       "inflation_sub_signals": {
         "buzzword_density": 1.0,
@@ -570,7 +570,7 @@
             }
           ],
           "rationale": "A repository mentions Docker but authorship could not be confirmed.",
-          "judge_confidence": 0.5,
+          "judge_confidence": 0.6,
           "weight": 0.9
         },
         {
@@ -587,7 +587,7 @@
             }
           ],
           "rationale": "A repository mentions FastAPI but authorship could not be confirmed.",
-          "judge_confidence": 0.5,
+          "judge_confidence": 0.565,
           "weight": 0.9
         },
         {
@@ -598,7 +598,7 @@
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
           "rationale": "No collected repository shows evidence of Kafka.",
-          "judge_confidence": 0.6,
+          "judge_confidence": 0.75,
           "weight": 0.9
         },
         {
@@ -615,7 +615,7 @@
             }
           ],
           "rationale": "A repository mentions PostgreSQL but authorship could not be confirmed.",
-          "judge_confidence": 0.5,
+          "judge_confidence": 0.565,
           "weight": 0.9
         },
         {
@@ -632,7 +632,7 @@
             }
           ],
           "rationale": "A repository mentions Python but authorship could not be confirmed.",
-          "judge_confidence": 0.5,
+          "judge_confidence": 0.6,
           "weight": 0.9
         },
         {
@@ -643,7 +643,7 @@
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
           "rationale": "No repository name or description matches this project.",
-          "judge_confidence": 0.55,
+          "judge_confidence": 0.75,
           "weight": 1.0
         },
         {
@@ -739,7 +739,7 @@
           "priority": "high"
         }
       ],
-      "recruiter_summary": "GitHub evidence was reviewed across 2 repositories. 2 claim(s) have no supporting evidence in the sources checked, which is worth a direct question in interview rather than an assumption either way. Overall assessment confidence is 0.479.",
+      "recruiter_summary": "GitHub evidence was reviewed across 2 repositories. 2 claim(s) have no supporting evidence in the sources checked, which is worth a direct question in interview rather than an assumption either way. Overall assessment confidence is 0.493.",
       "meta": {
         "model": "deterministic-v1",
         "config_version": "1.0.0",
@@ -1049,7 +1049,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 1,
           "status": "ok"
         },
         "authenticity": {

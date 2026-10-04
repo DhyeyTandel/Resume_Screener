@@ -23,7 +23,7 @@
   "note": "Invented people and sources. Ground truth is known by construction; results do not establish real-world performance. Never tune on the test split.",
   "seed": 20261004,
   "synthetic_only": true,
-  "test_sha": "9354c2c4e380c3ae",
+  "test_sha": "75ff45a05782fe93",
   "train_fraction": 0.3,
-  "train_sha": "98d8b90f56ea312a"
+  "train_sha": "466d12741ee9ea24"
 }

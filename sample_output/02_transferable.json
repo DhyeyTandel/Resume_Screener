@@ -358,7 +358,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "f58b9f2d",
+    "candidate_id": "53395879",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Python web developer with four years building REST services.",
       "skills": [
@@ -499,7 +499,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "f58b9f2d",
+      "candidate_id": "53395879",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.686,
@@ -1087,7 +1087,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0,
+      "_latency_seconds": 0.0001,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}

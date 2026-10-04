@@ -44,6 +44,7 @@ def _tree(name: str, manifests: dict, extra: dict) -> list[dict]:
 def make_world(
     repos: list[dict] | None = None, *, languages: dict | None = None, commits: dict | None = None,
     manifests: dict | None = None, readme: dict | None = None, extra_paths: dict | None = None,
+    manifest_contents: dict | None = None,
 ) -> dict:
     return {
         "repos": REPOS if repos is None else repos,
@@ -52,6 +53,8 @@ def make_world(
         "manifests": MANIFESTS if manifests is None else manifests,
         "readme": README if readme is None else readme,
         "extra_paths": EXTRA_PATHS if extra_paths is None else extra_paths,
+        # repo name -> {manifest file name: text}. Absent files answer 404, like an unreadable one.
+        "manifest_contents": manifest_contents or {},
     }
 
 
@@ -69,6 +72,12 @@ def _serve(world: dict, username: str, url: str, trees_truncated: set[str]) -> t
             return 200, {"content": base64.b64encode(world["readme"][name].encode()).decode()}
         if url.endswith(f"{base}/commits?per_page=100"):
             return 200, world["commits"].get(name, [])
+        if f"{base}/contents/" in url:
+            fname = url.split(f"{base}/contents/", 1)[1]
+            text = world.get("manifest_contents", {}).get(name, {}).get(fname)
+            if text is None:
+                return 404, {}
+            return 200, {"content": base64.b64encode(text.encode()).decode()}
         if f"{base}/git/trees/" in url:
             full = _tree(name, world["manifests"], world["extra_paths"])
             if url.endswith("?recursive=1"):

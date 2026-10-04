@@ -349,13 +349,11 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "73b60846",
+    "candidate_id": "639fd3c6",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
         "AWS",
-        "CD",
-        "CI",
         "CI/CD",
         "Docker",
         "FastAPI",
@@ -494,7 +492,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "73b60846",
+      "candidate_id": "639fd3c6",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1112,7 +1110,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0001,
+      "_latency_seconds": 0.0,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1156,7 +1154,7 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 8,
+      "latency_ms": 7,
       "llm_calls": 2,
       "schema_valid": true
     }

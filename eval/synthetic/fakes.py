@@ -23,7 +23,7 @@ def github_fetch(gh: dict | None):
     user = gh["username"]
     if gh["status"] == "not_found":
         return user, make_fetch(user, not_found=True)
-    repos, languages, commits, manifests, readme, extra = [], {}, {}, {}, {}, {}
+    repos, languages, commits, manifests, readme, extra, contents = [], {}, {}, {}, {}, {}, {}
     for r in gh["repos"]:
         raw = {k: r[k] for k in ("name", "fork", "created_at", "pushed_at", "topics", "default_branch",
                                  "language", "description")}
@@ -38,8 +38,9 @@ def github_fetch(gh: dict | None):
         if r["readme"] is not None:
             readme[r["name"]] = r["readme"]
         extra[r["name"]] = list(r["extra_paths"])
+        contents[r["name"]] = dict(r.get("manifest_contents", {}))
     world = make_world(repos, languages=languages, commits=commits, manifests=manifests, readme=readme,
-                       extra_paths=extra)
+                       extra_paths=extra, manifest_contents=contents)
     return user, make_fetch(user, world=world)
 
 

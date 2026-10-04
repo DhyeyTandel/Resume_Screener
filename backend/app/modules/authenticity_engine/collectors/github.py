@@ -6,12 +6,16 @@ instead of hitting the network (Spec: no live network calls in CI).
 from __future__ import annotations
 
 import base64
+import json
 import re
+import tomllib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from ....config import cfg
 from ....db.cache import cache_enabled, cached_fetch
+from ...skill_intelligence.transfer import canonical, graph
 
 # A fetch returns (status, body) or (status, body, response_headers). Headers are optional so
 # older injected fetches keep working; when present, X-RateLimit-Remaining is honoured.
@@ -20,10 +24,28 @@ Fetch = Callable[[str, dict | None], Awaitable[tuple]]
 MANIFESTS = (
     "requirements.txt", "pyproject.toml", "package.json", "pom.xml", "go.mod", "Dockerfile",
 )
+
+# Tutorial-clone detection (Spec 11 Stage 2 means "a clone of a tutorial", not "a README that
+# mentions a tutorial"). A README is flagged only when it names where the work came from
+# (PROVENANCE: a course, a platform, "following along") AND a second, distinct marker agrees.
+# The bare word "tutorial" is a WEAK marker: on its own it never flags, because genuine
+# projects say "see the tutorial section" or "tutorial" in docs all the time.
+_PROVENANCE = re.compile(
+    r"\b(freecodecamp|udemy|coursera|bootcamp[- ]?project|clone[- ]?coding|following along)\b", re.I)
+_ASSIGNMENT = re.compile(r"\b(exercise \d+|starter code)\b", re.I)
+_WEAK = re.compile(r"\btutorials?\b", re.I)
+# A fork is listing-only evidence, so any marker in its name or description is enough.
 TUTORIAL_MARKERS = re.compile(
     r"\b(tutorial|freecodecamp|udemy|coursera|bootcamp[- ]?project|clone[- ]?coding|"
     r"following along|exercise \d+|starter code)\b", re.I,
 )
+
+
+def is_tutorial_clone(text: str) -> bool:
+    """Needs a provenance marker plus at least one other distinct marker (see above)."""
+    found = {m.group(0).lower().split()[0] for rx in (_PROVENANCE, _ASSIGNMENT, _WEAK)
+             for m in rx.finditer(text)}
+    return bool(_PROVENANCE.search(text)) and len(found) >= 2
 
 
 @dataclass
@@ -54,6 +76,10 @@ class RepoEvidence:
     data_complete: bool = True
     incomplete_reason: str = ""
     tree_truncated: bool = False
+    # Dependency names read from manifest CONTENT (lowercase), only when a framework claim
+    # needed it. Empty means "not read", never "has no dependencies".
+    dependencies: list[str] = field(default_factory=list)
+    manifests_read: list[str] = field(default_factory=list)
 
     @property
     def authorship_ratio(self) -> float:
@@ -83,29 +109,162 @@ class GitHubEvidence:
         return [r for r in self.repos if not r.data_complete]
 
 
-_MANIFEST_SKILLS = {
-    "requirements.txt": {"python", "fastapi", "django", "flask"},
-    "pyproject.toml": {"python", "fastapi", "django", "flask"},
-    "package.json": {"javascript", "typescript", "react", "vue", "node"},
-    "pom.xml": {"java"},
-    "go.mod": {"go", "golang"},
-    "Dockerfile": {"docker"},
+def _norm(s: str) -> str:
+    """'Vue.js', 'vue-js' and 'vuejs' compare equal; 'java' and 'javascript' do not."""
+    return re.sub(r"[^a-z0-9+#]+", "", s.lower())
+
+
+# A manifest FILE proves only the language ecosystem (Spec 11 Stage 3: skills come from code or
+# manifests, and a file name is not a dependency). Frameworks need the manifest CONTENT.
+_LANGUAGE_MANIFESTS = {
+    "requirements.txt": {"python"}, "pyproject.toml": {"python"},
+    "package.json": {"javascript", "node", "nodejs"}, "pom.xml": {"java"},
+    "go.mod": {"go", "golang"}, "Dockerfile": {"docker"},
 }
+# canonical skill -> (manifest files that can declare it, dependency names that prove it)
+_PY = ("requirements.txt", "pyproject.toml")
+_FRAMEWORK_DEPS: dict[str, tuple[tuple[str, ...], frozenset[str]]] = {
+    "fastapi": (_PY, frozenset({"fastapi"})),
+    "django": (_PY, frozenset({"django", "djangorestframework"})),
+    "flask": (_PY, frozenset({"flask"})),
+    "pytest": (_PY, frozenset({"pytest"})),
+    "kafka": (_PY + ("package.json",), frozenset({"kafka-python", "confluent-kafka", "aiokafka", "kafkajs"})),
+    "rabbitmq": (_PY + ("package.json",), frozenset({"pika", "aio-pika", "amqplib"})),
+    "mongodb": (_PY + ("package.json",), frozenset({"pymongo", "motor", "mongoose", "mongodb"})),
+    "postgresql": (_PY + ("package.json",), frozenset({"psycopg2", "psycopg2-binary", "psycopg", "asyncpg", "pg"})),
+    "react": (("package.json",), frozenset({"react", "react-dom"})),
+    "vue": (("package.json",), frozenset({"vue"})),
+    "angular": (("package.json",), frozenset({"@angular/core"})),
+    "typescript": (("package.json",), frozenset({"typescript"})),
+}
+# Aliases that are generic English or too short to trust inside free text (README prose).
+# They still match a language name or a topic exactly.
+_FREE_TEXT_SKIP = {"rest", "restful apis", "api design", "testing", "unit testing", "containers",
+                   "containerization", "ci", "cd", "go", "py", "es6"}
+
+
+@lru_cache(maxsize=1024)
+def _skill_terms(skill: str) -> tuple[str, frozenset[str]]:
+    """(canonical name, every spelling) from the skill graph, so 'Vue.js', 'K8s' and 'Apache
+    Kafka' resolve like 'Vue', 'Kubernetes' and 'Kafka'. Unknown skills stand for themselves."""
+    s = skill.strip().lower()
+    canon = canonical(s) or s
+    node = graph()["skills"].get(canon, {})
+    return canon, frozenset({canon, s, *node.get("aliases", [])})
+
+
+@lru_cache(maxsize=1024)
+def _free_text_rx(skill: str) -> re.Pattern | None:
+    terms = [t for t in _skill_terms(skill)[1] if t not in _FREE_TEXT_SKIP and len(t) >= 2]
+    if not terms:
+        return None
+    alt = "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True))
+    return re.compile(rf"(?<![a-z0-9])(?:{alt})(?![a-z0-9])")
+
+
+def _mentions(text: str, skill: str) -> bool:
+    """Whole-token mention: 'Java' is not in 'JavaScript', 'go' is not in 'Django'."""
+    rx = _free_text_rx(skill)
+    return bool(rx and text and rx.search(text.lower()))
+
+
+def _framework_manifests(skill: str) -> tuple[str, ...]:
+    return _FRAMEWORK_DEPS.get(_skill_terms(skill)[0], ((), frozenset()))[0]
+
+
+def _covered_without_content(repo: RepoEvidence, skill: str) -> bool:
+    """Evidence from the listing, language bytes, topics, manifest file names (language level
+    only) and README; everything except manifest content."""
+    canon, terms = _skill_terms(skill)
+    normed = {_norm(t) for t in terms}
+    for lang in repo.languages:
+        n = _norm(lang)
+        if {"dockerfile": "docker"}.get(n, n) in normed:
+            return True
+    if any(_norm(t) in normed for t in repo.topics):
+        return True
+    if any(normed & _LANGUAGE_MANIFESTS.get(m, set()) for m in repo.manifests_found):
+        return True
+    return _mentions(repo.readme_excerpt, skill)
+
+
+CODE_EVIDENCE = frozenset({"language", "manifest"})
+
+
+def skill_evidence_kind(repo: RepoEvidence, skill: str) -> str | None:
+    """The strongest way an analyzed repo shows a skill: 'language' (language bytes),
+    'manifest' (manifest file proving the language, or a real dependency), 'topic'
+    (a label the owner set) or 'readme' (prose the owner wrote); None if not shown.
+    Spec 11 Stage 3: VERIFIED only from code/manifests, so only the first two count as
+    code evidence. Topics and README are the candidate describing their own work."""
+    if not repo.analyzed:
+        return None
+    canon, terms = _skill_terms(skill)
+    normed = {_norm(t) for t in terms}
+    if any({"dockerfile": "docker"}.get(_norm(lang), _norm(lang)) in normed for lang in repo.languages):
+        return "language"
+    if any(normed & _LANGUAGE_MANIFESTS.get(m, set()) for m in repo.manifests_found):
+        return "manifest"
+    deps = _FRAMEWORK_DEPS.get(canon)
+    if deps and set(repo.dependencies) & deps[1]:
+        return "manifest"
+    if canon == "ci/cd" and repo.has_ci:  # a .github/workflows file is pipeline code
+        return "manifest"
+    if any(_norm(t) in normed for t in repo.topics):
+        return "topic"
+    if _mentions(repo.readme_excerpt, skill):
+        return "readme"
+    return None
 
 
 def repo_covers_skill(repo: RepoEvidence, skill: str) -> bool:
     """True when the collected data of an analyzed repo shows the skill. Forks and repos that
-    were skipped are never skill evidence (they have no deep data)."""
+    were skipped are never skill evidence (they have no deep data). Matching is by whole
+    token or graph alias, never by substring; a manifest file name proves only its language,
+    and a framework needs a real dependency in the manifest content."""
     if not repo.analyzed:
         return False
-    s = skill.lower()
-    if any(s in lang.lower() for lang in repo.languages):
+    if _covered_without_content(repo, skill):
         return True
-    if any(s in t.lower() for t in repo.topics):
-        return True
-    if any(s in _MANIFEST_SKILLS.get(m, set()) for m in repo.manifests_found):
-        return True
-    return s in repo.readme_excerpt.lower() if repo.readme_excerpt else False
+    deps = _FRAMEWORK_DEPS.get(_skill_terms(skill)[0])
+    return bool(deps and set(repo.dependencies) & deps[1])
+
+
+def parse_dependencies(manifest: str, text: str) -> set[str]:
+    """Lowercase dependency names declared in a manifest's content. Unparseable means empty."""
+    names: set[str] = set()
+
+    def req(spec: str) -> None:
+        m = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9_.\-]*)", spec)
+        if m:
+            names.add(m.group(1).lower().replace("_", "-"))
+
+    try:
+        if manifest == "requirements.txt":
+            for line in text.splitlines():
+                line = line.split("#", 1)[0].strip()
+                if line and not line.startswith("-"):
+                    req(line)
+        elif manifest == "pyproject.toml":
+            data = tomllib.loads(text)
+            proj = data.get("project", {})
+            for spec in proj.get("dependencies", []):
+                req(str(spec))
+            for group in (proj.get("optional-dependencies") or {}).values():
+                for spec in group:
+                    req(str(spec))
+            poetry = (data.get("tool") or {}).get("poetry", {})
+            tables = [poetry.get("dependencies", {}), poetry.get("dev-dependencies", {})]
+            tables += [g.get("dependencies", {}) for g in (poetry.get("group") or {}).values()]
+            for t in tables:
+                names.update(str(k).lower().replace("_", "-") for k in t)
+        elif manifest == "package.json":
+            data = json.loads(text)
+            for key in ("dependencies", "devDependencies", "peerDependencies"):
+                names.update(str(k).lower() for k in (data.get(key) or {}))
+    except (ValueError, AttributeError, TypeError):
+        return set()
+    return names
 
 
 def repo_is_authored(repo: RepoEvidence) -> bool:
@@ -118,7 +277,12 @@ def _listing_relevance(repo: RepoEvidence, skills: list[str]) -> int:
     description) suggests this repo could answer. Used only to order and to size the
     incompleteness of repos we did not open."""
     hay = " ".join([repo.primary_language, repo.name, repo.description, *repo.topics]).lower()
-    return sum(1 for s in skills if s.lower() in hay)
+    def hit(skill: str) -> bool:
+        normed = {_norm(t) for t in _skill_terms(skill)[1]}
+        exact = {_norm(repo.primary_language), *(_norm(t) for t in repo.topics)}
+        return _mentions(hay, skill) or bool(normed & exact)
+
+    return sum(1 for s in skills if hit(s))
 
 
 class _Incomplete(Exception):
@@ -144,6 +308,10 @@ class _Client:
         self.blocked: str | None = None  # once set, no further request is made
         self.reserve = int(cfg("authenticity.github.rate_limit_reserve", 1))
         self.max_requests = int(cfg("authenticity.github.max_requests", 45))
+        # Manifest CONTENT reads (framework claims only) are budgeted separately, so they can
+        # never crowd out the per-repo checks that the base budget was sized for (A-18).
+        self.manifest_reads = 0
+        self.max_manifest_reads = int(cfg("authenticity.github.max_manifest_reads", 6))
 
     async def get(self, url: str) -> tuple[int, dict | list]:
         if self.blocked:
@@ -185,7 +353,8 @@ async def _default_fetch(url: str, headers: dict | None) -> tuple[int, dict | li
 
 
 async def _analyze_repo(
-    client: _Client, username: str, repo: RepoEvidence, hints: list[str] | None, max_commits: int
+    client: _Client, username: str, repo: RepoEvidence, hints: list[str] | None, max_commits: int,
+    need: list[str] | None = None,
 ) -> None:
     """Deep checks for one repo: tree (manifests/tests/CI), languages, README, commits."""
     repo.analyzed = True
@@ -236,7 +405,7 @@ async def _analyze_repo(
                 repo.readme_excerpt = base64.b64decode(got[1]["content"]).decode("utf-8", "replace")[:2000]
             except Exception:
                 pass
-    if repo.readme_excerpt and TUTORIAL_MARKERS.search(repo.readme_excerpt):
+    if is_tutorial_clone(f"{repo.name} {repo.description} {repo.readme_excerpt}"):
         repo.flags.append("tutorial_clone")
     if not client.blocked:
         got = await call(f"{base}/commits?per_page={min(100, max_commits)}")
@@ -250,6 +419,28 @@ async def _analyze_repo(
                     repo.commits_by_candidate += 1
             repo.lines_total = 1  # placeholder without per-commit stat calls (rate-limit budget)
             repo.lines_by_candidate = 1 if repo.commits_by_candidate else 0
+
+    # Framework claims still unanswered need the manifest CONTENT (a file name proves only the
+    # language). One request per manifest that could answer them, at most two per repo, only
+    # when nothing else in this repo already covers the skill, and only up to a per-candidate cap.
+    pending = [s for s in (need or []) if not _covered_without_content(repo, s)]
+    for manifest in MANIFESTS:
+        if not pending or client.blocked or manifest not in repo.manifests_found:
+            continue
+        if not any(manifest in _framework_manifests(s) for s in pending):
+            continue
+        if client.manifest_reads >= client.max_manifest_reads or len(repo.manifests_read) >= 2:
+            break
+        client.manifest_reads += 1
+        repo.manifests_read.append(manifest)
+        got = await call(f"{base}/contents/{manifest}")
+        if got and got[0] and isinstance(got[1], dict) and got[1].get("content"):
+            try:
+                text = base64.b64decode(got[1]["content"]).decode("utf-8", "replace")
+            except Exception:
+                continue
+            repo.dependencies = sorted({*repo.dependencies, *parse_dependencies(manifest, text)})
+            pending = [s for s in pending if not repo_covers_skill(repo, s)]
 
     threshold = float(cfg("authenticity.github.bulk_import_ratio", 0.80))
     if repo.commits_total and repo.commits_total <= 2 and repo.line_share >= threshold:
@@ -330,6 +521,18 @@ async def collect_github(
         return GitHubEvidence(username=username, status="error", error=f"unexpected status {status}")
 
     repos = [_stub_from_listing(r) for r in repos_raw[:max_repos]]
+    if not repos:
+        # Nothing was checkable, which is different from "checked and found nothing" (Spec 2.4).
+        return GitHubEvidence(username=username, status="missing", error="no public repositories",
+                              requests_made=client.requests, rate_limit_remaining=client.remaining)
+    if all(r.fork for r in repos):
+        # Forks are never skill evidence and are not opened, so there is no authored code to
+        # check: the same "nothing checkable" case. The stubs are kept so that the fork flags
+        # (fork_claimed_as_own, tutorial_clone) still reach authenticity_flags().
+        return GitHubEvidence(
+            username=username, status="missing", repos=repos,
+            error=f"no authored repositories (all {len(repos)} public repositories are forks)",
+            requests_made=client.requests, rate_limit_remaining=client.remaining)
     wanted = _wanted(skills)
 
     # Forks are never skill evidence; rank the rest by listing relevance, then recency.
@@ -350,7 +553,8 @@ async def collect_github(
         if wanted and not uncovered():
             covered_stop = True
             break
-        await _analyze_repo(client, username, candidates[idx], candidate_email_hints, max_commits)
+        await _analyze_repo(client, username, candidates[idx], candidate_email_hints, max_commits,
+                            need=uncovered() if wanted else None)
         analyzed += 1
         idx += 1
 

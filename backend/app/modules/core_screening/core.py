@@ -100,14 +100,136 @@ def _display(skill: str) -> str:
     return special.get(skill, skill.title())
 
 
-_SECTION = re.compile(
-    r"^\s*(skills?|technical skills?|experience|work experience|employment|education|"
-    r"projects?|certifications?|summary|profile|achievements?)\s*:?\s*$",
+_SECTION_RULES: list[tuple[str, re.Pattern[str]]] = [
+    ("skills", re.compile(
+        r"(?:(?:technical|core|key|professional|relevant)\s+)?"
+        r"(?:skills?|competenc(?:y|ies)|proficienc(?:y|ies)|technologies|tech stack)"
+        r"(?:\s*(?:&|and)\s*[a-z ]{2,25})?")),
+    ("experience", re.compile(
+        r"(?:(?:work|professional|relevant|employment|career)\s+)?(?:experience|history)"
+        r"|employment|work")),
+    ("projects", re.compile(r"(?:(?:personal|academic|selected|key|side|notable)\s+)?projects?")),
+    ("education", re.compile(r"education(?:\s*(?:&|and)\s*training)?|academics?|academic background")),
+    ("certifications", re.compile(
+        r"certifications?(?:\s*(?:&|and)\s*licen[sc]es)?|licen[sc]es(?:\s*(?:&|and)\s*certifications?)?")),
+    ("achievements", re.compile(
+        r"(?:(?:key|notable|major|selected)\s+)?(?:achievements?|accomplishments?|awards?|honou?rs?)"
+        r"(?:\s*(?:&|and)\s*(?:achievements?|accomplishments?|awards?|honou?rs?|recognition))?")),
+    ("summary", re.compile(
+        r"(?:(?:professional|career|executive)\s+)?(?:summary|profile|objective)|about(?: me)?")),
+]
+_MONTH_TAIL = re.compile(
+    r"[\s,|(:\u2013\u2014-]*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*)?$",
     re.I,
 )
 _DATE_RANGE = re.compile(
-    r"(\d{4})\s*(?:-|–|to)\s*(\d{4}|present|current)", re.I
+    r"(\d{4})\s*(?:-|\u2013|\u2014|to)\s*(?:[a-z]{3,9}\.?\s+)?(\d{4}|present|current)", re.I
 )
+_LABEL = re.compile(r"^\s*([A-Za-z][A-Za-z &/+.-]{0,30}?)\s*:\s*(\S.*)$")
+_CATEGORY_WORDS = {
+    "language", "languages", "framework", "frameworks", "tool", "tools", "database", "databases",
+    "cloud", "devops", "other", "others", "library", "libraries", "platform", "platforms",
+    "technology", "technologies", "testing", "backend", "frontend", "front-end", "back-end",
+    "web", "data", "ml", "ai", "os", "version control", "methodologies", "concepts", "misc",
+    "infrastructure", "messaging", "monitoring", "scripting",
+}
+# Slash compounds that are one name, never two skills.
+_SLASH_COMPOUND = re.compile(
+    r"^(?:ci/cd|tcp/ip|udp/ip|pl/sql|pl/pgsql|ui/ux|ux/ui|i/o|a/b|ai/ml|ml/ai)$", re.I
+)
+
+
+def _heading(line: str) -> str | None:
+    """Return the canonical section key if `line` is a section heading, else None."""
+    if len(line) > 44:
+        return None
+    norm = re.sub(r"[\s_]+", " ", line.strip().strip("#*_:= -").strip()).lower()
+    if not norm:
+        return None
+    for key, rx in _SECTION_RULES:
+        if rx.fullmatch(norm):
+            return key
+    return None
+
+
+def _split_slash(part: str) -> list[str]:
+    """Split "Docker/Kubernetes" but keep known compounds ("CI/CD", "TCP/IP") intact.
+
+    A part that is itself a skill-graph alias (e.g. "ci/cd") is never split.
+    """
+    from ..skill_intelligence.transfer import graph
+
+    if "/" not in part or _SLASH_COMPOUND.match(part.strip()):
+        return [part]
+    if part.strip().lower() in graph()["_alias"]:
+        return [part]
+    return [p for p in (x.strip() for x in part.split("/")) if p]
+
+
+def _strip_label(line: str) -> tuple[str | None, str]:
+    """Split a grouped skills line "Languages: Python, Go" into (label, rest)."""
+    m = _LABEL.match(line)
+    if not m:
+        return None, line
+    label, rest = m.group(1).strip(), m.group(2)
+    if len(label.split()) > 4:
+        return None, line
+    return label, rest
+
+
+def _skills_from_line(line: str) -> list[str]:
+    out: list[str] = []
+    label, rest = _strip_label(line)
+    if label and label.lower() not in _CATEGORY_WORDS and canonical(label):
+        out.append(label)  # "AWS: S3, EC2": the label is itself a skill
+    for chunk in re.split(r"[,;|\u2022]| and ", rest):
+        for part in _split_slash(chunk):
+            part = part.strip(" .:()")
+            if part and 1 <= len(part.split()) <= 4 and canonical(part):
+                out.append(part)  # any length: the skills section is the trusted place
+    return out
+
+
+def _body_skill_tokens(body: str) -> list[str]:
+    """Known skills named in prose. Short names (Go, JS) need capitalisation mid-sentence."""
+    out: list[str] = []
+    for m in _TECHish.finditer(body):
+        raw = m.group(0)
+        for tok in _split_slash(raw):
+            tok = tok.strip(".-/")
+            if not tok or not canonical(tok):
+                continue
+            if len(tok) <= 3:
+                before = body[: m.start()].rstrip()
+                sentence_start = not before or before[-1] in ".!?:"
+                if tok.islower() or sentence_start:
+                    continue  # "go live" or "Go to market" is prose, not a language
+            out.append(tok)
+    return out
+
+
+def _parse_role(line: str, dates: re.Match[str]) -> dict:
+    """Title and company from "Title at Company, dates", "Title, Company, dates",
+    "Title | Company | dates" or "Title - Company (dates)"."""
+    head = _MONTH_TAIL.sub("", line[: dates.start()])
+    head = head.rstrip(" ,|(:\u2013\u2014-")
+    title, company = head, ""
+    at = re.split(r"\s+(?:at|@)\s+", head, maxsplit=1, flags=re.I)
+    if len(at) == 2:
+        title = at[0]
+        company = re.split(r"[,|]", at[1])[0]
+    else:
+        parts = [p.strip() for p in re.split(r"\s*[,|]\s*|\s+[\u2013\u2014-]\s+", head) if p.strip()]
+        if parts:
+            title = parts[0]
+            company = parts[1] if len(parts) > 1 else ""
+    return {
+        "title": title.strip(),
+        "company": company.strip(),
+        "start": dates.group(1),
+        "end": dates.group(2),
+        "relevant_points": [],
+    }
 
 
 def structure_resume(text: str) -> dict:
@@ -118,46 +240,26 @@ def structure_resume(text: str) -> dict:
         line = raw.strip()
         if not line:
             continue
-        m = _SECTION.match(line)
-        if m:
-            current = m.group(1).lower()
-            current = (
-                "skills" if "skill" in current
-                else "experience" if current in ("experience", "work experience", "employment")
-                else "projects" if current.startswith("project")
-                else "education" if current == "education"
-                else "certifications" if current.startswith("cert")
-                else "achievements" if current.startswith("achiev")
-                else "summary"
-            )
+        key = _heading(line)
+        if key:
+            current = key
             continue
-        sections.setdefault(current, []).append(line.lstrip("-*• ").strip())
+        sections.setdefault(current, []).append(line.lstrip("-*\u2022 ").strip())
 
     skills: list[str] = []
     for line in sections.get("skills", []):
-        for part in re.split(r"[,;|/]| and ", line):
-            part = part.strip(" .:")
-            if part and 1 <= len(part.split()) <= 4 and canonical(part):
-                skills.append(part)
+        skills.extend(_skills_from_line(line))
     # Skills named inside experience/projects also count as skills.
     body = " ".join(sections.get("experience", []) + sections.get("projects", []))
-    for tok in _TECHish.findall(body):
-        if canonical(tok) and tok.lower() not in {s.lower() for s in skills}:
+    for tok in _body_skill_tokens(body):
+        if tok.lower() not in {s.lower() for s in skills}:
             skills.append(tok)
 
     experience: list[dict] = []
     for line in sections.get("experience", []):
         m = _DATE_RANGE.search(line)
         if m:
-            experience.append(
-                {
-                    "title": line.split(",")[0].split(" at ")[0].strip(),
-                    "company": (line.split(" at ")[-1].split(",")[0].strip() if " at " in line else ""),
-                    "start": m.group(1),
-                    "end": m.group(2),
-                    "relevant_points": [],
-                }
-            )
+            experience.append(_parse_role(line, m))
         elif experience:
             experience[-1]["relevant_points"].append(line)
 

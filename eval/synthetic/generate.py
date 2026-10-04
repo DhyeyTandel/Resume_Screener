@@ -214,8 +214,11 @@ def gen_profile(rng: random.Random, kind: str) -> dict:
         r["in_li"], r["conflict"] = True, None
         if rng.random() < 0.12:
             for a, b in LI_TITLE_SYNONYMS:
-                if a in r["title"]:
-                    r["li_title"] = r["title"].replace(a, b, 1)
+                # Whole words only: a plain replace turned "Software Engineering Intern" into
+                # the non-word "Software Developering Intern".
+                rx = re.compile(rf"\b{re.escape(a.strip())}\b")
+                if rx.search(r["title"]):
+                    r["li_title"] = rx.sub(b.strip(), r["title"], count=1)
                     break
         if rng.random() < 0.15:
             r["li_company"] = r["company"] + " Inc."
@@ -344,6 +347,16 @@ def _readme_text(rng: random.Random, name: str, desc: str, techs: list[str], tut
     return body + extra
 
 
+# Real package names a repo declares when it genuinely uses the technology. Generated repos
+# list them in manifest contents, as real repos do; a technology that appears only in a topic
+# label or README prose is the owner describing their work (WEAK under Spec 11 Stage 3).
+PY_DEPS = {"fastapi": "fastapi", "django": "django", "flask": "flask", "pytest": "pytest",
+           "kafka": "confluent-kafka", "rabbitmq": "pika", "mongodb": "pymongo",
+           "postgresql": "psycopg2-binary"}
+JS_DEPS = {"react": "react", "vue": "vue", "angular": "@angular/core", "typescript": "typescript",
+           "kafka": "kafkajs", "mongodb": "mongoose", "postgresql": "pg"}
+
+
 def make_repo(rng: random.Random, name: str, uses: list[str], desc: str, *, mine: int, others: int,
               fork: bool = False, tutorial_readme: bool = False, spurious_tutorial_word: bool = False,
               year: int | None = None) -> dict:
@@ -381,6 +394,27 @@ def make_repo(rng: random.Random, name: str, uses: list[str], desc: str, *, mine
                 readme_techs.append(DISPLAY[u])
     if rng.random() < 0.6:
         extra.append("tests")
+    # Declared dependencies (code evidence) and which uses are therefore shown in code.
+    py_repo = any(u in ("python", "fastapi", "django", "flask") for u in uses)
+    js_repo = any(u in ("javascript", "typescript") or u in FRONTEND for u in uses)
+    py_deps = [PY_DEPS[u] for u in uses if py_repo and u in PY_DEPS]
+    js_deps = [JS_DEPS[u] for u in uses if js_repo and u in JS_DEPS and not (py_repo and u in PY_DEPS)]
+    contents: dict[str, str] = {}
+    if py_deps:
+        req = "requirements.txt" if "requirements.txt" in manifests or "pyproject.toml" not in manifests \
+            else "pyproject.toml"
+        manifests.add(req)
+        contents[req] = ("\n".join(f"{d}>=1.0" for d in py_deps) + "\n" if req == "requirements.txt"
+                         else '[project]\nname = "app"\ndependencies = ['
+                         + ", ".join(f'"{d}>=1.0"' for d in py_deps) + "]\n")
+    if js_deps:
+        manifests.add("package.json")
+        contents["package.json"] = json.dumps({"name": name, "dependencies": {d: "^1.0.0" for d in js_deps}})
+    code_uses = set(langs) | {u for u in uses if (py_repo and u in PY_DEPS) or (js_repo and u in JS_DEPS)}
+    if "docker" in uses:
+        code_uses.add("docker")
+    if "ci/cd" in uses:
+        code_uses.add("ci/cd")
     readme = _readme_text(rng, name, desc, readme_techs, spurious_tutorial_word)
     if tutorial_readme:
         readme = f"# {name}\n\nFollowing along with a freecodecamp tutorial project.\n"
@@ -389,6 +423,7 @@ def make_repo(rng: random.Random, name: str, uses: list[str], desc: str, *, mine
         "default_branch": "main", "language": DISPLAY[langs[0]] if langs else "", "description": desc,
         "languages": languages, "readme": readme, "manifests": sorted(manifests), "extra_paths": extra,
         "commits": {"mine": mine, "others": others}, "uses": [] if fork else list(uses),
+        "code_uses": [] if fork else sorted(code_uses), "manifest_contents": {} if fork else contents,
         "tutorial": bool(tutorial_readme),
     }
 
@@ -626,9 +661,13 @@ def label_claims(claims: list[dict], world: dict) -> list[str | None]:
             s = ref["skill"]
             using = [r for r in repos if not r["fork"] and s in r["uses"]]
             authored = [r for r in using if _authorship(r) >= 0.30]
+            in_code = [r for r in authored if s in r.get("code_uses", [])]
             status: str | None
-            if authored:
-                status = None if all(r.get("tutorial") for r in authored) else "VERIFIED"
+            if in_code:
+                status = None if all(r.get("tutorial") for r in in_code) else "VERIFIED"
+            elif authored:
+                # Shown only in a topic label or README prose: corroboration, not verification.
+                status = None if all(r.get("tutorial") for r in authored) else "WEAK"
             elif using or pf_ok and DISPLAY[s] in pf["mentions_display"]:
                 status = "WEAK"
             elif gh_ok:

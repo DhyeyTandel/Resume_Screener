@@ -50,7 +50,7 @@ def extract_claims(resume_text: str, parsed: dict) -> list[dict]:
     """Stage 1: atomic claims with spans that must map to exact resume text."""
     claims: list[dict] = []
 
-    def add(ctype: str, text: str, depth: str | None = None) -> None:
+    def add(ctype: str, text: str, depth: str | None = None, company: str | None = None) -> None:
         text = text.strip()
         if len(text) < 3:
             return
@@ -69,6 +69,7 @@ def extract_claims(resume_text: str, parsed: dict) -> list[dict]:
                 },
                 "specificity_score": specificity(text),
                 **({"depth": depth} if depth else {}),
+                **({"company": company} if company else {}),
             }
         )
 
@@ -86,9 +87,12 @@ def extract_claims(resume_text: str, parsed: dict) -> list[dict]:
     for p in parsed["projects"]:
         add("PROJECT", p["description"] or p["name"])
     for e in parsed["experience"]:
-        add("ROLE", f"{e['title']}".strip())
+        add("ROLE", f"{e['title']}".strip(), company=e.get("company") or None)
         for pt in e["relevant_points"]:
             add("METRIC" if _METRIC.search(pt) else "ACHIEVEMENT", pt)
+    for a in parsed.get("achievements", []):
+        # The standalone Achievements section (Spec 11 Stage 1); same typing rule as bullets.
+        add("METRIC" if _METRIC.search(a) else "ACHIEVEMENT", a)
     for ed in parsed["education"]:
         add("EDUCATION", ed)
     for c in parsed["certifications"]:
@@ -179,6 +183,13 @@ async def assess(
                 "reason": gh.partial_reason or gh.error,
                 "requests_made": gh.requests_made,
             }
+        elif gh.status != "ok":
+            # E.g. an account with no public repositories comes back as "missing": nothing
+            # was checked, so it is not a source and is never counted as one (Spec 2.4).
+            source_status["github"] = "missing" if gh.status == "missing" else "error"
+            source_details["github"] = {
+                "status": gh.status, "reason": gh.error, "requests_made": gh.requests_made,
+            }
 
     li = LinkedInEvidence(status="missing")
     if source_status["linkedin"] == "ok":
@@ -198,6 +209,8 @@ async def assess(
     if gh.status == "partial" and any(r.analyzed for r in gh.repos):
         n_sources += 1  # partly checked still produced real evidence
 
+    li_findings = check_linkedin_consistency(parsed["experience"], li)
+
     cw = cfg("authenticity.claim_weights")
     mult = float(cfg("authenticity.weights.required_skill_multiplier", 1.5))
     req_lower = {s.lower() for s in required_skills}
@@ -211,16 +224,15 @@ async def assess(
         elif c["type"] == "PROJECT":
             judged = judge_project_claim(c["text"], gh)
         elif c["type"] == "ROLE":
-            role_company = next(
+            role_company = c.get("company") or next(
                 (e.get("company") for e in parsed["experience"] if e.get("title") == c["text"]), None
             )
             judged = judge_role_claim(c["text"], li, company=role_company)
+            judged = _apply_linkedin_conflict(judged, c["text"], role_company, li_findings)
         elif c["type"] == "METRIC":
             # Spec 11 Stage 3: METRIC is VERIFIED only with a code/artifact trace,
             # never UNSUPPORTED by default without one.
-            judged = {"status": "UNVERIFIABLE", "evidence": [],
-                      "rationale": "No code artifact could confirm this metric.",
-                      "judge_confidence": 0.0}
+            judged = judge_metric_claim(c["text"], gh)
         else:
             judged = {"status": "UNVERIFIABLE", "evidence": [],
                       "rationale": "No accessible source could confirm this claim.",
@@ -269,7 +281,7 @@ async def assess(
     consistency_findings = (
         check_anachronisms(resume_text)
         + check_role_overlap(parsed["experience"])
-        + check_linkedin_consistency(parsed["experience"], li)
+        + li_findings
         + check_graduation_consistency(parsed.get("education", []), parsed["experience"])
     )
     grad_check = int(
@@ -302,20 +314,15 @@ async def assess(
     )
 
     bands = cfg("authenticity.bands")
+    # Spec Stage 6: a CONTRADICTED claim on a required skill or on a role forces at least
+    # NEEDS_VERIFICATION. A contradicted METRIC is not on that list: it lowers reliability
+    # (v = -1) but does not by itself force the band.
     required_contradiction = any(
-        c["status"] == "CONTRADICTED" and c["type"] == "SKILL" and c["text"].lower() in req_lower
+        c["status"] == "CONTRADICTED"
+        and (c["type"] == "ROLE" or (c["type"] == "SKILL" and c["text"].lower() in req_lower))
         for c in out_claims
-    ) or bool(contradictions)  # anachronisms are resume-level; treat as a forcing signal too
-    if confidence < float(bands["min_confidence"]):
-        band = "INSUFFICIENT_EVIDENCE"
-    elif required_contradiction:
-        band = "NEEDS_VERIFICATION"  # Spec: a contradiction forces at least this band.
-    elif confidence >= float(bands["high_trust"]):
-        band = "HIGH_TRUST"
-    elif confidence >= float(bands["moderate"]):
-        band = "MODERATE"
-    else:
-        band = "NEEDS_VERIFICATION"
+    ) or bool(contradictions)  # Stage 4 findings (incl. resume-only ones) stay a forcing signal
+    band = assign_band(confidence, authenticity, required_contradiction, bands)
 
     _NEEDS_VERIFY = {"UNSUPPORTED", "WEAK", "UNVERIFIABLE", "CONTRADICTED"}
     gaps = [
@@ -370,6 +377,211 @@ async def assess(
             "llm_calls": llm_calls,
         },
     }
+
+
+def assign_band(confidence: float, authenticity: float, forced: bool, bands: dict) -> str:
+    """Spec 11 Stage 6. The confidence floor decides whether there is a headline score at all
+    (A-6c: checked first, before the contradiction rule). Above it the thresholds apply to the
+    AUTHENTICITY score, not to confidence; a contradiction forces at least NEEDS_VERIFICATION."""
+    if confidence < float(bands["min_confidence"]):
+        return "INSUFFICIENT_EVIDENCE"
+    if forced:
+        return "NEEDS_VERIFICATION"
+    if authenticity >= float(bands["high_trust"]):
+        return "HIGH_TRUST"
+    if authenticity >= float(bands["moderate"]):
+        return "MODERATE"
+    return "NEEDS_VERIFICATION"
+
+
+def _apply_linkedin_conflict(judged: dict, title: str, company: str | None,
+                             findings: list[dict]) -> dict:
+    """Spec 11 Stage 3: CONTRADICTED is 'a source conflicts with the claim'. A LinkedIn
+    date_conflict or title_mismatch for this resume role is exactly that, so the ROLE claim
+    becomes CONTRADICTED with the LinkedIn entry as cited evidence. Resume-internal findings
+    (overlapping_roles, graduation_inconsistency, anachronisms) are NOT marked on claims: no
+    second source disagrees, and they do not say which of the two claims is the wrong one. They
+    stay in `contradictions` (and still force the band) instead."""
+    for f in findings:
+        if f.get("resume_title") != title or (company and f.get("company") != company):
+            continue
+        if f["type"] not in ("date_conflict", "title_mismatch"):
+            continue
+        return {
+            "status": "CONTRADICTED",
+            "evidence": [{"source": "linkedin", "citation": f["citation"], "note": f["detail"]}],
+            "rationale": "The candidate's LinkedIn export differs from the resume for this role. "
+            "Profiles are often updated at different times, so this is worth a direct question "
+            "rather than a conclusion.",
+            "judge_confidence": 0.7,
+        }
+    return judged
+
+
+# --- METRIC claims against README figures (Spec 11 Stage 3) --------------------------------
+_COUNT_NOUNS = {
+    "user", "customer", "request", "record", "row", "event", "message", "query", "transaction",
+    "engineer", "developer", "feature", "endpoint", "service", "test", "download", "deployment",
+    "session", "order", "job",
+}
+_QTY = re.compile(
+    r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*"
+    r"(%|percent\b|pct\b|ms\b|milliseconds?\b|seconds?\b|secs?\b|s\b|x\b|"
+    r"k\b|m\b|million\b|thousand\b|[a-z]+)?"
+    r"(?:(?:\s+per\s+|\s*/\s*)([a-z]+))?",
+    re.I,
+)
+_SCALE = {"k": 1e3, "thousand": 1e3, "m": 1e6, "million": 1e6}
+_CONTEXT_STOP = {
+    # function words
+    "the", "and", "for", "with", "from", "that", "this", "was", "were", "has", "have", "had",
+    "into", "onto", "over", "per", "our", "its", "their", "all", "any", "than", "then", "also",
+    "while", "which", "using", "use", "used", "via", "about", "across", "within", "through",
+    # words that say "changed by an amount" rather than naming the thing measured
+    "reduced", "reduce", "reducing", "cut", "improved", "improve", "improving", "increased",
+    "increase", "increasing", "decreased", "decrease", "boosted", "boost", "achieved", "achieve",
+    "saved", "grew", "grow", "growth", "lowered", "faster", "slower", "less", "more", "up", "down",
+    "percent", "pct", "seconds", "second", "milliseconds", "ms",
+    # resume boilerplate and generic verbs
+    "cross", "functional", "team", "part", "set", "built", "build", "implemented", "wrote",
+    "tuned", "led", "deployed", "designed", "developed", "created", "worked", "helped",
+}
+
+
+# Words that appear in almost any performance sentence. Sharing only one of these does not show
+# that two sentences measure the same thing ('deploy time' vs 'run time' are different metrics).
+_WEAK_CONTEXT = {"time", "system", "data", "application", "app", "code", "project", "platform",
+                 "performance", "speed", "service", "services"}
+
+
+def _same_subject(claim_ctx: set[str], sentence_ctx: set[str]) -> bool:
+    """Meaningful overlap: at least two shared context words, or one that is not generic."""
+    shared = claim_ctx & sentence_ctx
+    return len(shared) >= 2 or bool(shared - {_stem(w) for w in _WEAK_CONTEXT})
+
+
+def _stem(w: str) -> str:
+    for suf in ("ing", "ed", "es", "s"):
+        if w.endswith(suf) and len(w) - len(suf) >= 4:
+            return w[: -len(suf)]
+    return w
+
+
+def _context_words(text: str) -> set[str]:
+    def keep_noun(m: re.Match) -> str:  # drop the figure and its unit, keep a counted noun
+        unit = (m.group(2) or "").lower()
+        return f" {unit} " if unit.rstrip("s") in _COUNT_NOUNS else " "
+
+    return {_stem(w) for w in re.findall(r"[a-z]+", _QTY.sub(keep_noun, text.lower()))
+            if len(w) > 2 and w not in _CONTEXT_STOP}
+
+
+def _quantities(text: str) -> list[tuple[tuple[str, str], float]]:
+    """(unit key, value) pairs. The unit key carries the quantity type and any 'per <unit>'
+    denominator, so only like-for-like figures are ever compared."""
+    out = []
+    for m in _QTY.finditer(text):
+        val = float(m.group(1).replace(",", ""))
+        unit, per = (m.group(2) or "").lower(), (m.group(3) or "").lower()
+        key: tuple[str, str] | None = None
+        if unit in ("%", "percent", "pct"):
+            key = ("pct", "")
+        elif unit in ("ms", "millisecond", "milliseconds"):
+            key = ("time", per)
+        elif unit in ("s", "sec", "secs", "second", "seconds"):
+            key, val = ("time", per), val * 1000
+        elif unit == "x":
+            key = ("mult", "")
+        elif unit in _SCALE:  # 38k users: the scale word must be followed by a counted noun
+            nxt = re.match(r"\s*([a-z]+)", text[m.end():])
+            word = nxt.group(1).rstrip("s") if nxt else ""
+            if word in _COUNT_NOUNS:
+                key, val = (f"count:{word}", per), val * _SCALE[unit]
+        elif unit.rstrip("s") in _COUNT_NOUNS:
+            key = (f"count:{unit.rstrip('s')}", per)
+        if key is not None:
+            out.append((key, val))
+    return out
+
+
+def _close(a: float, b: float, key: tuple[str, str]) -> bool:
+    tol = max(0.5, 0.02 * max(abs(a), abs(b))) if key[0] == "pct" else 0.02 * max(abs(a), abs(b))
+    return abs(a - b) <= tol
+
+
+def judge_metric_claim(text: str, gh: GitHubEvidence) -> dict:
+    """Compare a METRIC claim with figures stated in the candidate's own repository READMEs.
+
+    Conservative by design (Spec 2.4 and the METRIC rule in Stage 3):
+    - only like-for-like quantities are compared (percent vs percent, time vs time, a count of
+      the same noun with the same 'per' denominator);
+    - the README sentence must share at least one context word with the claim to CONFIRM it, and
+      meaningful context to CONTRADICT it: two context words, or one that is not generic (a
+      lone 'time' does not make 'deploy time' the same metric as 'run time');
+    - only owned, non-fork repositories with enough authorship are used;
+    - a claim with two figures of the same type (e.g. 'from 8 seconds to 5 seconds') can be
+      confirmed by an equal figure but is never contradicted, since which one the README
+      refers to is ambiguous.
+    Everything else stays UNVERIFIABLE, never UNSUPPORTED."""
+    base = {
+        "status": "UNVERIFIABLE", "evidence": [],
+        "rationale": "No code artifact could confirm this metric.", "judge_confidence": 0.0,
+    }
+    claim_q = _quantities(text)
+    if not gh.has_data or not claim_q:
+        return base
+    claim_ctx = _context_words(text)
+    min_auth = float(cfg("authenticity.github.authorship_ratio_min", 0.30))
+    from collections import Counter
+    per_key = Counter(k for k, _ in claim_q)
+    verified = conflict = None
+    for repo in gh.repos:
+        if repo.fork or not repo.readme_excerpt:
+            continue
+        if not (repo.authorship_ratio >= min_auth or (repo.owned and repo.commits_total == 0)):
+            continue
+        cite = f"github.com/{gh.username}/{repo.name}"
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", repo.readme_excerpt):
+            sentence_ctx = _context_words(sentence)
+            if not claim_ctx & sentence_ctx:
+                continue
+            strong = _same_subject(claim_ctx, sentence_ctx)
+            for rkey, rval in _quantities(sentence):
+                for ckey, cval in claim_q:
+                    if ckey != rkey:
+                        continue
+                    if _close(cval, rval, ckey):
+                        # An equal figure of the same type is strong evidence by itself, so a
+                        # single shared context word is enough to confirm.
+                        verified = verified or (cite, cval, rval, ckey)
+                    elif per_key[ckey] == 1 and strong:
+                        # Asserting a conflict needs more certainty that both sentences are
+                        # about the same thing than confirming does.
+                        conflict = conflict or (cite, cval, rval, ckey)
+    def fmt(v: float, key: tuple[str, str]) -> str:
+        n = f"{v:g}"
+        return f"{n} percent" if key[0] == "pct" else n
+    if verified:
+        cite, cval, rval, key = verified
+        return {
+            "status": "VERIFIED",
+            "evidence": [{"source": "github", "citation": cite,
+                          "note": f"README states {fmt(rval, key)} for the same quantity"}],
+            "rationale": "The repository README states the same figure for the same quantity.",
+            "judge_confidence": 0.7,
+        }
+    if conflict:
+        cite, cval, rval, key = conflict
+        return {
+            "status": "CONTRADICTED",
+            "evidence": [{"source": "github", "citation": cite,
+                          "note": f"README states {fmt(rval, key)}; resume states {fmt(cval, key)}"}],
+            "rationale": f"The repository README gives {fmt(rval, key)} for what appears to be "
+            f"the same quantity, while the resume says {fmt(cval, key)}. It may be a different "
+            "measurement or a later change, so it is worth asking the candidate.",
+            "judge_confidence": 0.6,
+        }
+    return base
 
 
 def _build_evidence_index(gh: GitHubEvidence, li: LinkedInEvidence, pf: PortfolioEvidence) -> dict:
@@ -427,7 +639,10 @@ def _recruiter_summary_core(gh: GitHubEvidence, claims: list[dict], confidence: 
         )
     verified = sum(1 for c in claims if c["status"] == "VERIFIED")
     unsupported = sum(1 for c in claims if c["status"] == "UNSUPPORTED")
-    bits = [f"GitHub evidence was reviewed across {len(gh.repos)} repositories."]
+    bits = (
+        [f"GitHub evidence was reviewed across {len(gh.repos)} repositories."]
+        if gh.has_data else []
+    )
     if verified:
         bits.append(f"{verified} claim(s) have direct code or manifest evidence.")
     if unsupported:

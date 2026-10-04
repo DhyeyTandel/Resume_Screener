@@ -205,3 +205,38 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   `privacy.retain_raw_days` (30) are purged at startup and on demand (`Store.purge_expired`).
   Screening rows (no personal data) and the append-only audit log are kept; each purge is
   itself audited.
+- **A-22 (synthetic-eval findings and fixes).** The synthetic corpus (`eval/synthetic/`,
+  SYNTHETIC-ONLY) was committed first as an honest baseline, then defects it surfaced were
+  fixed by spec semantics, not by tuning to it. The most serious: **authenticity bands were
+  assigned from assessment_confidence instead of the authenticity score** (a bug in the
+  original implementation, contrary to Spec 11 Stage 6), so a genuine candidate whose every
+  checkable claim verified was banded NEEDS_VERIFICATION. False-accusation rate on the test
+  split went 0.259 -> 0.000. Other fixes:
+  - A LinkedIn date/title conflict now marks the ROLE claim CONTRADICTED with a citation.
+    Resume-internal findings (overlap, graduation, anachronism) still force the band but
+    do not mark a claim, because no second source disagrees.
+  - Title synonyms (engineer/developer) are no longer contradictions; seniority inflation
+    ("Lead" added) is. A lower rank is never flagged.
+  - METRIC claims are compared with README figures conservatively. A conflicting figure needs
+    strong context; loosening it reached P2 0.95 but falsely contradicted genuine candidates,
+    so it was rejected. P2 stays 0.62.
+  - GitHub: a manifest file name proves only its language; a framework needs the dependency
+    in manifest content. Matching is by whole token or graph alias (Java no longer matches
+    JavaScript; Vue.js, K8s, Apache Kafka resolve). An account with no public, or only
+    forked, repos is "missing", not "checked and found nothing". `tutorial_clone` needs more
+    than the word "tutorial".
+  - **VERIFIED requires code evidence** (language bytes, manifest, dependency, CI workflow
+    file). A README mention or a topic label is the candidate describing their own work and
+    is WEAK. The corpus generator had made the same mistake and was corrected to declare
+    real dependencies in manifests, as real repos do.
+  - Projects match repos only on real name correspondence; an authored repo beats a fork.
+    judge_confidence is a documented function of evidence strength. It was deliberately not
+    pushed toward certainty to hit the ECE target (0.109 vs <= 0.10).
+  - Resume parsing: "Languages: Python" labels stripped, CI/CD kept whole, Go/JS/TS kept,
+    Achievements extracted, "Title, Company, dates" role lines parsed (re-enabling the
+    LinkedIn employer cross-check). The generator's "Software Developering Intern" title bug
+    was fixed.
+  Still missed, reported as measured: P2 0.62 (target 0.80), P6 0.79 (0.95; private-work
+  profiles WITH a LinkedIn export get a band from that corroboration rather than
+  INSUFFICIENT_EVIDENCE, which is defensible but misses the spec's metric), AUROC 0.82
+  (0.85), ECE 0.109 (0.10). No sample candidate's score, recommendation or band changed.

@@ -105,6 +105,69 @@ def _ratio(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
+# --- Title normalisation (Spec 11 Stage 4: title/employer mismatch) -------------------------
+# "Software Engineer" and "Software Developer" are the same job under two names, so they must
+# not be reported as a mismatch. Known equivalents are collapsed before comparing.
+_PHRASE_EQUIV = (
+    (re.compile(r"\bfront\s+end\b"), "frontend"),
+    (re.compile(r"\bback\s+end\b"), "backend"),
+    (re.compile(r"\bfull\s+stack\b"), "fullstack"),
+    (re.compile(r"\bdev\s+ops\b"), "devops"),
+    (re.compile(r"\b(?:swe|sde)\b"), "software engineer"),
+)
+_WORD_EQUIV = {
+    "engineers": "engineer", "engineering": "engineer", "developer": "engineer",
+    "developers": "engineer", "programmer": "engineer", "dev": "engineer", "eng": "engineer",
+    "sr": "senior", "jr": "junior", "mgr": "manager", "managers": "manager",
+}
+_TITLE_NOISE = {"of", "the", "and", "a", "an", "at"}
+
+# Seniority ranks, low to high. Only a HIGHER rank on the resume than on LinkedIn is flagged.
+_RANK = {"senior": 1, "lead": 2, "staff": 2, "manager": 2, "principal": 3, "head": 3, "director": 4}
+
+
+def normalise_title(title: str) -> list[str]:
+    """Lower-cased tokens with known synonyms collapsed (engineer/developer/programmer,
+    SWE -> software engineer, sr -> senior, jr -> junior, front end -> frontend, ...)."""
+    t = re.sub(r"[^a-z0-9+#]+", " ", (title or "").lower()).strip()
+    for pat, repl in _PHRASE_EQUIV:
+        t = pat.sub(repl, t)
+    out = []
+    for w in t.split():
+        w = _WORD_EQUIV.get(w, w)
+        out.extend(w.split())  # a phrase replacement can add a space
+        if w in _TITLE_NOISE:
+            out.pop()
+    return out
+
+
+def title_rank(tokens: list[str]) -> int:
+    """Highest seniority rank named in the title, 0 when none."""
+    return max((_RANK[w] for w in tokens if w in _RANK), default=0)
+
+
+def compare_titles(resume_title: str, linkedin_title: str, *, threshold: int = 80) -> str | None:
+    """None when the titles agree; 'different_role' for a genuinely different title;
+    'seniority_inflation' when the resume adds a higher rank that LinkedIn lacks.
+
+    A LOWER rank on the resume than on LinkedIn is not a conflict: people routinely list the
+    title they were hired into, so only the upward direction is worth a neutral follow-up.
+    Rank words are stripped for the role comparison so 'Principal Data Engineer' vs 'Data
+    Engineer' is read as the same job at a different level, not as a different job."""
+    r_tokens, l_tokens = normalise_title(resume_title), normalise_title(linkedin_title)
+    r_rank, l_rank = title_rank(r_tokens), title_rank(l_tokens)
+    full = _ratio(" ".join(r_tokens), " ".join(l_tokens)) * 100
+    r_base = [w for w in r_tokens if w not in _RANK]
+    l_base = [w for w in l_tokens if w not in _RANK]
+    base = _ratio(" ".join(r_base), " ".join(l_base)) * 100 if r_base and l_base else full
+    same_role = full >= threshold or base >= threshold
+    if not same_role:
+        return "different_role"
+    if r_rank > l_rank:
+        return "seniority_inflation"
+    return None
+
+
 def check_linkedin_consistency(
     resume_experience: list[dict], li: LinkedInEvidence, *, date_tolerance_months: int = 2,
     title_threshold: int = 80, company_threshold: int = 60,
@@ -118,6 +181,9 @@ def check_linkedin_consistency(
     role with no company match on LinkedIn is left uncompared, not flagged -
     a role LinkedIn simply doesn't list is missing evidence, never a
     contradiction (Spec 2.4).
+
+    Each finding also carries `resume_title`, `company` and `citation` so the engine can
+    mark the matching ROLE claim CONTRADICTED (a source conflicts with the claim, Stage 3).
     """
     if li.status != "ok" or not li.roles:
         return []
@@ -134,14 +200,29 @@ def check_linkedin_consistency(
         if best is None or _ratio(r_company, best.company.lower()) * 100 < company_threshold:
             continue  # no corresponding employer on LinkedIn - not comparable, not a finding
 
-        ratio = _ratio(r_title, best.title.lower())
-        if ratio * 100 < title_threshold:
+        ref = {
+            "resume_title": r.get("title"), "company": r.get("company"),
+            "citation": f"linkedin_export:role:{best.title}",
+        }
+        verdict = compare_titles(r.get("title") or "", best.title, threshold=title_threshold)
+        if verdict == "different_role":
             out.append(
                 {
                     "type": "title_mismatch",
                     "detail": f"Resume title '{r.get('title')}' does not match the LinkedIn "
                     f"title '{best.title}' for the same employer.",
-                    "sources": ["resume", "linkedin"],
+                    "sources": ["resume", "linkedin"], **ref,
+                }
+            )
+            continue
+        if verdict == "seniority_inflation":
+            out.append(
+                {
+                    "type": "title_mismatch",
+                    "detail": f"Resume title '{r.get('title')}' names a more senior level than "
+                    f"the LinkedIn title '{best.title}' for the same employer. Titles are "
+                    "sometimes updated on only one profile; worth confirming.",
+                    "sources": ["resume", "linkedin"], **ref,
                 }
             )
             continue
@@ -154,7 +235,7 @@ def check_linkedin_consistency(
                         "type": "date_conflict",
                         "detail": f"'{r.get('title')}' is dated {r_start}-{r.get('end')} on the "
                         f"resume but {li_start}-{best.end} on LinkedIn.",
-                        "sources": ["resume", "linkedin"],
+                        "sources": ["resume", "linkedin"], **ref,
                     }
                 )
     return out

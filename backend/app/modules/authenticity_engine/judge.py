@@ -26,7 +26,7 @@ import re
 from ...config import cfg
 from ...llm.client import LLMClient
 from ...llm.prompts_common import UNTRUSTED_DATA_RULE, wrap_untrusted
-from .matching import _repo_covers_skill
+from .matching import _repo_covers_skill, project_matches_repo
 
 RANK = {"UNSUPPORTED": 0, "WEAK": 1, "CORROBORATED": 2, "VERIFIED": 3}
 RUBRIC_STATUSES = {"VERIFIED", "CORROBORATED", "WEAK", "UNSUPPORTED", "CONTRADICTED", "UNVERIFIABLE"}
@@ -72,9 +72,9 @@ def _grounded(entry: dict, claim_type: str, claim_text: str) -> bool:
         return False
     if claim_type == "SKILL":
         return _repo_covers_skill(repo, claim_text)
-    if claim_type == "PROJECT":
-        words = set(re.findall(r"[a-z0-9]+", claim_text.lower()))
-    return bool(words & set(re.findall(r"[a-z0-9]+", repo.name.lower())))
+    # PROJECT: the same strict correspondence the deterministic judge uses, so the model
+    # cannot ground a project on a repo that merely shares a generic word with it.
+    return project_matches_repo(repo, claim_text)
 
 
 def _cap_rank(citations: list[str], index: dict, claim_type: str,
