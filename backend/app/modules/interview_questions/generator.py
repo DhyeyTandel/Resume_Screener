@@ -1,5 +1,6 @@
 """Module D: evidence gaps -> targeted, non-accusatory interview questions (Spec 12)."""
 from __future__ import annotations
+
 import time
 
 from ...config import cfg
@@ -80,7 +81,7 @@ async def generate_interview_questions(
                 "_model": res.model,
                 "_usage": res.usage,
             }
-        except Exception as exc:  # noqa: BLE001 - retry, then degrade gracefully
+        except Exception as exc:
             error = str(exc)
     return {
         "interview_questions": [],

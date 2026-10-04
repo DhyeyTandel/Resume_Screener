@@ -1,0 +1,19 @@
+line-length = 110
+target-version = "py311"
+
+[lint]
+# Correctness-leaning set. Style-only families (FURB, DTZ, S, TRY, PLC) are left off on purpose.
+select = ["E", "F", "I", "B", "UP", "ASYNC", "SIM", "ISC", "RUF100"]
+ignore = [
+  "B008",  # FastAPI's Form()/File() defaults are the framework idiom, not a bug
+  "E501",  # long prompt/report strings; line-length is advisory here
+  "SIM108",
+  "SIM102",  # nested ifs kept where they mirror the spec rule being encoded
+  "SIM105",  # explicit try/except/pass reads clearer than contextlib.suppress here
+]
+
+[lint.per-file-ignores]
+"backend/tests/fixtures/make_pdfs.py" = ["E702"]  # one fixture per line on purpose
+
+[lint.isort]
+known-first-party = ["app", "tests"]

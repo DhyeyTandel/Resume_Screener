@@ -3,6 +3,7 @@
 Run: python tests/fixtures/make_pdfs.py   (needs PyMuPDF)
 """
 from __future__ import annotations
+
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -89,7 +90,7 @@ def main() -> None:
     d = fitz.open(); p = d.new_page()
     y = 60
     for i in range(30):
-        p.insert_text((50, y), RESUME[i % len(RESUME)] + " scanned line %d" % i,
+        p.insert_text((50, y), RESUME[i % len(RESUME)] + f" scanned line {i}",
                       fontsize=11, color=BLACK, render_mode=3)
         y += 22
     _save(d, "ocr_layer.pdf")

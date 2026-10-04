@@ -1,5 +1,6 @@
 """Screen every sample resume in mock mode and write sample_output/ JSONs."""
 from __future__ import annotations
+
 import asyncio
 import json
 import sys
@@ -21,7 +22,7 @@ async def main() -> None:
     OUT.mkdir(exist_ok=True)
     rows = []
     sys.path.insert(0, str(ROOT / "backend"))
-    from tests.fixtures.github_fixtures import make_fetch  # noqa: E402
+    from tests.fixtures.github_fixtures import make_fetch
 
     for path in sorted((ROOT / "sample_data/resumes").glob("*.txt")):
         text = path.read_text()

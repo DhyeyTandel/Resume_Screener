@@ -2,8 +2,7 @@
 from app.modules.authenticity_engine.collectors.github import GitHubEvidence
 from app.modules.authenticity_engine.collectors.portfolio import PortfolioEvidence, collect_portfolio
 from app.modules.authenticity_engine.matching import judge_skill_claim_with_portfolio, portfolio_flags
-from tests.fixtures.portfolio_fixtures import (ROBOTS_DISALLOW_ALL, ROBOTS_DISALLOW_PRIVATE,
-                                               make_fetch)
+from tests.fixtures.portfolio_fixtures import ROBOTS_DISALLOW_ALL, ROBOTS_DISALLOW_PRIVATE, make_fetch
 
 
 async def test_collector_extracts_projects_and_tech_mentions():
@@ -45,8 +44,8 @@ async def test_404_degrades_to_error_not_a_crash():
 
 
 async def test_skill_verified_by_github_ignores_weaker_portfolio_evidence():
-    from tests.fixtures.github_fixtures import make_fetch as gh_fetch
     from app.modules.authenticity_engine.collectors.github import collect_github
+    from tests.fixtures.github_fixtures import make_fetch as gh_fetch
 
     gh = await collect_github("priya", fetch=gh_fetch("priya"))
     pf = await collect_portfolio("https://priya.dev", fetch=make_fetch())

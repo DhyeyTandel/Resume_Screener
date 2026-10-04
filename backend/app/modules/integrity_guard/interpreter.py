@@ -52,7 +52,7 @@ async def interpret(scanner: dict, base_score: float, jd_text: str, llm: LLMClie
                 f"{UNTRUSTED_DATA_RULE}\n\n{SYSTEM_PROMPT}", payload, task="integrity_interpret"
             )
         ).data
-    except Exception:  # noqa: BLE001 - template fallback, never crash the demo
+    except Exception:
         result = _benign_output(base_score)
         result["headline"] = f"The integrity scan returned verdict '{scanner['verdict']}'."
     return enforce_guardrails(result, scanner, base_score)

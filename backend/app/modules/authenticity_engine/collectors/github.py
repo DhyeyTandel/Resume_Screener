@@ -4,10 +4,11 @@ Testability: `fetch` is injectable so tests can replay recorded fixtures
 instead of hitting the network (Spec: no live network calls in CI).
 """
 from __future__ import annotations
+
 import base64
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable
 
 from ....config import cfg
 
@@ -65,7 +66,7 @@ async def _default_fetch(url: str, headers: dict | None) -> tuple[int, dict | li
         resp = await client.get(url, headers=headers or {})
         try:
             body = resp.json()
-        except Exception:  # noqa: BLE001 - non-JSON body (e.g. raw README)
+        except Exception:
             body = {"_text": resp.text}
         return resp.status_code, body
 
@@ -120,7 +121,7 @@ async def collect_github(
         if readme_status == 200 and isinstance(readme, dict) and readme.get("content"):
             try:
                 ev.readme_excerpt = base64.b64decode(readme["content"]).decode("utf-8", "replace")[:2000]
-            except Exception:  # noqa: BLE001
+            except Exception:
                 pass
         if ev.readme_excerpt and TUTORIAL_MARKERS.search(ev.readme_excerpt):
             ev.flags.append("tutorial_clone")

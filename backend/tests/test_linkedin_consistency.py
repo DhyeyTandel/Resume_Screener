@@ -1,7 +1,9 @@
 """Module B: LinkedIn collector and Stage 4 role-overlap / cross-checks."""
-from app.modules.authenticity_engine.collectors.linkedin import (LinkedInEvidence, collect_linkedin,
-                                                                  parse_pdf_export_text,
-                                                                  parse_structured_json)
+from app.modules.authenticity_engine.collectors.linkedin import (
+    LinkedInEvidence,
+    collect_linkedin,
+    parse_pdf_export_text,
+)
 from app.modules.authenticity_engine.consistency import check_linkedin_consistency, check_role_overlap
 from app.modules.authenticity_engine.matching import judge_role_claim
 

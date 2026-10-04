@@ -1,7 +1,10 @@
 """Module B Stage 2/3: GitHub collector and claim-evidence matching."""
 from app.modules.authenticity_engine.collectors.github import collect_github
-from app.modules.authenticity_engine.matching import (authenticity_flags, judge_project_claim,
-                                                       judge_skill_claim)
+from app.modules.authenticity_engine.matching import (
+    authenticity_flags,
+    judge_project_claim,
+    judge_skill_claim,
+)
 from tests.fixtures.github_fixtures import make_fetch
 
 

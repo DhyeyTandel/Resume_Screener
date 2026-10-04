@@ -2,8 +2,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from app.llm.client import LLMClient
 from app.pipeline.orchestrator import screen_candidate
 from app.schemas.vocab import MISSING
@@ -62,8 +60,8 @@ async def test_no_module_emits_accusatory_language():
 
 async def test_hidden_injection_never_reaches_a_scoring_prompt():
     """Quarantine: only the integrity interpreter may ever see hidden text."""
-    from app.parsing.loader import ParsedDoc, Span
     from app.modules.integrity_guard.scanner import scan
+    from app.parsing.loader import ParsedDoc, Span
     doc = ParsedDoc(
         visible_text="Python engineer with Docker experience",
         raw_text_by_parser={"pymupdf": "x"},

@@ -4,6 +4,7 @@ Spec: no scraping of linkedin.com. Only a candidate-provided "Save to PDF"
 export or a structured JSON export is accepted.
 """
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 
@@ -45,7 +46,7 @@ def parse_structured_json(data: dict) -> LinkedInEvidence:
             skills=data.get("skills", []),
             certifications=data.get("certifications", []),
         )
-    except Exception as exc:  # noqa: BLE001 - malformed export never crashes the pipeline
+    except Exception as exc:
         return LinkedInEvidence(status="error", error=f"malformed LinkedIn JSON: {exc}")
 
 
@@ -87,5 +88,5 @@ def collect_linkedin(linkedin: dict | None) -> LinkedInEvidence:
         if kind == "pdf_export":
             return parse_pdf_export_text(str(content))
         return LinkedInEvidence(status="error", error=f"unknown LinkedIn export type: {kind}")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return LinkedInEvidence(status="error", error=str(exc))

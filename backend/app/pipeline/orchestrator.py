@@ -1,5 +1,6 @@
 """End-to-end pipeline (Spec 1.2). Quarantine, parallel C/B, deterministic aggregation."""
 from __future__ import annotations
+
 import asyncio
 import time
 import uuid
@@ -15,7 +16,7 @@ from ..modules.interview_questions.generator import generate_interview_questions
 from ..parsing.loader import ParsedDoc, UnreadableFile, from_text, load
 from ..policy.recommendation import decide
 from ..policy.scoring import apply_penalty, compose
-from ..schemas.vocab import EXACT, NO_EVIDENCE, evidence_level, jd_priority, weakest
+from ..schemas.vocab import evidence_level, jd_priority, weakest
 
 FAIRNESS_NOTICE = (
     "This is a decision-support tool. A human recruiter must review all recommendations. "
@@ -64,7 +65,7 @@ async def screen_candidate(
     candidate_id = str(uuid.uuid4())[:8]
 
     # --- Stage 0: ingest ---------------------------------------------------
-    with Stage(stages, "parse") as st:
+    with Stage(stages, "parse"):
         if data is not None and filename:
             doc = load(filename, data)
         else:

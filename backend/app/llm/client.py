@@ -7,11 +7,14 @@ score, band and penalty is computed in Python (Spec 2.8), so mock mode changes
 the wording of a report, never its numbers.
 """
 from __future__ import annotations
+
+import asyncio
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from ..config import cfg
 from .json_output import STRICT_SUFFIX, extract_json
@@ -62,7 +65,7 @@ class LLMClient:
                     model=_model_for(provider),
                     latency_ms=int((time.perf_counter() - started) * 1000),
                 )
-            except Exception as exc:  # noqa: BLE001 - fall through to next provider
+            except Exception as exc:
                 last_err = exc
         raise RuntimeError(f"all providers failed: {last_err}")
 
@@ -123,11 +126,11 @@ class LLMClient:
                     )
                     resp.raise_for_status()
                     return extract_json(resp.json()["content"][0]["text"])
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 last = exc
                 msg = f"{user}\n\n{STRICT_SUFFIX}"
                 if attempt < retries:
-                    time.sleep(1 * (attempt + 1))
+                    await asyncio.sleep(1 * (attempt + 1))
         raise RuntimeError(f"{provider} failed after retries: {last}")
 
 
@@ -147,8 +150,8 @@ def _mock_summary(p: dict) -> dict:
     gaps = p.get("missing", [])
     score = p.get("base_score", 0)
     bits = [
-        f"The resume covers {len(matched)} of {p.get('total_requirements', 0)} job requirements, "
-        f"giving a base match of {score}."
+        (f"The resume covers {len(matched)} of {p.get('total_requirements', 0)} job requirements, "
+         f"giving a base match of {score}.")
     ]
     if matched:
         bits.append("Strongest overlap is in " + ", ".join(matched[:3]) + ".")
@@ -229,20 +232,20 @@ def _mock_integrity(p: dict) -> dict:
 
 _Q = {
     "claimed": (
-        "You list {skill} on your resume - walk me through the most recent thing you built "
-        "with it and one decision you had to make along the way.",
+        ("You list {skill} on your resume - walk me through the most recent thing you built "
+         "with it and one decision you had to make along the way."),
         "Distinguishes hands-on use from a skills-list entry.",
         "Depth of {skill} experience stays unverified before an offer.",
     ),
     "not_demonstrated": (
-        "We use {skill} on this team and it is not on your resume - have you run into it in "
-        "coursework, a side project or informally, and how would you get up to speed?",
+        ("We use {skill} on this team and it is not on your resume - have you run into it in "
+         "coursework, a side project or informally, and how would you get up to speed?"),
         "Checks for unlisted exposure and gauges ramp-up speed.",
         "A real skill gap could go unnoticed until the candidate is on the team.",
     ),
     "transferable": (
-        "You have adjacent experience here - where do you expect that to carry over to {skill}, "
-        "and where do you expect it to break down?",
+        ("You have adjacent experience here - where do you expect that to carry over to {skill}, "
+         "and where do you expect it to break down?"),
         "Separates genuine transferable understanding from keyword overlap.",
         "Transferability is assumed rather than tested.",
     ),

@@ -1,5 +1,6 @@
 """redact_for_scoring: strip protected attributes before any scoring LLM call."""
 from __future__ import annotations
+
 import re
 
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")

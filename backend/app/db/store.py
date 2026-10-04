@@ -5,6 +5,7 @@ insert (append_audit) and select (list_audit) for it. LLM prompts are never
 stored; report JSON is stored exactly as produced.
 """
 from __future__ import annotations
+
 import datetime
 import json
 import os

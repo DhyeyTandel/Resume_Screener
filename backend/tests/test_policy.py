@@ -1,8 +1,17 @@
 """Deterministic scoring, penalty math and recommendation policy (Spec 3.5-3.6)."""
 from app.policy.recommendation import NOT_RECOMMENDED, REVIEW, SHORTLIST, decide
 from app.policy.scoring import apply_penalty, compose
-from app.schemas.vocab import (MATCHED, MISSING, NOT_ENOUGH, PARTIAL, classification_to_status,
-                               evidence_level, jd_priority, requirement_value, weakest)
+from app.schemas.vocab import (
+    MATCHED,
+    MISSING,
+    NOT_ENOUGH,
+    PARTIAL,
+    classification_to_status,
+    evidence_level,
+    jd_priority,
+    requirement_value,
+    weakest,
+)
 
 
 def r(name, priority, status, t=None):

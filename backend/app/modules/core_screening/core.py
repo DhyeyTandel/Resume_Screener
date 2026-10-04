@@ -1,5 +1,6 @@
 """Module Core: JD requirements, resume structuring, requirement matching (Spec 9)."""
 from __future__ import annotations
+
 import re
 
 from ...config import cfg

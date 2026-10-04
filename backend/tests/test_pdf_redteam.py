@@ -5,8 +5,8 @@ import pytest
 
 pytest.importorskip("pymupdf")
 
-from app.modules.integrity_guard.scanner import scan  # noqa: E402
-from app.parsing.loader import load  # noqa: E402
+from app.modules.integrity_guard.scanner import scan
+from app.parsing.loader import load
 
 PDFS = Path(__file__).parent / "fixtures" / "pdfs"
 JD = (Path(__file__).resolve().parents[2] / "sample_data" / "jd_backend_engineer.txt").read_text()

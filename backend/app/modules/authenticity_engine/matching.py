@@ -7,6 +7,7 @@ without needing a live LLM call in the hot path. Every citation resolves to
 a collected artifact by construction (post-check requirement: 0% hallucination).
 """
 from __future__ import annotations
+
 import re
 
 from ...config import cfg

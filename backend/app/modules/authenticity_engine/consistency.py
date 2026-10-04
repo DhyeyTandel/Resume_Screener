@@ -8,6 +8,7 @@ Implements:
   candidate-provided LinkedIn export, when one is collected
 """
 from __future__ import annotations
+
 import difflib
 import re
 from datetime import date

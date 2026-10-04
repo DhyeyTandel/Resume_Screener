@@ -7,17 +7,29 @@ every claim is UNVERIFIABLE, which by the spec's own rule lowers CONFIDENCE and
 produces INSUFFICIENT_EVIDENCE - never a negative judgment of the candidate.
 """
 from __future__ import annotations
+
 import re
 
 from ...config import cfg
 from .collectors.github import GitHubEvidence, collect_github
 from .collectors.linkedin import LinkedInEvidence, collect_linkedin
 from .collectors.portfolio import PortfolioEvidence, collect_portfolio
-from .consistency import (check_anachronisms, check_graduation_consistency,
-                          check_linkedin_consistency, check_role_overlap, graduation_year)
-from .consistency import _parse_year
-from .matching import (STATUS_V, authenticity_flags, judge_project_claim, judge_role_claim,
-                       judge_skill_claim, judge_skill_claim_with_portfolio, portfolio_flags)
+from .consistency import (
+    _parse_year,
+    check_anachronisms,
+    check_graduation_consistency,
+    check_linkedin_consistency,
+    check_role_overlap,
+    graduation_year,
+)
+from .matching import (
+    STATUS_V,
+    authenticity_flags,
+    judge_project_claim,
+    judge_role_claim,
+    judge_skill_claim_with_portfolio,
+    portfolio_flags,
+)
 
 BUZZWORDS = {
     "synergy", "rockstar", "ninja", "guru", "passionate", "dynamic", "results-driven",

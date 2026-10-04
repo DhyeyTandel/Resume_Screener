@@ -1,5 +1,6 @@
 """AI Resume Screening Assistant - decision support, never a hiring decision."""
 from __future__ import annotations
+
 from pathlib import Path
 
 from fastapi import FastAPI

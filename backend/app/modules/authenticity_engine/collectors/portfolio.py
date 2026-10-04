@@ -8,9 +8,10 @@ a 2xx status; a dead link is WEAK evidence only, never a contradiction
 (Spec 11 Stage 2 - dead link != lie).
 """
 from __future__ import annotations
+
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable
 from urllib.parse import urljoin, urlparse
 
 from ....config import cfg
@@ -108,12 +109,12 @@ async def collect_portfolio(
             if robots_status == 200 and not _allowed(robots_txt, parsed.path or "/"):
                 return PortfolioEvidence(url=url, status="disallowed",
                                          error="robots.txt disallows this path")
-        except Exception:  # noqa: BLE001 - robots.txt fetch failure never blocks the page fetch
+        except Exception:
             pass
 
     try:
         status, html = await fetch(url if "://" in url else f"https://{url}")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return PortfolioEvidence(url=url, status="error", error=str(exc))
     if status != 200:
         return PortfolioEvidence(url=url, status="error", error=f"HTTP {status}")
@@ -137,7 +138,7 @@ async def collect_portfolio(
         try:
             s, _ = await fetch(link)
             checks.append({"url": link, "status_code": s, "ok": 200 <= s < 300})
-        except Exception as exc:  # noqa: BLE001 - a dead link is weak evidence, never a crash
+        except Exception as exc:
             checks.append({"url": link, "status_code": None, "ok": False, "error": str(exc)})
 
     return PortfolioEvidence(

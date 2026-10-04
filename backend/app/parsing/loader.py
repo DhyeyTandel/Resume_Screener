@@ -4,6 +4,7 @@ PyMuPDF and pdfplumber are optional: when neither is installed the loader falls
 back to a minimal built-in PDF text reader so the demo never dies (Spec 0.6).
 """
 from __future__ import annotations
+
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -70,7 +71,7 @@ def _docx(data: bytes, filename: str) -> ParsedDoc:
             core = ""
             if "docProps/core.xml" in z.namelist():
                 core = z.read("docProps/core.xml").decode("utf-8", "replace")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise UnreadableFile(
             f"The DOCX file could not be opened ({exc}).", "Re-export as PDF or paste the text."
         ) from exc
@@ -151,7 +152,7 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         raise
     except ImportError:
         pass
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise UnreadableFile(
             f"The PDF could not be read ({exc}).", "Re-export as PDF or paste the text."
         ) from exc
@@ -164,7 +165,7 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
             by_parser["pdfplumber"] = "\n".join(p.extract_text() or "" for p in pdf.pages)
     except ImportError:
         pass
-    except Exception:  # noqa: BLE001 - second parser is best-effort
+    except Exception:
         by_parser["pdfplumber"] = ""
 
     if not by_parser:
@@ -193,7 +194,7 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
 def _invisible_boxes(page) -> list[tuple[float, float, float, float]]:
     try:
         return [tuple(t["bbox"]) for t in page.get_texttrace() if t.get("type") == 3]
-    except Exception:  # noqa: BLE001 - older builds: no trace, no OCR detection
+    except Exception:
         return []
 
 

@@ -1,5 +1,6 @@
 """FastAPI surface (Spec 14.1)."""
 from __future__ import annotations
+
 import asyncio
 import uuid
 from typing import Any
@@ -8,9 +9,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..config import cfg
+from ..db.store import get_store
 from ..llm.client import LLMClient
 from ..modules.interview_questions.generator import generate_interview_questions
-from ..db.store import get_store
 from ..pipeline.orchestrator import screen_candidate
 
 router = APIRouter(prefix="/v1")
@@ -116,7 +117,7 @@ async def _run(sid: str, jd_text: str, inputs: list[dict]) -> None:
     for item in inputs:
         try:
             report = await screen_candidate(jd_text=jd_text, llm=LLMClient(), **item)
-        except Exception as exc:  # noqa: BLE001 - one bad file never stops the batch
+        except Exception as exc:
             report = {
                 "candidate_name": item.get("candidate_name", "Candidate"),
                 "overall_match_score": 0,

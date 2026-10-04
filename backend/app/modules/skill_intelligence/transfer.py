@@ -5,6 +5,7 @@ engine uses a deterministic lexical+graph similarity so the demo runs offline at
 zero cost. The interface is identical either way.
 """
 from __future__ import annotations
+
 import json
 import re
 from functools import lru_cache

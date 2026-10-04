@@ -1,5 +1,6 @@
 """Module A deterministic scanner. Code detects; the LLM only explains (Spec 8.1)."""
 from __future__ import annotations
+
 import re
 from typing import Any
 
@@ -20,9 +21,7 @@ INJECTION_LEXICON = [
 ]
 _INJECTION_RE = re.compile("|".join(INJECTION_LEXICON), re.I)
 TECH_KEYWORDS = set(
-    """python java javascript typescript react node fastapi django flask sql postgresql mysql
-    mongodb kafka rabbitmq docker kubernetes aws azure gcp terraform redis graphql rest git
-    ci cd microservices pytorch tensorflow spark airflow""".split()
+    ["python", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "flask", "sql", "postgresql", "mysql", "mongodb", "kafka", "rabbitmq", "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "redis", "graphql", "rest", "git", "ci", "cd", "microservices", "pytorch", "tensorflow", "spark", "airflow"]
 )
 
 

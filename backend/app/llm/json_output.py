@@ -1,5 +1,6 @@
 """Fence-stripping + validating JSON extraction (Spec 6.3)."""
 from __future__ import annotations
+
 import json
 import re
 
