@@ -54,3 +54,19 @@ def test_real_phone_number_still_redacted_next_to_a_year():
     out = redact_for_scoring(text)
     assert "555" not in out
     assert "2019 - 2026" in out
+
+
+def test_name_masked_even_when_not_supplied():
+    """File uploads only know the filename, so the header name must be detected."""
+    out = redact_for_scoring(RESUME)
+    assert "Priya" not in out and "Raman" not in out
+    assert "[CANDIDATE]" in out
+
+
+def test_title_header_is_not_mistaken_for_a_name():
+    from app.llm.redaction import guess_candidate_name
+
+    assert guess_candidate_name("Senior Backend Engineer\npriya@example.com") is None
+    assert guess_candidate_name("Priya Raman\nBuilt APIs\nSkills") is None  # no contact line
+    assert guess_candidate_name("Priya Raman\npriya@example.com") == "Priya Raman"
+    assert guess_candidate_name("Mary-Jane O'Neil\n+1 555 0100") == "Mary-Jane O'Neil"

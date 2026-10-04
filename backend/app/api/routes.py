@@ -9,11 +9,16 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import BaseModel
 
 from ..config import cfg
 from ..db.store import get_store
 from ..llm.client import LLMClient
+from ..llm.redaction import redact_for_scoring
+from ..modules.authenticity_engine.engine import assess
+from ..modules.core_screening.core import extract_requirements, structure_resume
 from ..modules.interview_questions.generator import generate_interview_questions
+from ..modules.skill_intelligence.transfer import analyze_skill
 from ..pipeline.orchestrator import screen_candidate
 
 router = APIRouter(prefix="/v1")
@@ -240,3 +245,134 @@ async def sample_jd() -> PlainTextResponse:
     if not _SAMPLE_JD.is_file():
         raise HTTPException(404, err("NOT_FOUND", "Sample job description is not available."))
     return PlainTextResponse(_SAMPLE_JD.read_text(encoding="utf-8"))
+
+
+# --- Module-level endpoints (Spec 11 and 10.4) ------------------------------
+
+
+class ResumeIn(BaseModel):
+    raw_text: str = ""
+    parsed_profile: dict | None = None
+
+
+class LinkedInIn(BaseModel):
+    type: str | None = None
+    content: Any = None
+
+
+class JobContextIn(BaseModel):
+    required_skills: list[str] = []
+    role_level: str | None = None
+
+
+class ConsentIn(BaseModel):
+    github: bool = True
+    linkedin: bool = True
+    portfolio: bool = True
+
+
+class AssessIn(BaseModel):
+    candidate_id: str = ""
+    resume: ResumeIn = ResumeIn()
+    github_username: str | None = None
+    linkedin: LinkedInIn | None = None
+    portfolio_url: str | None = None
+    job_context: JobContextIn = JobContextIn()
+    consent: ConsentIn = ConsentIn()
+
+
+class SkillsAnalyzeIn(BaseModel):
+    resume_text: str = ""
+    required_skills: list[str] | None = None
+    jd_text: str | None = None
+
+
+def _bad(status: int, code: str, message: str, field: str | None, remediation: str | None):
+    return HTTPException(status, err(code, message, field, remediation))
+
+
+def _check_text(value: str | None, field: str, *, required: bool) -> None:
+    if value is None or not value.strip():
+        if required:
+            raise _bad(
+                422, "RESUME_REQUIRED", f"{field} is required and must not be empty.", field,
+                "Provide the resume text to analyse.",
+            )
+        return
+    max_bytes = int(cfg("ingest.max_bytes", 10 * 1024 * 1024))
+    if len(value.encode("utf-8")) > max_bytes:
+        raise _bad(
+            413, "TEXT_TOO_LARGE",
+            f"{field} is larger than the {max_bytes // (1024 * 1024)} MB limit.", field,
+            "Shorten the text or split it into smaller requests.",
+        )
+
+
+def _redacted_profile(text: str) -> tuple[str, dict]:
+    redacted = redact_for_scoring(text)
+    return redacted, structure_resume(redacted)
+
+
+@router.post("/authenticity/assess")
+async def authenticity_assess(body: AssessIn):
+    _check_text(body.resume.raw_text, "resume.raw_text", required=True)
+    if body.linkedin and isinstance(body.linkedin.content, str):
+        _check_text(body.linkedin.content, "linkedin.content", required=False)
+    cid = body.candidate_id.strip() or str(uuid.uuid4())[:8]
+    redacted = redact_for_scoring(body.resume.raw_text)
+    parsed = body.resume.parsed_profile or structure_resume(redacted)
+    linkedin = (
+        {"type": body.linkedin.type, "content": body.linkedin.content}
+        if body.linkedin and body.linkedin.content
+        else None
+    )
+    report = await assess(
+        cid,
+        redacted,
+        parsed,
+        body.job_context.required_skills,
+        consent=body.consent.model_dump(),
+        sources={
+            "github": body.github_username,
+            "portfolio": body.portfolio_url,
+            "linkedin": linkedin,
+        },
+        llm=LLMClient(),
+    )
+    get_store().put_authenticity_report(cid, report)
+    return report
+
+
+@router.get("/authenticity/{candidate_id}")
+async def authenticity_get(candidate_id: str):
+    store = get_store()
+    report = store.get_authenticity_report(candidate_id)
+    if report is None:
+        screened = store.get_candidate(candidate_id)
+        report = ((screened or {}).get("extensions") or {}).get("authenticity")
+    if report is None:
+        raise HTTPException(
+            404, err("NOT_FOUND", f"No authenticity assessment for {candidate_id}.")
+        )
+    return report
+
+
+@router.post("/skills/analyze")
+async def skills_analyze(body: SkillsAnalyzeIn):
+    _check_text(body.resume_text, "resume_text", required=True)
+    _check_text(body.jd_text, "jd_text", required=False)
+    if body.required_skills:
+        skills = [s for s in body.required_skills if s and s.strip()]
+    elif body.jd_text and body.jd_text.strip():
+        skills = [
+            r["requirement"]
+            for r in extract_requirements(body.jd_text)
+            if r.get("category") not in ("min experience", "education")
+        ]
+    else:
+        raise _bad(
+            422, "SKILLS_REQUIRED", "Provide required_skills or jd_text.", "required_skills",
+            "Send a non-empty required_skills list, or the job description as jd_text.",
+        )
+    _, parsed = _redacted_profile(body.resume_text)
+    return [analyze_skill(s, parsed) for s in skills]

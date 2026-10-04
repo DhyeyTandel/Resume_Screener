@@ -21,6 +21,11 @@ class UnreadableFile(Exception):
         self.reason, self.remediation = reason, remediation
 
 
+class NoTextLayer(UnreadableFile):
+    """A PDF that is an image only (a scan) and could not be OCR'd. Not a read failure: the
+    pipeline reports it as "Not Enough Evidence" for manual review (Spec 7)."""
+
+
 @dataclass
 class Span:
     text: str
@@ -28,6 +33,8 @@ class Span:
     color: int = 0x000000
     bbox: tuple[float, float, float, float] = (0, 0, 0, 0)
     render_mode: int = 0
+    bg: int = 0xFFFFFF  # what the text is drawn on: page white unless highlighted or shaded
+    origin: str = "body"  # "comment" for reviewer comments: quarantined, but not a hiding trick
 
 
 @dataclass
@@ -39,6 +46,7 @@ class ParsedDoc:
     pages: int = 1
     page_size: tuple[float, float] = (612.0, 792.0)
     source: str = "text"
+    ocr_used: bool = False
 
 
 def load(filename: str, data: bytes) -> ParsedDoc:
@@ -71,44 +79,156 @@ def from_text(text: str, source: str = "pasted") -> ParsedDoc:
 
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 _OFF = ("0", "false", "off")
+_HEX6 = re.compile(r"[0-9A-Fa-f]{6}")
+_WHITE = 0xFFFFFF
+_HIDDEN_SIZE = 0.5  # what a run that is not rendered at all is recorded as
+
+# Word's built-in highlight palette (w:highlight). "none" clears a highlight.
+_HIGHLIGHT = {
+    "black": 0x000000, "blue": 0x0000FF, "cyan": 0x00FFFF, "green": 0x00FF00,
+    "magenta": 0xFF00FF, "red": 0xFF0000, "yellow": 0xFFFF00, "white": 0xFFFFFF,
+    "darkBlue": 0x000080, "darkCyan": 0x008080, "darkGreen": 0x008000,
+    "darkMagenta": 0x800080, "darkRed": 0x800000, "darkYellow": 0x808000,
+    "darkGray": 0x808080, "lightGray": 0xC0C0C0,
+}
+# w:themeColor names -> theme colour-scheme slots (a:clrScheme children).
+_THEME_SLOT = {
+    "dark1": "dk1", "light1": "lt1", "dark2": "dk2", "light2": "lt2",
+    "text1": "dk1", "background1": "lt1", "text2": "dk2", "background2": "lt2",
+    "accent1": "accent1", "accent2": "accent2", "accent3": "accent3",
+    "accent4": "accent4", "accent5": "accent5", "accent6": "accent6",
+    "hyperlink": "hlink", "followedHyperlink": "folHlink",
+}
+# The Office theme, used when a document uses theme colours but ships no usable theme part.
+_OFFICE_THEME = {
+    "dk1": 0x000000, "lt1": 0xFFFFFF, "dk2": 0x44546A, "lt2": 0xE7E6E6,
+    "accent1": 0x4472C4, "accent2": 0xED7D31, "accent3": 0xA5A5A5, "accent4": 0xFFC000,
+    "accent5": 0x5B9BD5, "accent6": 0x70AD47, "hlink": 0x0563C1, "folHlink": 0x954F72,
+}
 
 
 def _wval(el) -> str | None:
     return None if el is None else el.get(_W + "val")
 
 
-def _rpr_props(rpr) -> dict:
-    """Run properties that matter for visibility: vanish, colour, size (pt)."""
+def _load_xml(z: zipfile.ZipFile, name: str):
+    import xml.etree.ElementTree as ET
+
+    raw = z.read(name)
+    if b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw.upper():
+        raise ValueError(f"DTD or entity declarations are not allowed ({name})")
+    return ET.fromstring(raw)
+
+
+def _theme_colors(root) -> dict[str, int]:
+    """Theme colour scheme as {slot: rgb}; slots the file does not define come from Office."""
+    out = dict(_OFFICE_THEME)
+    if root is None:
+        return out
+    scheme = next(root.iter(_A + "clrScheme"), None)
+    for slot in list(scheme) if scheme is not None else []:
+        el = next(iter(slot), None)
+        val = None if el is None else el.get("val") if el.tag == _A + "srgbClr" else el.get("lastClr")
+        if val and _HEX6.fullmatch(val):
+            out[slot.tag.removeprefix(_A)] = int(val, 16)
+    return out
+
+
+def _tint_shade(rgb: int, tint: str | None, shade: str | None) -> int:
+    """w:themeTint lightens toward white, w:themeShade darkens toward black (per channel;
+    Word works in HSL, so this is an approximation that is exact at the extremes)."""
+    chans = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255]
+    if tint and _is_hex_byte(tint):
+        t = int(tint, 16) / 255
+        chans = [round(255 - (255 - c) * t) for c in chans]
+    if shade and _is_hex_byte(shade):
+        s = int(shade, 16) / 255
+        chans = [round(c * s) for c in chans]
+    return (chans[0] << 16) | (chans[1] << 8) | chans[2]
+
+
+def _is_hex_byte(v: str) -> bool:
+    return bool(re.fullmatch(r"[0-9A-Fa-f]{2}", v))
+
+
+def _theme_rgb(theme: dict[str, int], name: str | None, tint=None, shade=None) -> int | None:
+    slot = _THEME_SLOT.get(name or "")
+    if slot is None or slot not in theme:
+        return None
+    return _tint_shade(theme[slot], tint, shade)
+
+
+def _fill_rgb(el, theme: dict[str, int]) -> int | None:
+    """Fill colour of a w:shd element (themeFill wins over fill); None = no fill."""
+    if el is None:
+        return None
+    th = _theme_rgb(theme, el.get(_W + "themeFill"), el.get(_W + "themeFillTint"),
+                    el.get(_W + "themeFillShade"))
+    if th is not None:
+        return th
+    fill = el.get(_W + "fill")
+    return int(fill, 16) if fill and _HEX6.fullmatch(fill) else None
+
+
+def _rpr_props(rpr, theme: dict[str, int]) -> dict:
+    """Run properties that matter for visibility: vanish, colour, size (pt), highlight and
+    shading. A key that is absent means "inherit"; colour None means "automatic"."""
     out: dict = {}
     if rpr is None:
         return out
     v = rpr.find(_W + "vanish")
     if v is not None:
         out["vanish"] = (_wval(v) or "true").lower() not in _OFF
-    c = _wval(rpr.find(_W + "color"))
+    c = rpr.find(_W + "color")
     if c is not None:
-        out["color"] = int(c, 16) if re.fullmatch(r"[0-9A-Fa-f]{6}", c) else 0x000000
+        val = c.get(_W + "val")
+        literal = int(val, 16) if val and _HEX6.fullmatch(val) else None
+        themed = _theme_rgb(theme, c.get(_W + "themeColor"), c.get(_W + "themeTint"),
+                            c.get(_W + "themeShade"))
+        # Word resolves w:themeColor and ignores w:val; LibreOffice renders w:val. When the
+        # two disagree the run is invisible in one of them, so both are kept and the worse
+        # contrast is judged.
+        out["color"] = themed if themed is not None else literal
+        out["color_alt"] = literal if themed is not None and literal != themed else None
     sz = _wval(rpr.find(_W + "sz"))
     if sz and sz.isdigit():
         out["size"] = int(sz) / 2  # w:sz is in half-points
+    hl = rpr.find(_W + "highlight")
+    if hl is not None:
+        out["highlight"] = _HIGHLIGHT.get(_wval(hl) or "")
+    shd = rpr.find(_W + "shd")
+    if shd is not None:
+        out["shd"] = _fill_rgb(shd, theme)
     return out
 
 
-def _style_table(styles_xml: str) -> dict[str, tuple[str | None, dict]]:
-    """styleId -> (basedOn, props). Only the visibility-related props are kept."""
-    import xml.etree.ElementTree as ET
-
-    table: dict[str, tuple[str | None, dict]] = {}
-    try:
-        root = ET.fromstring(styles_xml)
-    except ET.ParseError:
-        return table
+def _parse_styles(root, theme: dict[str, int]) -> dict:
+    """docDefaults run props, styleId -> (basedOn, props), and the default style ids."""
+    out: dict = {"defaults": {}, "table": {}, "default_p": None, "default_c": None}
+    if root is None:
+        return out
+    dd = root.find(_W + "docDefaults/" + _W + "rPrDefault/" + _W + "rPr")
+    out["defaults"] = _rpr_props(dd, theme)
     for st in root.iter(_W + "style"):
         sid = st.get(_W + "styleId")
-        if sid:
-            table[sid] = (_wval(st.find(_W + "basedOn")), _rpr_props(st.find(_W + "rPr")))
-    return table
+        if not sid:
+            continue
+        props = _rpr_props(st.find(_W + "rPr"), theme)
+        ppr = st.find(_W + "pPr")
+        if ppr is not None and ppr.find(_W + "shd") is not None:
+            props["pshd"] = _fill_rgb(ppr.find(_W + "shd"), theme)
+        out["table"][sid] = (_wval(st.find(_W + "basedOn")), props)
+        if st.get(_W + "default") in ("1", "true"):
+            kind = st.get(_W + "type")
+            if kind == "paragraph":
+                out["default_p"] = sid
+            elif kind == "character":
+                out["default_c"] = sid
+    return out
 
 
 def _resolve_style(table: dict, sid: str | None) -> dict:
@@ -138,64 +258,258 @@ def _run_text(run) -> str:
     return "".join(parts)
 
 
+def _para_runs(el):
+    """Runs that belong to this paragraph. Text boxes are not descended into (their
+    paragraphs are yielded by _paras on their own, so nothing is counted twice) and only
+    the mc:Choice branch of an AlternateContent is read."""
+    for ch in el:
+        if ch.tag == _W + "r":
+            yield ch
+        elif ch.tag == _MC + "AlternateContent":
+            choice = ch.find(_MC + "Choice")
+            if choice is not None:
+                yield from _para_runs(choice)
+        elif ch.tag not in (_W + "pPr", _W + "txbxContent", _MC + "Fallback"):
+            yield from _para_runs(ch)
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _paras(el):
+    """Yields (paragraph, unrendered_copy). Paragraphs inside text boxes and shapes
+    (w:txbxContent) are included. Word writes a text box twice, as DrawingML in mc:Choice
+    and as VML in mc:Fallback. Only the Choice is rendered; a Fallback whose text is the same
+    is skipped as a duplicate, and one that says something different is returned flagged
+    as unrendered (a different story told to parsers that read the Fallback)."""
+    for ch in el:
+        if ch.tag == _MC + "AlternateContent":
+            choice, fb = ch.find(_MC + "Choice"), ch.find(_MC + "Fallback")
+            chosen = list(_paras(choice)) if choice is not None else []
+            yield from chosen
+            if fb is not None:
+                fb_paras = [p for p, _ in _paras(fb)]
+                if _sig(fb_paras) != _sig([p for p, _ in chosen]):
+                    for p in fb_paras:
+                        yield p, True
+        elif ch.tag == _W + "p":
+            yield ch, False
+            yield from _paras(ch)  # text boxes anchored in this paragraph's runs
+        else:
+            yield from _paras(ch)
+
+
+def _sig(paras) -> list[str]:
+    sigs = (_norm("".join(_run_text(r) for r in _para_runs(p))) for p in paras)
+    return [s for s in sigs if s]
+
+
+class _Docx:
+    """Reads one package; turns each paragraph into spans and visible lines."""
+
+    def __init__(self, styles: dict, theme: dict[str, int]) -> None:
+        self.styles, self.theme = styles, theme
+        self.spans: list[Span] = []
+
+    def part(self, root, *, hidden: bool = False, origin: str = "body") -> list[str]:
+        """Visible lines of one XML part. hidden=True records every run as unrendered."""
+        from ..modules.integrity_guard.scanner import contrast_ratio, is_hidden
+
+        parent = {c: p for p in root.iter() for c in p}
+        lines: list[str] = []
+        for para, unrendered in _paras(root):
+            force = hidden or unrendered
+            ppr = para.find(_W + "pPr")
+            sid = _wval(ppr.find(_W + "pStyle")) if ppr is not None else None
+            table = self.styles["table"]
+            para_style = _resolve_style(table, sid or self.styles["default_p"])
+            para_shd = para_style.get("pshd")
+            if ppr is not None and ppr.find(_W + "shd") is not None:
+                para_shd = _fill_rgb(ppr.find(_W + "shd"), self.theme)
+            cell = self._cell_shading(para, parent)
+            visible_runs: list[str] = []
+            for run in _para_runs(para):
+                text = _run_text(run)
+                if not text.strip():
+                    if text:
+                        visible_runs.append(text)  # keep spacing between runs
+                    continue
+                rpr = run.find(_W + "rPr")
+                # Precedence: docDefaults < paragraph style < character style < direct.
+                props = dict(self.styles["defaults"])
+                props.update(para_style)
+                props.update(_resolve_style(table, self.styles["default_c"]))
+                props.update(_resolve_style(table, _wval(rpr.find(_W + "rStyle")) if rpr is not None else None))
+                props.update(_rpr_props(rpr, self.theme))
+                bg = next(
+                    (c for c in (props.get("highlight"), props.get("shd"), para_shd, cell)
+                     if c is not None),
+                    _WHITE,
+                )
+                size = float(props.get("size", 11.0))
+                if force or props.get("vanish"):
+                    size = _HIDDEN_SIZE
+                span = Span(text=text, size=size, color=_text_colour(props, bg, contrast_ratio), bg=bg,
+                            origin=origin)
+                self.spans.append(span)
+                if not is_hidden(span, (612.0, 792.0)):
+                    visible_runs.append(text)
+            line = "".join(visible_runs).strip()
+            if line:
+                lines.append(line)
+        return lines
+
+    def _cell_shading(self, para, parent) -> int | None:
+        node = parent.get(para)
+        while node is not None:
+            if node.tag == _W + "tc":
+                tcpr = node.find(_W + "tcPr")
+                shd = tcpr.find(_W + "shd") if tcpr is not None else None
+                return _fill_rgb(shd, self.theme)
+            node = parent.get(node)
+        return None
+
+
+def _text_colour(props: dict, bg: int, contrast_ratio) -> int:
+    """The colour to judge. Automatic colour is black on light and white on dark shading
+    (as Word draws it). With two candidate colours the less readable one is judged."""
+    cands = [props.get("color"), props.get("color_alt")]
+    real = [c for c in cands if c is not None]
+    if not real:
+        return 0x000000 if _luminance_of(bg) > 0.18 else _WHITE
+    return min(real, key=lambda c: contrast_ratio(c, bg))
+
+
+def _luminance_of(rgb: int) -> float:
+    from ..modules.integrity_guard.scanner import _luminance
+
+    return _luminance(rgb)
+
+
+def _rels(z: zipfile.ZipFile, names: set[str]) -> dict[str, tuple[str, str]]:
+    """document.xml.rels as {rId: (relationship type suffix, package path)}."""
+    import posixpath
+
+    out: dict[str, tuple[str, str]] = {}
+    if "word/_rels/document.xml.rels" not in names:
+        return out
+    try:
+        root = _load_xml(z, "word/_rels/document.xml.rels")
+    except ValueError:
+        raise  # DTD / entity declarations are rejected outright
+    except Exception:
+        return out
+    for rel in root:
+        if rel.get("TargetMode") == "External" or not rel.get("Id"):
+            continue
+        target = rel.get("Target") or ""
+        path = target.lstrip("/") if target.startswith("/") else posixpath.normpath("word/" + target)
+        out[rel.get("Id")] = ((rel.get("Type") or "").rsplit("/", 1)[-1], path)
+    return out
+
+
+_HIDDEN_PART = re.compile(r"word/((header|footer|footnotes|endnotes|comments)[^/]*|glossary/.+)\.xml$")
+
+
 def _docx(data: bytes, filename: str) -> ParsedDoc:
     import html
-    import xml.etree.ElementTree as ET
 
     try:
         with zipfile.ZipFile(BytesIO(data)) as z:
-            names = z.namelist()
-            raw = z.read("word/document.xml")
-            if b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw.upper():
-                raise ValueError("DTD or entity declarations are not allowed")
-            root = ET.fromstring(raw)
+            names = set(z.namelist())
+            root = _load_xml(z, "word/document.xml")
             core = z.read("docProps/core.xml").decode("utf-8", "replace") if "docProps/core.xml" in names else ""
-            styles_xml = z.read("word/styles.xml").decode("utf-8", "replace") if "word/styles.xml" in names else ""
+            rels = _rels(z, names)
+
+            def optional(path: str | None):
+                if not path or path not in names:
+                    return None
+                try:
+                    return _load_xml(z, path)
+                except ValueError:
+                    raise
+                except Exception:
+                    return None  # an unparseable optional part adds no text a reader could see
+
+            theme_path = next((p for t, p in rels.values() if t == "theme"), "word/theme/theme1.xml")
+            theme = _theme_colors(optional(theme_path))
+            styles_path = next((p for t, p in rels.values() if t == "styles"), "word/styles.xml")
+            styles = _parse_styles(optional(styles_path), theme)
+            settings = optional(next((p for t, p in rels.values() if t == "settings"), "word/settings.xml"))
+            even_odd = settings is not None and any(
+                (_wval(e) or "true").lower() not in _OFF for e in settings.iter(_W + "evenAndOddHeaders")
+            )
+
+            docx = _Docx(styles, theme)
+            body = docx.part(root)
+
+            # Headers and footers print on every page, so their text counts as resume text,
+            # but only the ones a section really displays: a first-page header needs
+            # w:titlePg and an even-page one needs evenAndOddHeaders.
+            shown: dict[str, list[str]] = {"header": [], "footer": []}
+            for sect in root.iter(_W + "sectPr"):
+                title_pg = sect.find(_W + "titlePg")
+                first_on = title_pg is not None and (_wval(title_pg) or "true").lower() not in _OFF
+                for ref in list(sect):
+                    kind = ref.tag.removeprefix(_W).removesuffix("Reference")
+                    if ref.tag not in (_W + "headerReference", _W + "footerReference"):
+                        continue
+                    typ = ref.get(_W + "type", "default")
+                    on = typ == "default" or (typ == "first" and first_on) or (typ == "even" and even_odd)
+                    rid = ref.get(_R + "id")
+                    if on and rid in rels and rels[rid][1] not in shown[kind]:
+                        shown[kind].append(rels[rid][1])
+            done: set[str] = set()
+            seen_hf: set[str] = set()
+            hf_lines: dict[str, list[str]] = {"header": [], "footer": []}
+            for kind in ("header", "footer"):
+                for path in shown[kind]:
+                    part_root = optional(path)
+                    done.add(path)
+                    if part_root is not None:
+                        for line in docx.part(part_root):
+                            if line not in seen_hf:
+                                seen_hf.add(line)
+                                hf_lines[kind].append(line)
+
+            # Footnotes and endnotes: visible only when the body references them.
+            note_lines: list[str] = []
+            for kind in ("footnote", "endnote"):
+                path = next((p for t, p in rels.values() if t == kind + "s"), None)
+                part_root = optional(path)
+                if part_root is None:
+                    continue
+                done.add(path)
+                used = {e.get(_W + "id") for e in root.iter(_W + kind + "Reference")}
+                by_id = {n.get(_W + "id"): n for n in part_root.iter(_W + kind)}
+                for nid, node in by_id.items():
+                    note_lines += docx.part(node, hidden=nid not in used)
+
+            # Everything else that carries text but never prints: comments (not part of the
+            # printed page), and header/footer/note parts nothing displays.
+            for name in sorted(names - done):
+                if _HIDDEN_PART.fullmatch(name):
+                    part_root = optional(name)
+                    if part_root is not None:
+                        origin = "comment" if "/comments" in name else "body"
+                        docx.part(part_root, hidden=True, origin=origin)
     except Exception as exc:
         raise UnreadableFile(
             f"The DOCX file could not be opened ({exc}).", "Re-export as PDF or paste the text."
         ) from exc
-    styles = _style_table(styles_xml) if styles_xml else {}
 
-    from ..modules.integrity_guard.scanner import is_hidden
-
-    spans: list[Span] = []
-    visible_paras: list[str] = []
-    for para in root.iter(_W + "p"):
-        ppr = para.find(_W + "pPr")
-        para_style = _resolve_style(styles, _wval(ppr.find(_W + "pStyle")) if ppr is not None else None)
-        visible_runs: list[str] = []
-        for run in para.iter(_W + "r"):
-            text = _run_text(run)
-            if not text.strip():
-                if text:
-                    visible_runs.append(text)  # keep spacing between runs
-                continue
-            rpr = run.find(_W + "rPr")
-            # Precedence: paragraph style < character style < direct formatting.
-            props = dict(para_style)
-            props.update(_resolve_style(styles, _wval(rpr.find(_W + "rStyle")) if rpr is not None else None))
-            props.update(_rpr_props(rpr))
-            hidden = bool(props.get("vanish"))
-            size = float(props.get("size", 11.0))
-            span = Span(text=text, size=0.5 if hidden else size, color=int(props.get("color", 0)))
-            spans.append(span)
-            if not is_hidden(span, (612.0, 792.0)):
-                visible_runs.append(text)
-        line = "".join(visible_runs).strip()
-        if line:
-            visible_paras.append(line)
     meta = {
         k: html.unescape(v)
         for k, v in re.findall(r"<(?:dc|cp):(\w+)(?:\s[^>]*)?>([^<]*)</(?:dc|cp):\w+>", core)
     }
-    body = "\n".join(visible_paras)
+    text = "\n".join(hf_lines["header"] + body + note_lines + hf_lines["footer"])
     return ParsedDoc(
-        visible_text=body,
+        visible_text=text,
         # One entry only: the hidden runs are not a second parser's view, and a second
         # entry would make the scanner report spurious PARSER_DIVERGENCE.
-        raw_text_by_parser={"docx": body},
-        spans=spans,
+        raw_text_by_parser={"docx": text},
+        spans=docx.spans,
         metadata=meta,
         source=filename,
     )
@@ -268,11 +582,19 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
     if not by_parser:
         by_parser["builtin"] = _builtin_pdf_text(data)
         spans = [Span(text=t) for t in by_parser["builtin"].splitlines() if t.strip()]
+    ocr_used = False
     if not any(by_parser.values()):
-        raise UnreadableFile(
-            "No text layer was found in this PDF.",
-            "This may be a scan - enable OCR or paste the text.",
-        )
+        ocr_text = _ocr_pdf(data)
+        if not ocr_text:
+            raise NoTextLayer(
+                "No text layer was found in this PDF.",
+                "This may be a scan - enable OCR or paste the text.",
+            )
+        # Recognised text is what a reader sees, so it is visible and has no hidden-text
+        # signal of its own: it is one reader's view, not a second parser.
+        by_parser = {"ocr": ocr_text}
+        spans = [Span(text=t) for t in ocr_text.splitlines() if t.strip()]
+        ocr_used = True
     primary = by_parser.get("pymupdf") or next(iter(by_parser.values()))
     visible = "\n".join(
         s.text for s in spans if _is_visible(s, page_size)
@@ -285,7 +607,36 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         pages=pages,
         page_size=page_size,
         source=filename,
+        ocr_used=ocr_used,
     )
+
+
+def _ocr_pdf(data: bytes) -> str | None:
+    """OCR for a PDF with no text layer. Optional (Spec 7): needs the pytesseract package,
+    Pillow and a tesseract binary. Returns None when any of them is missing, when OCR fails,
+    or when it finds no text, so the caller falls back to NoTextLayer."""
+    try:
+        import pytesseract
+        from PIL import Image
+
+        pytesseract.get_tesseract_version()  # raises if the binary is not installed
+    except Exception:
+        return None
+    try:
+        try:
+            import pymupdf as fitz
+        except ImportError:
+            import fitz
+
+        doc = fitz.open(stream=data, filetype="pdf")
+        limit = int(cfg("ingest.ocr_max_pages", 5))
+        out = []
+        for page in list(doc)[:limit]:
+            pix = page.get_pixmap(dpi=200)
+            out.append(pytesseract.image_to_string(Image.open(BytesIO(pix.tobytes("png")))))
+        return "\n".join(out).strip() or None
+    except Exception:
+        return None
 
 
 def _invisible_boxes(page) -> list[tuple[float, float, float, float]]:

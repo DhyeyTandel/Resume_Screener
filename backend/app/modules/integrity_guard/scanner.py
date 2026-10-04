@@ -19,6 +19,7 @@ INJECTION_LEXICON = [
     r"the (?:ideal|perfect) candidate for this role is",
     r"output only",
 ]
+INFO_CODES = {"OCR_LAYER", "DOCUMENT_COMMENTS"}  # informational; never count against anyone
 _INJECTION_RE = re.compile("|".join(INJECTION_LEXICON), re.I)
 TECH_KEYWORDS = set(
     ["python", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "flask", "sql", "postgresql", "mysql", "mongodb", "kafka", "rabbitmq", "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "redis", "graphql", "rest", "git", "ci", "cd", "microservices", "pytorch", "tensorflow", "spark", "airflow"]
@@ -46,7 +47,8 @@ def is_hidden(span: Any, page_size: tuple[float, float]) -> bool:
         return True
     if span.size < float(cfg("integrity.hidden_font_pt_max", 4.0)):
         return True
-    if contrast_ratio(span.color) < float(cfg("integrity.min_contrast_ratio", 1.3)):
+    bg = getattr(span, "bg", 0xFFFFFF)  # highlight / shading the text sits on (DOCX)
+    if contrast_ratio(span.color, bg) < float(cfg("integrity.min_contrast_ratio", 1.3)):
         return True
     x0, y0, x1, y1 = span.bbox
     if (x0, y0, x1, y1) == (0, 0, 0, 0):
@@ -88,8 +90,15 @@ def scan(doc: Any, jd_text: str = "") -> dict:
     flags: list[dict] = []
     hidden_spans = [s for s in doc.spans if is_hidden(s, doc.page_size)]
     ocr_spans = [s for s in hidden_spans if getattr(s, "render_mode", 0) == 3]
-    non_ocr_hidden = [s for s in hidden_spans if getattr(s, "render_mode", 0) != 3]
+    # Reviewer comments never print, so their text is quarantined like any hidden text,
+    # but leftover comments are ordinary document hygiene, not a hiding trick. On their own
+    # they raise only an info-level note; instructions aimed at the screener inside a
+    # comment are still INJECTION_HIDDEN.
+    comment_spans = [s for s in hidden_spans if getattr(s, "origin", "body") == "comment"]
+    non_ocr_hidden = [s for s in hidden_spans
+                      if getattr(s, "render_mode", 0) != 3 and getattr(s, "origin", "body") != "comment"]
     hidden_text = " ".join(s.text for s in non_ocr_hidden).strip()
+    comment_text = " ".join(s.text for s in comment_spans).strip()
 
     if ocr_spans and len(ocr_spans) >= max(1, len(doc.spans) * float(
         cfg("integrity.ocr_page_coverage_min", 0.80)
@@ -122,6 +131,30 @@ def scan(doc: Any, jd_text: str = "") -> dict:
                     "title": "Instructions aimed at an automated screener",
                     "detail": "The hidden text addresses an AI system directly.",
                     "evidence": _quote(hidden_text),
+                }
+            )
+
+    if comment_text:
+        if _INJECTION_RE.search(comment_text):
+            flags.append(
+                {
+                    "code": "INJECTION_HIDDEN",
+                    "severity": "high",
+                    "title": "Instructions aimed at an automated screener",
+                    "detail": "A document comment addresses an AI system directly.",
+                    "evidence": _quote(comment_text),
+                }
+            )
+            hidden_text = (hidden_text + " " + comment_text).strip()
+        else:
+            flags.append(
+                {
+                    "code": "DOCUMENT_COMMENTS",
+                    "severity": "info",
+                    "title": "Reviewer comments left in the file",
+                    "detail": "The file contains comments that do not print. They were excluded "
+                    "from scoring. This is common and never counts against the candidate.",
+                    "evidence": f"{len(comment_text.split())} words in comments",
                 }
             )
 
@@ -203,13 +236,13 @@ def _verdict(flags: list[dict]) -> str:
     highs = {f["code"] for f in flags if f["severity"] == "high"}
     if "INJECTION_HIDDEN" in codes or len(highs) >= 2:
         return "attack"
-    if any(f["severity"] in ("medium", "high") for f in flags if f["code"] != "OCR_LAYER"):
+    if any(f["severity"] in ("medium", "high") for f in flags if f["code"] not in INFO_CODES):
         return "suspicious"
     return "clean"
 
 
 def _confidence(flags: list[dict], verdict: str) -> int:
-    scored = [f for f in flags if f["code"] != "OCR_LAYER"]
+    scored = [f for f in flags if f["code"] not in INFO_CODES]
     if verdict == "clean":
         return 95 if not scored else 70
     return min(99, 55 + 15 * len(scored))

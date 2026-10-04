@@ -228,3 +228,21 @@ async def test_unreadable_file_yields_an_error_row_not_a_crash():
 async def test_empty_resume_degrades_gracefully():
     r = await run("   ")
     assert r["extensions"]["status"] == "Error"
+
+
+
+async def test_mock_mode_is_not_claimed_when_module_d_used_a_real_model(monkeypatch):
+    """If Module D was served by Anthropic, the report must not say 'mock mode'."""
+    import app.pipeline.orchestrator as orch
+
+    plain = await screen_candidate(jd_text=JD, pasted_text=STRONG, llm=LLMClient("mock"))
+    assert plain["extensions"]["meta"]["mock_mode"] is True
+
+    async def fake_generate(reqs, llm=None, max_retries=2):
+        return {"interview_questions": [], "skipped_strong_evidence": [],
+                "_model": "claude-sonnet-4-6", "_usage": {}, "_attempts": 1}
+
+    monkeypatch.setattr(orch, "generate_interview_questions", fake_generate)
+    r = await run(STRONG)
+    assert r["extensions"]["meta"]["mock_mode"] is False
+    assert r["extensions"]["meta"]["interview_model"] == "claude-sonnet-4-6"

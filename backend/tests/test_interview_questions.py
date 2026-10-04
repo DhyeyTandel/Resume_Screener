@@ -21,7 +21,7 @@ class FakeLLM(LLMClient):
         super().__init__("mock")
         self.responses, self.calls_made = list(responses), 0
 
-    async def complete_json(self, system, user, *, task, temperature=None):
+    async def complete_json(self, system, user, *, task, temperature=None, **kw):
         self.calls_made += 1
         r = self.responses.pop(0)
         if isinstance(r, Exception):

@@ -18,18 +18,34 @@ Fixture count: 7 cases (small set - see Known Limitations).
 
 | Metric | Measured | Target | |
 |---|---|---|---|
-| Recall on real hidden-text/injection/stuffing files | 1.00 (14/14) | ≥ 0.95 | ✅ |
-| False-positive rate on real clean+OCR files | 0.00 (0/3) | ≤ 0.02 | ✅ |
-| Per-file expected verdict and flags | 17/17 | all | ✅ |
+| Recall on real hidden-text/injection/stuffing files | 1.00 (25/25) | ≥ 0.95 | ✅ |
+| False-positive rate on real clean+OCR files | 0.00 (0/8) | ≤ 0.02 | ✅ |
+| Per-file expected verdict and flags | 34/34 | all | ✅ |
 
 | File | Measured | Expected | |
 |---|---|---|---|
 | docx/clean.docx | clean (no flags) | clean | ✅ |
+| docx/comments_benign.docx | clean (DOCUMENT_COMMENTS) | clean + DOCUMENT_COMMENTS | ✅ |
+| docx/comments_hidden.docx | attack (INJECTION_HIDDEN) | attack + INJECTION_HIDDEN | ✅ |
+| docx/docdefaults_color_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/docdefaults_size_hidden.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| docx/header_footer_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/header_footer_visible.docx | clean (no flags) | clean | ✅ |
+| docx/header_unrendered.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/highlight_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
 | docx/injection_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
 | docx/jd_clone_hidden.docx | attack (HIDDEN_TEXT, JD_CLONE) | attack + HIDDEN_TEXT, JD_CLONE | ✅ |
 | docx/metadata_stuffed.docx | suspicious (METADATA_STUFF) | suspicious + METADATA_STUFF | ✅ |
 | docx/mixed_run.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| docx/notes_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/shaded_visible.docx | clean (no flags) | clean | ✅ |
 | docx/style_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/textbox_fallback_differs.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/textbox_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| docx/textbox_visible.docx | clean (no flags) | clean | ✅ |
+| docx/theme_accent_visible.docx | clean (no flags) | clean | ✅ |
+| docx/theme_conflict_hidden.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| docx/theme_hidden.docx | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
 | docx/tiny_font.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | docx/vanish.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | docx/white_text.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
@@ -41,8 +57,9 @@ Fixture count: 7 cases (small set - see Known Limitations).
 | pdfs/offpage.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/tiny_font.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/white_text.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| pdfs/scanned_no_text.pdf | Not Enough Evidence, Review Manually, confidence 0 | Not Enough Evidence, Review Manually, confidence 0 | ✅ |
 
-Files are small synthetic fixtures made by make_pdfs.py and make_docx.py. Style-based hiding is covered for run, character and paragraph styles only.
+Files are small synthetic fixtures made by make_pdfs.py and make_docx.py. Hiding is modelled through direct formatting, styles, docDefaults, theme colours, highlight and shading, headers, footers, notes, text boxes and comments. The scan row is checked end to end rather than by verdict (no text to scan).
 
 ## Module C - Semantic Skill Intelligence
 
@@ -111,4 +128,4 @@ Module B's claim-extraction F1, claim-status macro-F1, false-accusation rate, P3
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
 - Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. P4 checks role-overlap only (from the resume alone); Stage 4's LinkedIn date-conflict and title-mismatch checks exist (consistency.py) but have no perturbation exercising them yet.
-- Total eval wall time: 0.2s, all in mock mode with no network calls.
+- Total eval wall time: 0.3s, all in mock mode with no network calls.

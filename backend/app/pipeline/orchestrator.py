@@ -13,10 +13,10 @@ from ..modules.core_screening.core import extract_requirements, match_requiremen
 from ..modules.integrity_guard.interpreter import interpret
 from ..modules.integrity_guard.scanner import scan
 from ..modules.interview_questions.generator import generate_interview_questions
-from ..parsing.loader import ParsedDoc, UnreadableFile, from_text, load
+from ..parsing.loader import NoTextLayer, ParsedDoc, UnreadableFile, from_text, load
 from ..policy.recommendation import decide
 from ..policy.scoring import apply_penalty, compose
-from ..schemas.vocab import evidence_level, jd_priority, weakest
+from ..schemas.vocab import NOT_ENOUGH, evidence_level, jd_priority, weakest
 
 FAIRNESS_NOTICE = (
     "This is a decision-support tool. A human recruiter must review all recommendations. "
@@ -65,13 +65,20 @@ async def screen_candidate(
     candidate_id = str(uuid.uuid4())[:8]
 
     # --- Stage 0: ingest ---------------------------------------------------
+    no_text: NoTextLayer | None = None
     with Stage(stages, "parse"):
         if data is not None and filename:
-            doc = load(filename, data)
+            try:
+                doc = load(filename, data)
+            except NoTextLayer as exc:  # a scan: reported as Not Enough Evidence, not an error
+                no_text = exc
+                stages["parse"] = {"note": "scan without a text layer"}
         else:
             doc = from_text(pasted_text or "", source="pasted")
-        if not doc.visible_text.strip():
+        if no_text is None and not doc.visible_text.strip():
             raise UnreadableFile("The resume contains no readable text.", "Paste the text instead.")
+    if no_text is not None:
+        return _no_text_report(candidate_id, candidate_name, jd_text, stages, started, llm)
     if stages["parse"]["status"] == "error":
         return _error_report(candidate_id, candidate_name, stages, started, llm)
     doc: ParsedDoc
@@ -222,7 +229,10 @@ async def screen_candidate(
             "meta": {
                 "stages": stages,
                 "llm_provider": llm.active,
-                "mock_mode": llm.mock_mode,
+                # Module D can switch to Anthropic on its own when ANTHROPIC_API_KEY is set
+                # (Spec 6.2), so "mock mode" is only claimed when no real model served anything.
+                "mock_mode": llm.mock_mode and questions.get("_model") in (None, "mock-heuristic-v1"),
+                "interview_model": questions.get("_model"),
                 "config_version": cfg("app.config_version"),
                 "latency_ms": int((time.perf_counter() - started) * 1000),
                 "llm_calls": llm.calls,
@@ -274,6 +284,70 @@ def _clean_scan() -> dict:
     return {
         "verdict": "clean", "confidence": 0, "penalty": 1.0, "flags": [],
         "hidden_text": "", "stats": {"hidden_words": 0, "pages": 0, "backends": []},
+    }
+
+
+NO_TEXT_NOTE = (
+    "This file is a scan without a text layer, so no resume text could be read. "
+    "That says nothing about the candidate; the evidence is simply not available to the screener."
+)
+
+
+def _no_text_report(cid, name, jd_text, stages, started, llm) -> dict:
+    """A scanned PDF with no text layer and no OCR (Spec 7). Every requirement is
+    "Not Enough Evidence" (never "Missing"), so the score is excluded and confidence is 0."""
+    try:
+        reqs = extract_requirements(jd_text)
+    except Exception:
+        reqs = []
+    matched = [
+        {
+            "requirement": r["requirement"], "priority": r["priority"], "category": r["category"],
+            "status": NOT_ENOUGH, "resume_evidence": "", "notes": NO_TEXT_NOTE, "transferability": {},
+        }
+        for r in reqs
+    ]
+    scores = compose(matched)
+    reason = (
+        "The file is a scan with no text layer and OCR was not available, so it needs a manual read."
+    )
+    return {
+        "candidate_name": name or "Candidate",
+        "overall_match_score": 0,
+        "recommendation": "Review Manually",
+        "summary": NO_TEXT_NOTE + " Open the original file and review it manually, or ask for a text-based copy.",
+        "ai_text_indicators": {"level": "Low", "disclaimer": AI_DISCLAIMER, "evidence": []},
+        "requirement_match": matched,
+        "matched_skills": [],
+        "missing_or_unclear_skills": [r["requirement"] for r in matched],
+        "technical_gaps": [],
+        "education_assessment": NO_TEXT_NOTE,
+        "experience_assessment": NO_TEXT_NOTE,
+        "strengths": [],
+        "risks": [reason],
+        "interview_questions": [],
+        "fairness_notice": FAIRNESS_NOTICE,
+        "extensions": {
+            "candidate_id": cid, "status": NOT_ENOUGH,
+            "remediation": "Upload a text-based PDF or DOCX, paste the text, or review the scan by hand.",
+            "candidate_profile": {},
+            "score_breakdown": {
+                "base_score": 0, "integrity_penalty": 1.0, "score_confidence": 0,
+                "per_requirement_contribution": scores["per_requirement_contribution"],
+            },
+            "integrity": {
+                "headline": "The integrity scan did not run because the file has no text layer.",
+                "intent": "benign", "manipulation_attempted": False, "findings": [],
+                "recommended_action": "proceed", "penalty": 1.0,
+            },
+            "authenticity": None, "skill_intelligence": [],
+            "interview_questions_detailed": {"interview_questions": [], "skipped_strong_evidence": []},
+            "recommendation_reasons": [reason],
+            "human_review_required": True,
+            "meta": {"stages": stages, "llm_provider": llm.active, "mock_mode": llm.mock_mode,
+                     "config_version": cfg("app.config_version"),
+                     "latency_ms": int((time.perf_counter() - started) * 1000), "llm_calls": llm.calls},
+        },
     }
 
 

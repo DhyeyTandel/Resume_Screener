@@ -134,3 +134,40 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   code from the scanner's own evidence (never from model output, so a model cannot forge
   one) and only for HIDDEN_TEXT / INJECTION_HIDDEN findings. The Playwright suite asserts
   the injected phrase appears nowhere on the page outside those labelled quotes.
+- **A-15 (DOCX hiding vectors, scanned PDFs, comments).** A second round of real-DOCX
+  fixtures, each checked by rendering in LibreOffice, closed the vectors A-13 listed. Four
+  were full quarantine bypasses under the previous loader, independently confirmed by running
+  the committed loader on the same files (verdict clean, injection text in `visible_text`):
+  a text box whose VML fallback differs from the rendered choice, a theme colour resolving to
+  white, a highlight matching the text colour, and a white colour set in `docDefaults`. White
+  or 1pt text in headers/footers, unrendered headers, unreferenced notes, and comments were
+  also unseen; text boxes were counted up to four times; and a legitimate white heading on
+  dark shading was a false positive. Contrast is now judged against the colour the text
+  actually sits on (`Span.bg`). When Word and LibreOffice would render a theme colour
+  differently, the less readable reading is judged.
+  **Comments:** comment text never prints, so it is quarantined (never scored), but leftover
+  reviewer comments are ordinary document hygiene, not a hiding trick. On their own they
+  raise only an info-level `DOCUMENT_COMMENTS` note (like `OCR_LAYER`, never penalised);
+  instructions aimed at the screener inside a comment are still `INJECTION_HIDDEN`. An
+  earlier version of this change penalised every comment as HIDDEN_TEXT; that was caught in
+  review before merge.
+  **Scanned PDFs** with no text layer now produce a valid report (every requirement Not
+  Enough Evidence, confidence 0, Review Manually, no integrity penalty) instead of an Error
+  row. OCR via pytesseract is implemented but unavailable here, so it has only run through a
+  monkeypatched test. Not modelled: alt text, field codes, character scaling/position, page
+  background colour, table-style shading, off-page or obscured text boxes.
+- **A-16 (LLM providers).** The Anthropic and Ollama paths had never executed. Exercising
+  them through `httpx.MockTransport` (no live calls) found 11 bugs, among them: 4xx errors and
+  a refused Ollama connection were retried with sleeps before falling back; a response that
+  began with a non-text content block crashed; `usage` and `stop_reason` were never captured,
+  so Module D's spec-required doubled-budget retry on truncation could never fire; and HTTP
+  error text was not scrubbed. The API key is now redacted from every error and result.
+  These paths are still untested against a real model: no API key or Ollama was available.
+  When `ANTHROPIC_API_KEY` is set, Module D uses Anthropic even if the main provider is mock
+  (Spec 6.2); report meta then sets `mock_mode: false` and records `interview_model`.
+- **A-17 (names in uploads).** File uploads only know the filename, so the resume's own
+  header name was never masked and survived into `candidate_profile`. `redact_for_scoring`
+  now detects the conventional header (2-4 capitalised words followed by a contact line;
+  the contact-line condition stops a title such as "Senior Backend Engineer" being taken for
+  a name) when no name is supplied. Module endpoints added: `POST /v1/authenticity/assess`,
+  `GET /v1/authenticity/{id}`, `POST /v1/skills/analyze`.

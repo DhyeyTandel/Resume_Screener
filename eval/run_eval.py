@@ -96,7 +96,7 @@ async def eval_module_a() -> Section:
     s.line(fmt_target("False-positive rate on clean+OCR", f"{fpr:.2f} ({fp_hits}/{fp_total})", "≤ 0.02", fpr <= 0.02))
     s.line(fmt_target("Injection invariance", f"{invariance_ok}/1", "100%", invariance_ok == 1))
     s.line(f"\nFixture count: {recall_total + fp_total} cases (small set - see Known Limitations).")
-    _real_file_table(s)
+    await _real_file_table(s)
     return s
 
 
@@ -123,16 +123,57 @@ REAL_EXPECT = {
     "docx/injection_hidden.docx": ("attack", _INJ, set(), "attack_set"),
     "docx/jd_clone_hidden.docx": ("attack", {"HIDDEN_TEXT", "JD_CLONE"}, set(), "attack_set"),
     "docx/metadata_stuffed.docx": ("suspicious", {"METADATA_STUFF"}, set(), "attack_set"),
+    # Hiding vectors outside the plain body (A-13 "not modelled" list).
+    "docx/header_footer_visible.docx": ("clean", set(), _HID, "clean_set"),
+    "docx/header_footer_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/header_unrendered.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/notes_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/textbox_visible.docx": ("clean", set(), _HID, "clean_set"),
+    "docx/textbox_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/textbox_fallback_differs.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/comments_hidden.docx": ("attack", {"INJECTION_HIDDEN"}, set(), "attack_set"),
+    # A leftover reviewer comment: quarantined, info-only, never penalised (A-15).
+    "docx/comments_benign.docx": ("clean", {"DOCUMENT_COMMENTS"}, _HID, "clean_set"),
+    "docx/docdefaults_size_hidden.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/docdefaults_color_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/theme_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/theme_conflict_hidden.docx": ("suspicious", _HID, set(), "attack_set"),
+    "docx/theme_accent_visible.docx": ("clean", set(), _HID, "clean_set"),
+    "docx/highlight_hidden.docx": ("attack", _INJ, set(), "attack_set"),
+    "docx/shaded_visible.docx": ("clean", set(), _HID, "clean_set"),
 }
+# PDFs with no text layer are not scanned for hiding: the loader raises NoTextLayer and the
+# pipeline reports Not Enough Evidence. Checked separately from the verdict table.
+NO_TEXT_EXPECT = ["pdfs/scanned_no_text.pdf"]
 
 
-def _real_file_table(s: Section) -> None:
+async def _no_text_check(path) -> tuple[bool, str]:
+    """A scan with no text layer must come back as a valid Not Enough Evidence report."""
+    if not path.exists():
+        return False, "file missing"
+    try:
+        r = await screen_candidate(jd_text=JD, filename=path.name, data=path.read_bytes(),
+                                   llm=LLMClient("mock"))
+    except Exception as exc:
+        return False, f"pipeline error: {exc}"
+    ext = r["extensions"]
+    statuses = {q["status"] for q in r["requirement_match"]}
+    got = (f"{ext.get('status')}, {r['recommendation']}, "
+           f"confidence {ext['score_breakdown'].get('score_confidence')}")
+    ok = (ext.get("status") == "Not Enough Evidence" and r["recommendation"] == "Review Manually"
+          and ext["score_breakdown"].get("score_confidence") == 0
+          and statuses == {"Not Enough Evidence"})
+    return ok, got
+
+
+async def _real_file_table(s: Section) -> None:
     """Module A on real generated PDF/DOCX files, through the real loader."""
     from app.parsing.loader import load
 
     fixtures = ROOT / "backend/tests/fixtures"
     rows, hits, attack_total, fp, clean_total, exact = [], 0, 0, 0, 0, 0
     on_disk = {f"{p.parent.name}/{p.name}" for ext in ("pdfs/*.pdf", "docx/*.docx") for p in fixtures.glob(ext)}
+    on_disk -= set(NO_TEXT_EXPECT)
     for rel in sorted(on_disk | set(REAL_EXPECT)):
         path = fixtures / rel
         if rel not in REAL_EXPECT:
@@ -161,6 +202,11 @@ def _real_file_table(s: Section) -> None:
         expected = verdict + (" + " + ", ".join(sorted(must)) if must else "")
         rows.append(f"| {rel} | {out['verdict']} ({', '.join(sorted(got)) or 'no flags'}) | "
                     f"{expected} | {'✅' if ok else '❌'} |")
+    for rel in NO_TEXT_EXPECT:
+        ok, got = await _no_text_check(fixtures / rel)
+        exact += 1 if ok else 0
+        rows.append(f"| {rel} | {got} | Not Enough Evidence, Review Manually, confidence 0 | "
+                    f"{'✅' if ok else '❌'} |")
     recall = hits / attack_total if attack_total else 0.0
     fpr = fp / clean_total if clean_total else 0.0
     s.line("\n### Real files (generated PDF and DOCX, run through the real loader)\n")
@@ -176,7 +222,9 @@ def _real_file_table(s: Section) -> None:
     for r in rows:
         s.line(r)
     s.line("\nFiles are small synthetic fixtures made by make_pdfs.py and make_docx.py. "
-           "Style-based hiding is covered for run, character and paragraph styles only.")
+           "Hiding is modelled through direct formatting, styles, docDefaults, theme colours, "
+           "highlight and shading, headers, footers, notes, text boxes and comments. "
+           "The scan row is checked end to end rather than by verdict (no text to scan).")
 
 
 async def eval_module_c() -> Section:

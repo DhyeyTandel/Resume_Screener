@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "123b0672",
+    "candidate_id": "ae6bc280",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -476,7 +476,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "123b0672",
+      "candidate_id": "ae6bc280",
       "band": "NEEDS_VERIFICATION",
       "scores": {
         "authenticity": 0.581,
@@ -1047,7 +1047,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 1,
           "status": "ok"
         },
         "authenticity": {
@@ -1069,8 +1069,9 @@
       },
       "llm_provider": "mock",
       "mock_mode": true,
+      "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 3,
+      "latency_ms": 2,
       "llm_calls": 2
     }
   }

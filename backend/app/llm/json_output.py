@@ -12,10 +12,15 @@ def extract_json(raw: str) -> dict:
     m = _FENCE.match(raw or "")
     body = m.group(1) if m else (raw or "")
     try:
-        return json.loads(body)
+        obj = json.loads(body)
+        if isinstance(obj, dict):
+            return obj
     except json.JSONDecodeError:
         pass
     start, end = body.find("{"), body.rfind("}")
     if start == -1 or end <= start:
         raise ValueError("no JSON object found in model output")
-    return json.loads(body[start : end + 1])
+    obj = json.loads(body[start : end + 1])
+    if not isinstance(obj, dict):
+        raise ValueError("model output is not a JSON object")
+    return obj

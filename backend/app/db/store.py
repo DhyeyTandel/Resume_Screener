@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS candidates (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_candidates_screening ON candidates(screening_id);
+CREATE TABLE IF NOT EXISTS authenticity_reports (
+    candidate_id TEXT PRIMARY KEY,
+    report_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     candidate_id TEXT NOT NULL,
@@ -116,6 +121,20 @@ class Store:
 
     def get_candidate(self, cid: str) -> dict | None:
         rows = self._run("SELECT report_json FROM candidates WHERE id=?", (cid,))
+        return json.loads(rows[0]["report_json"]) if rows else None
+
+    # standalone authenticity assessments (POST /v1/authenticity/assess)
+    def put_authenticity_report(self, candidate_id: str, report: dict) -> None:
+        self._run(
+            "INSERT OR REPLACE INTO authenticity_reports (candidate_id, report_json, created_at)"
+            " VALUES (?,?,?)",
+            (candidate_id, json.dumps(report), _now()),
+        )
+
+    def get_authenticity_report(self, candidate_id: str) -> dict | None:
+        rows = self._run(
+            "SELECT report_json FROM authenticity_reports WHERE candidate_id=?", (candidate_id,)
+        )
         return json.loads(rows[0]["report_json"]) if rows else None
 
     # audit log: insert and select only

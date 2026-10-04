@@ -4,6 +4,7 @@ from __future__ import annotations
 from ...llm.client import LLMClient
 from ...llm.prompts_common import UNTRUSTED_DATA_RULE, wrap_untrusted
 from .prompt import SYSTEM_PROMPT
+from .scanner import INFO_CODES
 
 ACTIONS = ("proceed", "flag_for_review", "disqualify_review")
 GUILT_WORDS = ("fraud", "fake", "cheat", "dishonest", "liar", "lying", "guilty")
@@ -61,7 +62,7 @@ async def interpret(scanner: dict, base_score: float, jd_text: str, llm: LLMClie
 def enforce_guardrails(result: dict, scanner: dict, base_score: float) -> dict:
     """Code-enforced rules the LLM may not override (Spec 8.2)."""
     codes = {f["code"] for f in scanner["flags"]}
-    severities = [f["severity"] for f in scanner["flags"] if f["code"] != "OCR_LAYER"]
+    severities = [f["severity"] for f in scanner["flags"] if f["code"] not in INFO_CODES]
     out = dict(result)
 
     # Arithmetic is recomputed in Python; LLM arithmetic is discarded.
@@ -76,7 +77,7 @@ def enforce_guardrails(result: dict, scanner: dict, base_score: float) -> dict:
     }
 
     # Intent.
-    if codes <= {"OCR_LAYER"}:
+    if codes <= INFO_CODES:
         intent, action = "benign", "proceed"
     elif "INJECTION_HIDDEN" in codes or len([s for s in severities if s == "high"]) >= 2:
         intent, action = "deliberate", "disqualify_review"

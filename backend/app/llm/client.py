@@ -19,6 +19,11 @@ from typing import Any
 from ..config import cfg
 from .json_output import STRICT_SUFFIX, extract_json
 
+DEFAULT_MAX_TOKENS = 2000
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+OLLAMA_SEED = 7
+
 
 @dataclass
 class LLMResult:
@@ -28,10 +33,49 @@ class LLMResult:
     latency_ms: int
     attempts: int = 1
     usage: dict = field(default_factory=dict)
+    stop_reason: str | None = None
+    errors: list[str] = field(default_factory=list)  # sanitized failures of earlier providers
+
+
+class LLMTruncated(RuntimeError):
+    """Output hit the token budget and could not be parsed (carries what the caller needs)."""
+
+    def __init__(self, provider: str, model: str, usage: dict, attempts: int) -> None:
+        super().__init__(f"{provider}: output truncated at max_tokens")
+        self.provider, self.model, self.usage, self.attempts = provider, model, usage, attempts
+
+
+class _Retryable(Exception):
+    pass
+
+
+@dataclass
+class _Raw:
+    text: str
+    usage: dict
+    stop_reason: str | None
+
+
+def _redact(text: str) -> str:
+    """Never let the API key reach a log line, exception message or result."""
+    key = os.getenv(str(cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY")), "")
+    return text.replace(key, "[REDACTED]") if key else text
+
+
+async def _default_sleep(seconds: float) -> None:
+    await asyncio.sleep(seconds)  # looked up at call time so tests can patch asyncio.sleep
 
 
 class LLMClient:
-    def __init__(self, provider: str | None = None) -> None:
+    def __init__(
+        self,
+        provider: str | None = None,
+        *,
+        transport: Any = None,
+        sleep: Callable[[float], Any] | None = None,
+    ) -> None:
+        """transport: optional httpx transport (tests inject httpx.MockTransport).
+        sleep: optional async sleep used for backoff (tests inject a recorder)."""
         self.provider = provider or cfg("llm.provider", "mock")
         self.chain = [self.provider] + [
             p for p in cfg("llm.fallback_chain", ["mock"]) if p != self.provider
@@ -40,6 +84,8 @@ class LLMClient:
             self.chain.append("mock")  # mock is ALWAYS the last resort
         self.calls = 0
         self.prompts: list[dict] = []  # captured for tests; never persisted (privacy)
+        self._transport = transport
+        self._sleep = sleep or _default_sleep
 
     @property
     def mock_mode(self) -> bool:
@@ -48,93 +94,182 @@ class LLMClient:
     active = "mock"
 
     async def complete_json(
-        self, system: str, user: Any, *, task: str, temperature: float | None = None
+        self,
+        system: str,
+        user: Any,
+        *,
+        task: str,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        model: str | None = None,
+        raise_on_truncation: bool = False,
     ) -> LLMResult:
+        """model overrides the Anthropic model only. With raise_on_truncation, an output cut off
+        by max_tokens raises LLMTruncated instead of falling through, so the caller can retry
+        with a bigger budget. The system prompt and payload are sent unmodified (the only
+        change ever made is the STRICT suffix on a parse-failure retry)."""
         started = time.perf_counter()
         payload = user if isinstance(user, str) else json.dumps(user, indent=2, sort_keys=True)
         self.prompts.append({"task": task, "system": system, "user": payload})
-        last_err: Exception | None = None
+        errors: list[str] = []
         for provider in self.chain:
             try:
-                data = await self._dispatch(provider, system, payload, task, temperature)
+                data, attempts, usage, stop = await self._dispatch(
+                    provider, system, payload, task, temperature, max_tokens, model
+                )
                 self.calls += 1
                 self.active = provider
                 return LLMResult(
                     data=data,
                     provider=provider,
-                    model=_model_for(provider),
+                    model=_model_for(provider, model),
                     latency_ms=int((time.perf_counter() - started) * 1000),
+                    attempts=attempts,
+                    usage=usage,
+                    stop_reason=stop,
+                    errors=errors,
                 )
+            except LLMTruncated as exc:
+                if raise_on_truncation:
+                    raise
+                errors.append(f"{provider}: {_redact(str(exc))}")
             except Exception as exc:
-                last_err = exc
-        raise RuntimeError(f"all providers failed: {last_err}")
+                errors.append(f"{provider}: {_redact(str(exc))}")
+        raise RuntimeError(f"all providers failed: {'; '.join(errors)}")
 
     async def _dispatch(
-        self, provider: str, system: str, user: str, task: str, temperature: float | None
-    ) -> dict:
+        self,
+        provider: str,
+        system: str,
+        user: str,
+        task: str,
+        temperature: float | None,
+        max_tokens: int | None,
+        model: str | None,
+    ) -> tuple[dict, int, dict, str | None]:
         if provider == "mock":
-            return MOCK_TASKS[task](json.loads(user) if user.startswith("{") else {"text": user})
+            data = MOCK_TASKS[task](json.loads(user) if user.startswith("{") else {"text": user})
+            return data, 1, {}, None
         if provider == "ollama":
-            return await self._http_json(provider, system, user, task, temperature)
+            return await self._http_json(provider, system, user, temperature, max_tokens, model)
         if provider == "anthropic":
-            if not os.getenv(cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY")):
+            if not os.getenv(str(cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY"))):
                 raise RuntimeError("anthropic: no API key in environment")
-            return await self._http_json(provider, system, user, task, temperature)
+            return await self._http_json(provider, system, user, temperature, max_tokens, model)
         raise RuntimeError(f"unknown provider {provider}")
 
     async def _http_json(
-        self, provider: str, system: str, user: str, task: str, temperature: float | None
-    ) -> dict:
+        self,
+        provider: str,
+        system: str,
+        user: str,
+        temperature: float | None,
+        max_tokens: int | None,
+        model: str | None,
+    ) -> tuple[dict, int, dict, str | None]:
         import httpx  # imported lazily: mock mode needs no HTTP stack
 
         retries = int(cfg("llm.max_retries", 2))
         timeout = float(cfg("llm.timeout_s", 60))
         temp = cfg("llm.temperature", 0) if temperature is None else temperature
         msg = user
-        last: Exception | None = None
-        for attempt in range(retries + 1):
+        last = "no attempt made"
+        backoffs = 0
+        usage: dict = {}
+        for attempt in range(1, retries + 2):
             try:
-                async with httpx.AsyncClient(timeout=timeout) as client:
-                    if provider == "ollama":
-                        resp = await client.post(
-                            f"{cfg('llm.ollama.base_url')}/api/chat",
-                            json={
-                                "model": cfg("llm.ollama.model"),
-                                "stream": False,
-                                "options": {"temperature": temp, "seed": 7},
-                                "messages": [
-                                    {"role": "system", "content": system},
-                                    {"role": "user", "content": msg},
-                                ],
-                            },
-                        )
-                        resp.raise_for_status()
-                        return extract_json(resp.json()["message"]["content"])
-                    resp = await client.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers={
-                            "x-api-key": os.environ[cfg("llm.anthropic.api_key_env")],
-                            "anthropic-version": "2023-06-01",
-                        },
-                        json={
-                            "model": cfg("llm.anthropic.model"),
-                            "max_tokens": 2000,
-                            "temperature": temp,
-                            "system": system,
-                            "messages": [{"role": "user", "content": msg}],
-                        },
+                async with httpx.AsyncClient(timeout=timeout, transport=self._transport) as http:
+                    raw = await self._request(
+                        http, provider, system, msg, temp, max_tokens, model, httpx
                     )
-                    resp.raise_for_status()
-                    return extract_json(resp.json()["content"][0]["text"])
-            except Exception as exc:
-                last = exc
-                msg = f"{user}\n\n{STRICT_SUFFIX}"
-                if attempt < retries:
-                    await asyncio.sleep(1 * (attempt + 1))
-        raise RuntimeError(f"{provider} failed after retries: {last}")
+                usage = raw.usage
+                try:
+                    return extract_json(raw.text), attempt, raw.usage, raw.stop_reason
+                except ValueError as exc:  # JSONDecodeError is a ValueError
+                    if raw.stop_reason == "max_tokens":
+                        raise LLMTruncated(
+                            provider, _model_for(provider, model), usage, attempt
+                        ) from None
+                    last = f"unparseable JSON ({exc.__class__.__name__})"
+                    msg = f"{user}\n\n{STRICT_SUFFIX}"  # parse retry: no backoff needed
+            except _Retryable as exc:
+                last = str(exc)
+                if attempt <= retries:
+                    await self._sleep(1 * (2**backoffs))  # 1s, 2s
+                    backoffs += 1
+        raise RuntimeError(_redact(f"{provider} failed after {retries + 1} attempts: {last}"))
+
+    async def _request(
+        self, http: Any, provider: str, system: str, msg: str, temp: Any,
+        max_tokens: int | None, model: str | None, httpx: Any,
+    ) -> _Raw:
+        try:
+            if provider == "ollama":
+                options: dict[str, Any] = {"temperature": temp, "seed": OLLAMA_SEED}
+                if max_tokens:
+                    options["num_predict"] = max_tokens
+                resp = await http.post(
+                    f"{str(cfg('llm.ollama.base_url')).rstrip('/')}/api/chat",
+                    json={
+                        "model": cfg("llm.ollama.model"),
+                        "stream": False,
+                        "format": "json",
+                        "options": options,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": msg},
+                        ],
+                    },
+                )
+            else:
+                resp = await http.post(
+                    ANTHROPIC_URL,
+                    headers={
+                        "x-api-key": os.environ[str(cfg("llm.anthropic.api_key_env"))],
+                        "anthropic-version": ANTHROPIC_VERSION,
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": model or cfg("llm.anthropic.model"),
+                        "max_tokens": max_tokens or DEFAULT_MAX_TOKENS,
+                        "temperature": temp,
+                        "system": system,
+                        "messages": [{"role": "user", "content": msg}],
+                    },
+                )
+        except httpx.TimeoutException:
+            raise _Retryable("request timed out") from None
+        except httpx.ConnectError:
+            raise RuntimeError(f"{provider} unreachable") from None  # fall through, no stall
+        except httpx.TransportError as exc:
+            raise _Retryable(f"transport error {exc.__class__.__name__}") from None
+        status = resp.status_code
+        if status == 429 or status >= 500:
+            raise _Retryable(f"HTTP {status}")
+        if status >= 400:
+            raise RuntimeError(f"{provider} HTTP {status}")  # 4xx: retrying cannot help
+        try:
+            body = resp.json()
+        except ValueError:
+            return _Raw("", {}, None)  # becomes a parse failure and a STRICT retry
+        if provider == "ollama":
+            usage = {
+                "input_tokens": body.get("prompt_eval_count"),
+                "output_tokens": body.get("eval_count"),
+            }
+            stop = "max_tokens" if body.get("done_reason") == "length" else body.get("done_reason")
+            return _Raw((body.get("message") or {}).get("content", ""), usage, stop)
+        text = "".join(
+            b.get("text", "") for b in body.get("content") or [] if b.get("type") == "text"
+        )
+        u = body.get("usage") or {}
+        usage = {"input_tokens": u.get("input_tokens"), "output_tokens": u.get("output_tokens")}
+        return _Raw(text, usage, body.get("stop_reason"))
 
 
-def _model_for(provider: str) -> str:
+def _model_for(provider: str, override: str | None = None) -> str:
+    if provider == "anthropic" and override:
+        return override
     return {
         "mock": "mock-heuristic-v1",
         "ollama": str(cfg("llm.ollama.model")),
@@ -177,6 +312,7 @@ def _mock_integrity(p: dict) -> dict:
         "METADATA_STUFF": "Technical keywords are packed into file metadata that never renders.",
         "PARSER_DIVERGENCE": "Two PDF readers disagree about what this document contains.",
         "OCR_LAYER": "The file carries a scanned-document text layer, which is normal.",
+        "DOCUMENT_COMMENTS": "The file contains reviewer comments that do not print.",
     }
     matters = {
         "HIDDEN_TEXT": "Invisible keywords can lift a keyword-based score a human could not verify.",
@@ -186,6 +322,7 @@ def _mock_integrity(p: dict) -> dict:
         "METADATA_STUFF": "Hidden keyword fields can skew keyword matching.",
         "PARSER_DIVERGENCE": "Content sitting in one parser's blind spot may go unreviewed.",
         "OCR_LAYER": "It does not affect scoring in any way.",
+        "DOCUMENT_COMMENTS": "It does not affect scoring; comment text was excluded from scoring.",
     }
     benign = {
         "HIDDEN_TEXT": "Some templates leave white placeholder text behind.",
@@ -195,6 +332,7 @@ def _mock_integrity(p: dict) -> dict:
         "METADATA_STUFF": "Resume builders sometimes write keyword metadata automatically.",
         "PARSER_DIVERGENCE": "Unusual fonts or layouts can confuse one parser.",
         "OCR_LAYER": "This is a scanned document; entirely normal.",
+        "DOCUMENT_COMMENTS": "Leftover review comments are common and harmless.",
     }
     verdict = p.get("verdict", "clean")
     headline = {

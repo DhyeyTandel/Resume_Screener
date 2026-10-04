@@ -27,8 +27,39 @@ _DEGREE = re.compile(
 )
 
 
+_NAME_TOKEN = re.compile(r"^[A-Z][a-zA-Z'\-]+\.?$")
+_ROLE_WORDS = {
+    "engineer", "developer", "manager", "analyst", "scientist", "designer", "architect",
+    "consultant", "intern", "lead", "senior", "junior", "resume", "curriculum", "vitae",
+    "summary", "profile", "experience", "skills", "education", "backend", "frontend",
+}
+
+
+def guess_candidate_name(text: str) -> str | None:
+    """The conventional resume header: a first line of 2-4 capitalised words with no
+    digits or role words, followed within three lines by a contact line. The contact
+    condition is what stops a title header like 'Senior Backend Engineer' being taken
+    for a name. Returns None when unsure; redaction then masks nothing extra."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return None
+    first = lines[0]
+    tokens = first.split()
+    if not 2 <= len(tokens) <= 4 or not all(_NAME_TOKEN.match(t) for t in tokens):
+        return None
+    if any(t.lower().strip(".") in _ROLE_WORDS for t in tokens):
+        return None
+    if not any(EMAIL.search(ln) or PHONE.search(ln) or URL.search(ln) for ln in lines[1:4]):
+        return None
+    return first
+
+
 def redact_for_scoring(text: str, *, candidate_name: str | None = None) -> str:
-    """Mask identity and protected attributes; keep degree level + field."""
+    """Mask identity and protected attributes; keep degree level + field.
+
+    When no name is supplied (file uploads only know the filename), the resume's own
+    header line is detected and masked, so the name cannot survive into the profile."""
+    candidate_name = candidate_name or guess_candidate_name(text)
     out = _DROP.sub("", text)
     if candidate_name:
         for part in [candidate_name] + candidate_name.split():

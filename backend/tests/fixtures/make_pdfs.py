@@ -95,6 +95,20 @@ def main() -> None:
         y += 22
     _save(d, "ocr_layer.pdf")
 
+    make_scanned()
+
+
+def make_scanned() -> None:
+    """A scan with no text layer at all: the resume is rendered to a picture and the
+    picture is the only thing on the page (unlike ocr_layer.pdf, which has invisible text)."""
+    src = fitz.open(); _resume(src)
+    pix = src[0].get_pixmap(dpi=100)
+    src.close()
+    d = fitz.open()
+    page = d.new_page()
+    page.insert_image(page.rect, pixmap=pix)
+    _save(d, "scanned_no_text.pdf")
+
 
 if __name__ == "__main__":
     main()

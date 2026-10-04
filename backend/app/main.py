@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router
@@ -19,6 +21,27 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 app.include_router(router)
+
+_STD_ERROR_PATHS = ("/v1/authenticity", "/v1/skills")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    """Standard {code, message, field, remediation} body, only for the module endpoints;
+    every other route keeps FastAPI's default 422 shape."""
+    if not request.url.path.startswith(_STD_ERROR_PATHS):
+        return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+    first = exc.errors()[0] if exc.errors() else {}
+    loc = [str(p) for p in first.get("loc", []) if p != "body"]
+    return JSONResponse(
+        status_code=422,
+        content={
+            "code": "INVALID_REQUEST",
+            "message": first.get("msg", "Invalid request body."),
+            "field": ".".join(loc) or None,
+            "remediation": "Check the request body against the API schema at /docs.",
+        },
+    )
 
 _ROOT = Path(__file__).resolve().parents[2]
 _FALLBACK = _ROOT / "frontend" / "index.html"
