@@ -5,6 +5,7 @@ import asyncio
 import logging
 import time
 import uuid
+from collections.abc import Callable
 
 from ..config import cfg
 from ..llm.client import LLMClient
@@ -30,13 +31,103 @@ AI_DISCLAIMER = (
 )
 
 
+# User-facing stages (Spec 14.2 item 3), in display order.
+UI_STAGES = ("Parse", "Integrity", "Match", "Skills", "Authenticity", "Questions")
+_TERMINAL = ("ok", "error", "skipped")
+
+
+class _StageEmitter:
+    """Maps internal pipeline stages onto the six user-facing stages and calls `on_stage`.
+
+    Mapping (internal stage -> user-facing stage):
+      parse               -> Parse
+      integrity           -> Integrity (started here)
+      integrity_interpret -> Integrity (the scan and its plain-English interpretation are one
+                             step, so Integrity stays "started" until the interpreter finishes.
+                             If the scan itself fails, Integrity reports "error" at once and the
+                             interpreter's outcome is not reported again.)
+      core                -> Match and Skills. Requirement matching and skill transferability run
+                             inside one core call, so Skills starts and finishes when core does.
+      authenticity        -> Authenticity
+      narrative           -> not shown. It writes prose only, runs alongside Authenticity, and a
+                             failure is already recorded in meta.stages and degrades to an empty
+                             summary.
+      interview           -> Questions
+    Stages never reached (an early exit after a parse or core failure) are reported as "skipped".
+    A callback that raises is logged and ignored: progress reporting must never break screening.
+    """
+
+    def __init__(self, on_stage: Callable[[str, str], None] | None) -> None:
+        self.on_stage = on_stage
+        self.state: dict[str, str] = {}
+        self.integrity_scan_ok = False
+
+    def _emit(self, stage: str, status: str) -> None:
+        self.state[stage] = status
+        if self.on_stage is None:
+            return
+        try:
+            self.on_stage(stage, status)
+        except Exception:
+            log.warning("on_stage callback raised for %s/%s; ignored", stage, status, exc_info=True)
+
+    def __call__(self, name: str, status: str) -> None:
+        if name == "parse":
+            self._emit("Parse", status)
+        elif name == "integrity":
+            if status == "started":
+                self._emit("Integrity", "started")
+            elif status == "error":
+                self._emit("Integrity", "error")
+            else:
+                self.integrity_scan_ok = True  # terminal status waits for the interpreter
+        elif name == "integrity_interpret":
+            if self.state.get("Integrity") == "started":
+                self._emit("Integrity", status)
+        elif name == "core":
+            if status == "started":
+                self._emit("Match", "started")
+            elif status == "ok":
+                self._emit("Match", "ok")
+                self._emit("Skills", "started")
+                self._emit("Skills", "ok")
+            else:
+                self._emit("Match", "error")
+        elif name == "authenticity":
+            self._emit("Authenticity", status)
+        elif name == "interview":
+            self._emit("Questions", status)
+
+    def flush(self) -> None:
+        """Close every stage that never finished (early exits)."""
+        for stage in UI_STAGES:
+            cur = self.state.get(stage)
+            if cur in _TERMINAL:
+                continue
+            if cur == "started" and stage == "Integrity" and self.integrity_scan_ok:
+                self._emit(stage, "ok")  # the scan ran; only the later interpretation was skipped
+            else:
+                self._emit(stage, "skipped")
+
+
 class Stage:
-    def __init__(self, meta: dict, name: str) -> None:
-        self.meta, self.name, self.t0 = meta, name, 0.0
+    def __init__(
+        self, meta: dict, name: str, hook: Callable[[str, str], None] | None = None
+    ) -> None:
+        self.meta, self.name, self.t0, self.hook = meta, name, 0.0, hook
 
     def __enter__(self):
         self.t0 = time.perf_counter()
+        self._notify("started")
         return self
+
+    def _notify(self, status: str) -> None:
+        if self.hook is None:
+            return
+        try:
+            self.hook(self.name, status)
+        except Exception:
+            log.warning("stage hook raised for %s/%s; ignored", self.name, status, exc_info=True)
 
     def __exit__(self, exc_type, exc, tb):
         entry = self.meta.setdefault(self.name, {})
@@ -44,6 +135,7 @@ class Stage:
         entry.setdefault("status", "error" if exc_type else "ok")
         if exc_type:
             entry["error"] = f"{exc_type.__name__}: {exc}"
+        self._notify("error" if entry.get("status") == "error" else "ok")
         return True  # every stage degrades gracefully; the pipeline always returns
 
 
@@ -77,9 +169,21 @@ def validate_report(report: dict) -> dict:
     return report
 
 
-async def screen_candidate(*args, **kwargs) -> dict:
-    """Run the pipeline and validate whatever it returns (normal, error and no-text paths)."""
-    return validate_report(await _screen_candidate(*args, **kwargs))
+async def screen_candidate(
+    *args, on_stage: Callable[[str, str], None] | None = None, **kwargs
+) -> dict:
+    """Run the pipeline and validate whatever it returns (normal, error and no-text paths).
+
+    `on_stage(stage, status)` is called live with a user-facing stage name (Parse, Integrity,
+    Match, Skills, Authenticity, Questions) and a status of "started", "ok", "error" or
+    "skipped". See `_StageEmitter` for how internal stages map onto those six.
+    """
+    emitter = _StageEmitter(on_stage)
+    try:
+        report = await _screen_candidate(*args, _emit=emitter, **kwargs)
+    finally:
+        emitter.flush()
+    return validate_report(report)
 
 
 async def _screen_candidate(
@@ -96,6 +200,7 @@ async def _screen_candidate(
     llm: LLMClient | None = None,
     github_fetch=None,  # test seam: inject a recorded fetch instead of a live one
     portfolio_fetch=None,  # test seam for the portfolio collector
+    _emit: Callable[[str, str], None] | None = None,
 ) -> dict:
     started = time.perf_counter()
     llm = llm or LLMClient()
@@ -104,7 +209,7 @@ async def _screen_candidate(
 
     # --- Stage 0: ingest ---------------------------------------------------
     no_text: NoTextLayer | None = None
-    with Stage(stages, "parse"):
+    with Stage(stages, "parse", _emit):
         if data is not None and filename:
             try:
                 doc = load(filename, data)
@@ -121,7 +226,7 @@ async def _screen_candidate(
         return _error_report(candidate_id, candidate_name, stages, started, llm)
 
     # --- Stage 1: Module A -------------------------------------------------
-    with Stage(stages, "integrity"):
+    with Stage(stages, "integrity", _emit):
         scanner = scan(doc, jd_text)
     scanner = scanner if stages["integrity"]["status"] == "ok" else _clean_scan()
 
@@ -130,7 +235,7 @@ async def _screen_candidate(
     redacted = redact_for_scoring(visible, candidate_name=candidate_name)
 
     # --- Stage 2: Core -----------------------------------------------------
-    with Stage(stages, "core"):
+    with Stage(stages, "core", _emit):
         requirements = extract_requirements(jd_text)
         parsed = structure_resume(redacted)
         matched = match_requirements(requirements, parsed)
@@ -140,7 +245,7 @@ async def _screen_candidate(
 
     # --- Stages 3 & 4 in parallel -----------------------------------------
     async def run_authenticity() -> dict:
-        with Stage(stages, "authenticity"):
+        with Stage(stages, "authenticity", _emit):
             return await assess(
                 candidate_id,
                 redacted,
@@ -155,7 +260,7 @@ async def _screen_candidate(
             )
 
     async def run_narrative() -> dict:
-        with Stage(stages, "narrative"):
+        with Stage(stages, "narrative", _emit):
             res = await llm.complete_json(
                 "You write short, factual recruiter-facing prose from structured screening "
                 "facts. You never invent facts and never state a hiring decision.",
@@ -178,7 +283,7 @@ async def _screen_candidate(
 
     # --- Stage 5: aggregation (deterministic) ------------------------------
     integrity = None  # stays None if the interpreter raises (Stage swallows it); handled below
-    with Stage(stages, "integrity_interpret"):
+    with Stage(stages, "integrity_interpret", _emit):
         integrity = await interpret(scanner, scores["base_score"], jd_text, llm)
     if not isinstance(integrity, dict):
         # The interpreter only writes prose. Penalty, intent and action are deterministic
@@ -211,7 +316,7 @@ async def _screen_candidate(
 
     # --- Stage 6: Module D --------------------------------------------------
     questions = None  # stays None if Module D raises (Stage swallows it); handled below
-    with Stage(stages, "interview"):
+    with Stage(stages, "interview", _emit):
         d_input = _build_d_input(matched, authenticity)
         questions = await generate_interview_questions(d_input, llm=llm)
     questions = questions if isinstance(questions, dict) else {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
 import type { Row } from "./types";
@@ -6,9 +6,9 @@ import JdPanel from "./components/JdPanel";
 import ResumeUpload, { type Consents, type FileEntry, type FileState } from "./components/ResumeUpload";
 import ResultsTable from "./components/ResultsTable";
 const CandidateDrawer = lazy(() => import("./components/CandidateDrawer"));
+import StageTimeline from "./components/StageTimeline";
 import { Chip, ErrorBox, Spinner } from "./components/ui";
 
-const STAGES = ["Parse", "Integrity", "Match", "Skills", "Authenticity", "Questions"];
 const FAIRNESS =
   "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.";
 
@@ -96,6 +96,24 @@ export default function App() {
   }, [screeningId, screening.data, usable]);
 
   const close = useCallback(() => setSelected(null), []);
+  const trigger = useRef<HTMLElement | null>(null);
+  const open = useCallback((r: Row) => {
+    // Remember the control that opened the drawer before the page goes inert (which blurs it).
+    trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSelected(r);
+  }, []);
+  const headerRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  // While the drawer is open the page behind it is inert: not focusable, not in the
+  // accessibility tree. Together with the drawer's own focus trap this keeps Tab inside it.
+  // Layout effect: inert must be gone before the drawer's cleanup returns focus to the row button.
+  useLayoutEffect(() => {
+    const els = [headerRef.current, mainRef.current];
+    els.forEach((el) => el && (selected ? el.setAttribute("inert", "") : el.removeAttribute("inert")));
+    if (!selected && trigger.current?.isConnected) trigger.current.focus();
+    if (!selected) trigger.current = null;
+    return () => els.forEach((el) => el?.removeAttribute("inert"));
+  }, [selected]);
   const total = screening.data?.total ?? 0;
   const done = screening.data?.done ?? 0;
   const pct = total ? Math.round((done / total) * 100) : 0;
@@ -104,20 +122,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <div className="sticky top-0 z-30">
-        <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
+      <header ref={headerRef} className="sticky top-0 z-30">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
           <h1 className="text-[17px] font-bold">AI Resume Screening Assistant</h1>
           {health.isLoading && <Chip tone="mute">Checking provider...</Chip>}
           {health.isError && <Chip tone="stop" title="The /v1/health call failed">Backend unreachable</Chip>}
           {health.data?.mock_mode && <Chip tone="warn">Mock analysis mode</Chip>}
           {health.data && !health.data.mock_mode && <Chip tone="info">{`LLM: ${health.data.llm_provider}`}</Chip>}
-        </header>
+        </div>
         <div role="note" className="border-b border-accent/20 bg-accent-soft px-4 py-2 text-xs text-accent-ink sm:px-6">
           <strong>Fairness notice.</strong> {FAIRNESS}
         </div>
-      </div>
+      </header>
 
-      <main className="mx-auto max-w-6xl space-y-4 px-4 pb-16 pt-5 sm:px-6">
+      <main ref={mainRef} className="mx-auto max-w-6xl space-y-4 px-4 pb-16 pt-5 sm:px-6">
         {view === "samples" && (
           <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-warn">
             <span className="font-semibold">Sample data: run your own screening below</span>
@@ -145,7 +163,7 @@ export default function App() {
           {submit.isError && <div className="mt-3"><ErrorBox message={`${(submit.error as Error).message} ${(submit.error as { remediation?: string }).remediation ?? ""}`.trim()} /></div>}
 
           {screeningId && (
-            <div className="mt-4" aria-live="polite">
+            <div className="mt-4">
               {screening.isError ? (
                 <ErrorBox message={`Progress could not be read: ${(screening.error as Error).message}`} onRetry={() => screening.refetch()} />
               ) : !screening.data ? (
@@ -158,10 +176,8 @@ export default function App() {
                   <div className="h-2 overflow-hidden rounded-full bg-neutral-soft" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Screening progress">
                     <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
                   </div>
-                  <ol className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-muted" aria-label="Stages each candidate passes through">
-                    {STAGES.map((s, i) => <li key={s}><Chip tone="mute">{`${i + 1}. ${s}`}</Chip></li>)}
-                  </ol>
-                  {status === "complete" && <p className="mt-2 font-medium text-ok">{`Done. ${total} candidate${total === 1 ? "" : "s"} screened. Results are below.`}</p>}
+                  <StageTimeline progress={screening.data.progress ?? []} />
+                  {status === "complete" && <p role="status" className="mt-2 font-medium text-ok">{`Done. ${total} candidate${total === 1 ? "" : "s"} screened. Results are below.`}</p>}
                   {status === "interrupted" && (
                     <p role="alert" className="mt-2 font-medium text-stop">
                       {`The screening was interrupted by a server restart after ${done} of ${total} candidates. Results so far are shown below. Run the screening again for the rest.`}
@@ -185,7 +201,7 @@ export default function App() {
           {view === "samples" && samples.isLoading ? <Spinner label="Loading sample data" />
             : view === "samples" && samples.isError ? <ErrorBox message={`Sample data could not be loaded: ${(samples.error as Error).message}`} onRetry={() => samples.refetch()} />
             : view === "screening" && screening.isLoading ? <Spinner label="Loading results" />
-            : <ResultsTable rows={rows} onOpen={setSelected} emptyMessage={view === "samples" ? "No sample data is available." : "No candidates yet. Results appear here as each resume is screened."} />}
+            : <ResultsTable rows={rows} onOpen={open} emptyMessage={view === "samples" ? "No sample data is available." : "No candidates yet. Results appear here as each resume is screened."} />}
         </section>
       </main>
 

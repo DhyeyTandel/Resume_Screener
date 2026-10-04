@@ -19,13 +19,65 @@ from ..modules.authenticity_engine.engine import assess
 from ..modules.core_screening.core import extract_requirements, structure_resume
 from ..modules.interview_questions.generator import generate_interview_questions
 from ..modules.skill_intelligence.transfer import analyze_skill
-from ..pipeline.orchestrator import screen_candidate
+from ..pipeline.orchestrator import UI_STAGES, screen_candidate
 
 router = APIRouter(prefix="/v1")
 
 _ROOT = Path(__file__).resolve().parents[3]
 _SAMPLE_OUTPUT = _ROOT / "sample_output"
 _SAMPLE_JD = _ROOT / "sample_data" / "jd_backend_engineer.txt"
+
+
+# --- Live per-candidate progress (in memory only) ---------------------------
+# {screening_id: [ {index, candidate_name, status, current_stage, stages: [{name, status}]} ]}
+# Stage status: pending | running | done | error | skipped. Candidate status: pending | running |
+# done | error. Not persisted: after a restart `progress` is simply empty for old screenings.
+_PROGRESS: dict[str, list[dict]] = {}
+_MAX_TRACKED = 200
+_STATUS_MAP = {"started": "running", "ok": "done", "error": "error", "skipped": "skipped"}
+
+
+def _new_progress(inputs: list[dict]) -> list[dict]:
+    return [
+        {
+            "index": i,
+            "candidate_name": item.get("candidate_name") or "Candidate",
+            "status": "pending",
+            "current_stage": None,
+            "stages": [{"name": n, "status": "pending"} for n in UI_STAGES],
+        }
+        for i, item in enumerate(inputs)
+    ]
+
+
+def _register_progress(sid: str, inputs: list[dict]) -> list[dict]:
+    _PROGRESS[sid] = _new_progress(inputs)
+    while len(_PROGRESS) > _MAX_TRACKED:  # bound memory: drop the oldest screenings first
+        _PROGRESS.pop(next(iter(_PROGRESS)))
+    return _PROGRESS[sid]
+
+
+def _stage_callback(entry: dict):
+    def on_stage(stage: str, status: str) -> None:
+        mapped = _STATUS_MAP.get(status)
+        if mapped is None:
+            return
+        for st in entry["stages"]:
+            if st["name"] == stage:
+                st["status"] = mapped
+        entry["status"] = "running"
+        running = [st["name"] for st in entry["stages"] if st["status"] == "running"]
+        entry["current_stage"] = running[-1] if running else entry["current_stage"]
+
+    return on_stage
+
+
+def _finish_progress(entry: dict, failed: bool) -> None:
+    for st in entry["stages"]:
+        if st["status"] in ("pending", "running"):
+            st["status"] = "error" if failed and st["status"] == "running" else "skipped"
+    entry["status"] = "error" if failed else "done"
+    entry["current_stage"] = None
 
 
 def err(code: str, message: str, field: str | None = None, remediation: str | None = None):
@@ -118,16 +170,23 @@ async def create_screening(
             )
 
     get_store().create_screening(sid, len(inputs))
-    asyncio.create_task(_run(sid, jd_text, inputs))
+    progress = _register_progress(sid, inputs)
+    asyncio.create_task(_run(sid, jd_text, inputs, progress))
     return {"screening_id": sid, "total_candidates": len(inputs), "status": "processing"}
 
 
-async def _run(sid: str, jd_text: str, inputs: list[dict]) -> None:
+async def _run(
+    sid: str, jd_text: str, inputs: list[dict], progress: list[dict] | None = None
+) -> None:
     store = get_store()
     done = 0
-    for item in inputs:
+    progress = progress if progress is not None else _new_progress(inputs)
+    for item, entry in zip(inputs, progress, strict=True):
+        entry["status"] = "running"
         try:
-            report = await screen_candidate(jd_text=jd_text, llm=LLMClient(), **item)
+            report = await screen_candidate(
+                jd_text=jd_text, llm=LLMClient(), on_stage=_stage_callback(entry), **item
+            )
         except Exception as exc:
             report = {
                 "candidate_name": item.get("candidate_name", "Candidate"),
@@ -138,6 +197,7 @@ async def _run(sid: str, jd_text: str, inputs: list[dict]) -> None:
                 "extensions": {"status": "Error", "error": str(exc),
                                "candidate_id": str(uuid.uuid4())[:8]},
             }
+        _finish_progress(entry, failed=report["extensions"].get("status") == "Error")
         cid = report["extensions"]["candidate_id"]
         row = _row(cid, report)
         store.save_candidate(cid, sid, report, row)
@@ -182,7 +242,8 @@ async def get_screening(sid: str):
     screening = get_store().get_screening(sid)
     if screening is None:
         raise HTTPException(404, err("NOT_FOUND", f"No screening {sid}."))
-    return screening
+    # `progress` is additive; every other key is exactly what the store returned.
+    return {**screening, "progress": _PROGRESS.get(sid, [])}
 
 
 @router.get("/candidates/{cid}")

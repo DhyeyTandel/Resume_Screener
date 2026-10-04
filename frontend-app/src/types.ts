@@ -145,12 +145,31 @@ export interface Row {
   source: "sample" | "screening";
 }
 
+export type StageName = "Parse" | "Integrity" | "Match" | "Skills" | "Authenticity" | "Questions";
+export type StageStatus = "pending" | "running" | "done" | "error" | "skipped";
+
+export interface StageProgress {
+  name: StageName | string;
+  status: StageStatus;
+}
+
+/** Live progress of one candidate, from GET /v1/screenings/{id} `progress`. */
+export interface CandidateProgress {
+  index: number;
+  candidate_name: string;
+  status: "pending" | "running" | "done" | "error";
+  current_stage: string | null;
+  stages: StageProgress[];
+}
+
 export interface Screening {
   screening_id: string;
   status: string;
   total: number;
   done: number;
   candidates: Omit<Row, "source">[];
+  /** Absent on servers that predate live progress. */
+  progress?: CandidateProgress[];
 }
 
 export interface Health {

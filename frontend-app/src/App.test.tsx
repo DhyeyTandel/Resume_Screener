@@ -100,3 +100,55 @@ describe("App polling", () => {
     expect(polls).toBe(seen);
   });
 });
+
+describe("App stage timeline", () => {
+  const stages = (...s: string[]) =>
+    ["Parse", "Integrity", "Match", "Skills", "Authenticity", "Questions"].map((name, i) => ({ name, status: s[i] ?? "pending" }));
+
+  it("renders the live per-candidate stages the API reports, then the finished state", async () => {
+    let polls = 0;
+    mockFetch(
+      ...baseHandlers,
+      (u, init) => (u === "/v1/screenings" && init?.method === "POST" ? jsonResponse({ screening_id: "s3" }) : undefined),
+      (u) => {
+        if (u !== "/v1/screenings/s3") return undefined;
+        polls += 1;
+        const running = polls < 2;
+        return jsonResponse({
+          screening_id: "s3", status: running ? "processing" : "complete", total: 1, done: running ? 0 : 1, candidates: [],
+          progress: [{
+            index: 0, candidate_name: "Jane Doe", status: running ? "running" : "done",
+            current_stage: running ? "Match" : null,
+            stages: running ? stages("done", "done", "running") : stages("done", "done", "done", "done", "done", "done"),
+          }],
+        });
+      },
+    );
+    const user = userEvent.setup();
+    renderWithClient(<App />);
+    await user.type(screen.getByLabelText("Job description"), "Backend role");
+    await user.type(screen.getByLabelText("Or paste one resume"), "Jane Doe Python");
+    await user.click(screen.getByRole("button", { name: "Screen Candidates" }));
+
+    const list = await screen.findByRole("list", { name: "Stages for Jane Doe" });
+    expect(list.querySelector('[data-stage="Match"]')).toHaveAttribute("data-status", "running");
+    expect(list.querySelector('[data-stage="Skills"]')).toHaveAttribute("data-status", "pending");
+    await screen.findByText(/Done\. 1 candidate screened/, undefined, { timeout: 4000 });
+    expect(list.querySelectorAll('[data-status="done"]')).toHaveLength(6);
+  });
+
+  it("shows no timeline when the server reports no progress", async () => {
+    mockFetch(
+      ...baseHandlers,
+      (u, init) => (u === "/v1/screenings" && init?.method === "POST" ? jsonResponse({ screening_id: "s4" }) : undefined),
+      (u) => (u === "/v1/screenings/s4" ? jsonResponse({ screening_id: "s4", status: "complete", total: 1, done: 1, candidates: [] }) : undefined),
+    );
+    const user = userEvent.setup();
+    renderWithClient(<App />);
+    await user.type(screen.getByLabelText("Job description"), "Backend role");
+    await user.type(screen.getByLabelText("Or paste one resume"), "Jane Doe Python");
+    await user.click(screen.getByRole("button", { name: "Screen Candidates" }));
+    await screen.findByText(/Done\. 1 candidate screened/);
+    expect(screen.queryByTestId("stage-timeline")).toBeNull();
+  });
+});

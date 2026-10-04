@@ -81,7 +81,7 @@ def test_api_post_then_read_back_and_audit(db_path):
             if sc["status"] == "complete":
                 break
             time.sleep(0.1)
-        assert set(sc) == {"screening_id", "status", "total", "done", "candidates"}
+        assert set(sc) == {"screening_id", "status", "total", "done", "candidates", "progress"}
         assert sc["status"] == "complete" and sc["done"] == 1
         cid = sc["candidates"][0]["candidate_id"]
         rep = client.get(f"/v1/candidates/{cid}").json()

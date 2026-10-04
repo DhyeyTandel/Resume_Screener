@@ -60,7 +60,7 @@ export default function CandidateDrawer({ row, sampleReports, onClose }: Props) 
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = overflow;
-      prev?.focus?.();
+      if (prev && prev !== document.body) prev.focus?.();
     };
   }, [onClose]);
 

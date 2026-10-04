@@ -91,3 +91,13 @@ test.describe("mobile", () => {
     expect(m.sw).toBeLessThanOrEqual(m.iw);
   });
 });
+
+test("(f) the stage timeline shows all six stages finished after a real screening", async ({ page }) => {
+  await screenPdf(page, "clean.pdf");
+  const list = page.getByRole("list", { name: /^Stages for / });
+  await expect(list.getByRole("listitem")).toHaveCount(6);
+  for (const s of ["Parse", "Integrity", "Match", "Skills", "Authenticity", "Questions"]) {
+    await expect(list.locator(`[data-stage="${s}"]`)).toHaveAttribute("data-status", "done");
+    await expect(list.locator(`[data-stage="${s}"]`)).toContainText("Done");
+  }
+});
