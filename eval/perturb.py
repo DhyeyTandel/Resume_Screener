@@ -84,3 +84,18 @@ ALL_TEXT_PERTURBATIONS = {
     "P3_ai_rewrite": p3_ai_rewrite_same_facts,
     "P4_date_contradiction": p4_date_contradiction,
 }
+
+
+# ---------------------------------------------------------------------------
+# Additions for the synthetic Module B corpus (eval/synthetic/). Nothing above
+# this line was changed.
+# ---------------------------------------------------------------------------
+def p1_inject_skills(text: str, skills: list[str]) -> tuple[str, dict]:
+    """P1 with an explicit skill list (the fixed UNSUPPORTED_SKILLS list above contains terms
+    outside the skill vocabulary, which would never become claims). The skills are appended to the
+    first line under the Skills / Technical Skills heading, exactly as a padded resume would."""
+    out = re.sub(
+        r"((?:Technical )?Skills\n[^\n]*)", lambda m: m.group(1) + ", " + ", ".join(skills), text, count=1
+    )
+    return out, {"type": "P1", "injected_skills": list(skills),
+                 "expect": "each injected skill is UNSUPPORTED when checkable sources exist"}

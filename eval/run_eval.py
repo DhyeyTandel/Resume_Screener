@@ -26,6 +26,8 @@ from app.pipeline.orchestrator import screen_candidate  # noqa: E402
 sys.path.insert(0, str(ROOT / "backend" / "tests"))
 from fixtures.github_fixtures import make_fetch  # noqa: E402
 from fixtures.portfolio_fixtures import make_fetch as make_portfolio_fetch  # noqa: E402
+from synthetic import generate as syn_generate  # noqa: E402
+from synthetic import metrics as syn_metrics  # noqa: E402
 
 JD = (ROOT / "sample_data/jd_backend_engineer.txt").read_text()
 RESUMES = sorted((ROOT / "sample_data/resumes").glob("*.txt"))
@@ -419,6 +421,28 @@ async def eval_determinism() -> Section:
     return s
 
 
+async def eval_synthetic() -> Section:
+    """Module B metrics on the deterministic synthetic corpus (eval/synthetic/). Test split only."""
+    import json as _json
+
+    s = Section("Synthetic evaluation (SYNTHETIC-ONLY)")
+    corpus = syn_generate.generate()
+    on_disk = syn_generate.OUT_DIR / "manifest.json"
+    regenerated = syn_generate.write_corpus(corpus)  # idempotent: same seed, same files
+    if on_disk.exists() is False:
+        s.line("_The corpus files were missing and were regenerated from the fixed seed._\n")
+    test = [c for c in corpus if c["split"] == "test"]
+    out = await syn_metrics.run_split_async(test)
+    s.line(syn_metrics.render_markdown(out, regenerated))
+    slim = []
+    for r in out["results"]:
+        slim.append({k: (v if k != "primary" else {kk: vv for kk, vv in v.items()}) for k, v in r.items()
+                     if k not in ("p3", "nonnative", "nameswap", "private")} | {
+            f"{k}_band": r[k]["band"] for k in ("p3", "nonnative", "nameswap", "private") if k in r})
+    (ROOT / "eval" / "synthetic" / "results_test.json").write_text(_json.dumps(slim, separators=(",", ":")))
+    return s
+
+
 async def main() -> None:
     started = time.time()
     sections = []
@@ -429,6 +453,7 @@ async def main() -> None:
     sections.append(e2e)
     sections.append(pert)
     sections.append(await eval_determinism())
+    sections.append(await eval_synthetic())
 
     report = [
         "# Evaluation Report",
@@ -446,14 +471,19 @@ async def main() -> None:
 
     report.append("## Not evaluated here\n")
     report.append(
-        "Module B's claim-extraction F1, claim-status macro-F1, false-accusation rate, P3 "
-        "reliability-drop invariance, AUROC, calibration ECE, and fairness false-flag gap "
-        "(Spec 16.2) all require either (a) a hand-labeled dataset of real resumes with "
-        "GitHub/LinkedIn/portfolio data (not available - none has been collected; see "
-        "ASSUMPTIONS.md), or (b) the LinkedIn/portfolio collectors this build does not have. "
-        "Reporting a number for any of these without that data would be fabrication, which "
-        "the spec explicitly forbids (Section 0.5). They are left unmeasured rather than "
-        "estimated.\n"
+        "Module B's synthetic metrics are above and are labelled SYNTHETIC-ONLY: they do not establish "
+        "real-world performance, because the candidates, the repositories and the ground truth were all "
+        "written by the same hand that wrote the metrics. What still genuinely needs real data (Spec 16.1) "
+        "and has no number anywhere in this report:\n\n"
+        "- Claim-extraction F1 and claim-status macro-F1 against **human labels** on at least 50 consenting "
+        "genuine resumes with real GitHub/LinkedIn/portfolio data, labelled by two annotators, with Cohen's "
+        "kappa. None has been collected (see ASSUMPTIONS.md).\n"
+        "- Real-world false-accusation rate, AUROC, calibration and fairness gaps. Real resumes use wording, "
+        "repository layouts and LinkedIn exports that the synthetic generator does not cover.\n"
+        "- Latency against the live GitHub API (p50 / p95 targets). The synthetic latency excludes network time.\n"
+        "- The LinkedIn 'Save to PDF' parse path (only the structured-JSON export is in the synthetic corpus), "
+        "tutorial-fingerprint similarity, and any LLM-judge run (everything here uses the deterministic rules "
+        "with the mock provider).\n"
     )
     report.append("## Known Limitations\n")
     report.append(
@@ -464,9 +494,8 @@ async def main() -> None:
         "- Module D's non-accusatory check is a keyword screen, not the LLM-judge or human "
         "spot-check rubric the spec describes.\n"
         "- Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a "
-        "recall rate over many labeled examples. P4 checks role-overlap only (from the "
-        "resume alone); Stage 4's LinkedIn date-conflict and title-mismatch checks exist "
-        "(consistency.py) but have no perturbation exercising them yet.\n"
+        "recall rate over many labeled examples. The synthetic corpus above does measure P1, P2, P4 "
+        "(including LinkedIn date and title conflicts), P5 and P6 as recall rates, but only on invented data.\n"
         f"- Total eval wall time: {time.time() - started:.1f}s, all in mock mode with no "
         "network calls.\n"
     )

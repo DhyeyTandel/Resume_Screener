@@ -1,0 +1,29 @@
+{
+  "counts": {
+    "test": {
+      "P1": 28,
+      "P2": 21,
+      "P4": 28,
+      "P5": 21,
+      "P6": 28,
+      "genuine": 84,
+      "n": 210
+    },
+    "train": {
+      "P1": 12,
+      "P2": 9,
+      "P4": 12,
+      "P5": 9,
+      "P6": 12,
+      "genuine": 36,
+      "n": 90
+    }
+  },
+  "n": 300,
+  "note": "Invented people and sources. Ground truth is known by construction; results do not establish real-world performance. Never tune on the test split.",
+  "seed": 20261004,
+  "synthetic_only": true,
+  "test_sha": "9354c2c4e380c3ae",
+  "train_fraction": 0.3,
+  "train_sha": "98d8b90f56ea312a"
+}
