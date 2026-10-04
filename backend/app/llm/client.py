@@ -271,8 +271,16 @@ def _mock_questions(p: dict) -> dict:
     return {"interview_questions": out, "skipped_strong_evidence": []}
 
 
+def _mock_claim_judge(p: dict) -> dict:
+    """Mock mode never changes a deterministic status (numbers stay identical)."""
+    d = p.get("deterministic", {})
+    return {"status": d.get("status", "UNSUPPORTED"), "evidence": d.get("evidence", []),
+            "rationale": d.get("rationale", ""), "judge_confidence": d.get("judge_confidence", 0.0)}
+
+
 MOCK_TASKS: dict[str, Callable[[dict], dict]] = {
     "summary": _mock_summary,
     "integrity_interpret": _mock_integrity,
     "interview_questions": _mock_questions,
+    "claim_judge": _mock_claim_judge,
 }

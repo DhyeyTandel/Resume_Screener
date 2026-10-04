@@ -22,6 +22,7 @@ from .consistency import (
     check_role_overlap,
     graduation_year,
 )
+from .judge import JUDGE_CANDIDATE_STATUSES, llm_judge_claims
 from .matching import (
     STATUS_V,
     authenticity_flags,
@@ -140,6 +141,7 @@ async def assess(
     sources: dict | None = None,
     github_fetch=None,
     portfolio_fetch=None,
+    llm=None,
 ) -> dict:
     """Stages 1, 5, 6, 7 + live Stage 2/3 for GitHub. Sources absent => UNVERIFIABLE
     => confidence drops only, never a negative judgment (Spec 2.4)."""
@@ -190,13 +192,9 @@ async def assess(
     req_lower = {s.lower() for s in required_skills}
     total_w = verifiable_w = weighted_v_sum = judge_conf_sum = 0.0
     out_claims = []
+    judged_by_id: dict[str, dict] = {}
     for c in claims:
-        w = float(cw.get(c["type"], 1.0))
         required = c["type"] == "SKILL" and c["text"].lower() in req_lower
-        if required:
-            w *= mult
-        total_w += w
-
         if c["type"] == "SKILL":
             judged = judge_skill_claim_with_portfolio(c["text"], gh, pf, required)
         elif c["type"] == "PROJECT":
@@ -216,7 +214,29 @@ async def assess(
             judged = {"status": "UNVERIFIABLE", "evidence": [],
                       "rationale": "No accessible source could confirm this claim.",
                       "judge_confidence": 0.0}
+        judged_by_id[c["claim_id"]] = judged
 
+    # Optional LLM judge over WEAK/UNSUPPORTED claims; deterministic rules stay the floor.
+    llm_calls = 0
+    evidence_index = _build_evidence_index(gh, li, pf)
+    if llm is not None and llm.provider != "mock" and evidence_index:
+        todo = [
+            {"claim_id": c["claim_id"], "type": c["type"], "text": c["text"],
+             "deterministic": judged_by_id[c["claim_id"]]}
+            for c in claims if judged_by_id[c["claim_id"]]["status"] in JUDGE_CANDIDATE_STATUSES
+        ]
+        for r in await llm_judge_claims(todo, evidence_index, llm):
+            llm_calls += int(r["llm_called"])
+            if r["upgraded"]:
+                judged_by_id[r["claim_id"]] = {k: r[k] for k in
+                                               ("status", "evidence", "rationale", "judge_confidence")}
+
+    for c in claims:
+        judged = judged_by_id[c["claim_id"]]
+        w = float(cw.get(c["type"], 1.0))
+        if c["type"] == "SKILL" and c["text"].lower() in req_lower:
+            w *= mult
+        total_w += w
         status = judged["status"]
         epistemic = "EVIDENCE" if status in ("VERIFIED", "CORROBORATED") else (
             "INFERENCE" if status == "WEAK" else "UNKNOWN"
@@ -333,9 +353,38 @@ async def assess(
             "model": "deterministic-v1",
             "config_version": cfg("app.config_version"),
             "latency_ms": 0,
-            "llm_calls": 0,
+            "llm_calls": llm_calls,
         },
     }
+
+
+def _build_evidence_index(gh: GitHubEvidence, li: LinkedInEvidence, pf: PortfolioEvidence) -> dict:
+    """Stable citation id -> short structured summary of each collected artifact."""
+    idx: dict[str, dict] = {}
+    if gh.status == "ok":
+        for repo in gh.repos:
+            idx[f"github.com/{gh.username}/{repo.name}"] = {
+                "source": "github", "authorship_ratio": repo.authorship_ratio,
+                "summary": (f"repo {repo.name}; languages={sorted(repo.languages)}; "
+                            f"topics={repo.topics}; manifests={repo.manifests_found}; "
+                            f"flags={repo.flags}; authorship_ratio={repo.authorship_ratio}"),
+                "untrusted_text": repo.readme_excerpt[:1500],
+                "_repo": repo,  # code-side grounding only; never sent to the model
+            }
+    if li.status == "ok":
+        for role in li.roles:
+            idx[f"linkedin_export:role:{role.title}"] = {
+                "source": "linkedin", "authorship_ratio": None,
+                "summary": "LinkedIn export role entry",
+                "untrusted_text": f"{role.title} at {role.company} ({role.start} to {role.end})",
+            }
+    if pf.status == "ok" and pf.url:
+        idx[pf.url] = {
+            "source": "portfolio", "authorship_ratio": None,
+            "summary": f"portfolio page; tech_mentions={pf.tech_mentions}; projects={pf.projects[:10]}",
+            "untrusted_text": pf.text[:1500],
+        }
+    return idx
 
 
 def _recruiter_summary(gh: GitHubEvidence, claims: list[dict], confidence: float, n_sources: int) -> str:

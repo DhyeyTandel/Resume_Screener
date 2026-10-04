@@ -107,6 +107,7 @@ async def screen_candidate(
                         "linkedin": linkedin_export},
                 github_fetch=github_fetch,
                 portfolio_fetch=portfolio_fetch,
+                llm=llm,
             )
 
     async def run_narrative() -> dict:
