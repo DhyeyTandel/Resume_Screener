@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from ..config import cfg
 from ..db.store import get_store
@@ -15,6 +17,10 @@ from ..modules.interview_questions.generator import generate_interview_questions
 from ..pipeline.orchestrator import screen_candidate
 
 router = APIRouter(prefix="/v1")
+
+_ROOT = Path(__file__).resolve().parents[3]
+_SAMPLE_OUTPUT = _ROOT / "sample_output"
+_SAMPLE_JD = _ROOT / "sample_data" / "jd_backend_engineer.txt"
 
 
 def err(code: str, message: str, field: str | None = None, remediation: str | None = None):
@@ -218,3 +224,19 @@ async def get_audit(cid: str):
 @router.post("/interview-questions")
 async def interview_questions(payload: dict):
     return await generate_interview_questions(payload.get("requirements", []))
+
+
+@router.get("/samples")
+async def samples() -> list[dict]:
+    """Seeded sample reports for the landing dashboard (not stored in the DB)."""
+    return [
+        json.loads(p.read_text(encoding="utf-8"))
+        for p in sorted(_SAMPLE_OUTPUT.glob("*.json"), key=lambda p: p.name)
+    ]
+
+
+@router.get("/samples/jd")
+async def sample_jd() -> PlainTextResponse:
+    if not _SAMPLE_JD.is_file():
+        raise HTTPException(404, err("NOT_FOUND", "Sample job description is not available."))
+    return PlainTextResponse(_SAMPLE_JD.read_text(encoding="utf-8"))

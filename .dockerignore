@@ -7,3 +7,5 @@ __pycache__
 .pytest_cache
 data/
 .env
+frontend-app/node_modules
+frontend-app/dist

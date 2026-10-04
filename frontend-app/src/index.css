@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-canvas text-ink text-sm antialiased; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-accent; outline-style: solid; }
+}
+@layer components {
+  .card { @apply bg-surface border border-line rounded-xl p-4; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold bg-accent text-white hover:bg-accent-ink disabled:opacity-45 disabled:cursor-not-allowed; }
+  .btn-ghost { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold bg-neutral-soft text-ink hover:bg-line disabled:opacity-45 disabled:cursor-not-allowed; }
+  .input { @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] disabled:bg-neutral-soft; }
+  .chip { @apply inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold; }
+  .chip-ok { @apply bg-ok-soft text-ok; }
+  .chip-warn { @apply bg-warn-soft text-warn; }
+  .chip-stop { @apply bg-stop-soft text-stop; }
+  .chip-mute { @apply bg-neutral-soft text-muted; }
+  .chip-info { @apply bg-accent-soft text-accent-ink; }
+  .h3 { @apply text-[13px] font-semibold mt-5 mb-2; }
+}

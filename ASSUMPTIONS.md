@@ -78,8 +78,15 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   reject UPDATE and DELETE), not just by API surface. A screening still "processing" when
   the server restarts is marked `interrupted` on startup, since nothing resumes it; the
   dashboard stops polling and tells the recruiter to re-run.
-- **A-8.** The frontend is a single dependency-free HTML page served by FastAPI rather than
-  a Vite/React/Tailwind app. It covers the layout, tabs, filters and states of Section 14.2.
+- **A-8 (frontend, updated).** The primary UI is now `frontend-app/` (Vite, React 18,
+  TypeScript, Tailwind, TanStack Query, recharts), served by FastAPI from
+  `frontend-app/dist` when built; `frontend/index.html` remains as a no-Node fallback. The
+  landing page shows the six precomputed `sample_output/` reports via `GET /v1/samples`,
+  flagged as sample data and excluded from the audit form (they are not in the database).
+  A styling bug was caught by hand before merge: chip classes were built at runtime
+  (`chip-${tone}`), which Tailwind cannot see, so every green/amber/red chip, including
+  "Needs verification" and integrity flags, compiled to nothing and rendered as plain
+  text. Class names are now spelled out literally.
 - **A-9.** JD requirement extraction is heuristic and graph-driven: a requirement is raised
   for any skill in `graph.json` named in the JD, plus years-of-experience and degree lines.
   A skill absent from the graph is not extracted as a requirement.
@@ -97,3 +104,10 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
 - **A-11 (Docker).** Docker was not available on the build machine, so the Dockerfile and
   compose file are syntax-checked (YAML parse) but have never been built here; the first
   real build is CI. The Ollama service is opt-in via `docker compose --profile ollama up`.
+- **A-12 (LLM claim judge).** Stage 3 now has an LLM judge layered on the deterministic
+  rubric (`authenticity_engine/judge.py`). It can only upgrade WEAK/UNSUPPORTED claims,
+  within code-enforced caps, and any citation not in the collected evidence index is
+  dropped. VERIFIED additionally requires the cited repo's own metadata to show the claim:
+  review before merge found that without this, the model could cite any authored repo
+  (for example a Python service, for a Kafka claim) and turn an unsupported claim into a
+  verified one. The judge proposes nothing in mock mode, so sample outputs are unchanged.

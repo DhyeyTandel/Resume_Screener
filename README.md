@@ -12,6 +12,7 @@ the fallback chain, so the demo cannot die.
 make install     # python3 -m venv .venv && pip install -r requirements.txt
 make test        # 44 tests
 make seed        # screen every sample resume, write sample_output/
+make frontend-install && make frontend-build   # optional: the React dashboard
 make dev         # dashboard + API on http://localhost:8077
 make docker-up   # same, in Docker (add the ollama profile with make docker-up-ollama)
 ```
@@ -98,4 +99,4 @@ estimated (Spec 0.5 forbids fabricating results).
 
 See PLAN.md and ASSUMPTIONS.md. In short: Module B's Stage 3 judge is deterministic
 rule-based rather than an LLM judge, a real annotated dataset for Module B's harder
-metrics, and the Vite/React frontend. The Docker image has not been built locally.
+metrics, and automated frontend tests. The Docker image is built and health-checked in CI.

@@ -1,3 +1,14 @@
+# Stage 1: build the React dashboard
+FROM node:22-slim AS frontend
+WORKDIR /build
+COPY frontend-app/package.json frontend-app/package-lock.json ./
+RUN npm ci
+COPY frontend-app/index.html frontend-app/vite.config.ts frontend-app/tsconfig.json \
+     frontend-app/tailwind.config.js frontend-app/postcss.config.js ./
+COPY frontend-app/src/ src/
+RUN npm run build
+
+# Stage 2: Python runtime
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,8 +24,10 @@ RUN pip install -r requirements.txt
 
 COPY backend/ backend/
 COPY frontend/ frontend/
+COPY --from=frontend /build/dist/ frontend-app/dist/
 COPY eval/ eval/
 COPY sample_data/ sample_data/
+COPY sample_output/ sample_output/
 COPY docs/ docs/
 
 RUN mkdir -p /app/data && chown -R appuser:appuser /app
