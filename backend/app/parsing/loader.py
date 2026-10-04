@@ -108,7 +108,10 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
     by_parser: dict[str, str] = {}
     pages, page_size, meta = 1, (612.0, 792.0), {}
     try:
-        import fitz  # PyMuPDF
+        try:
+            import pymupdf as fitz  # PyMuPDF >= 1.24.3
+        except ImportError:
+            import fitz  # older PyMuPDF
 
         doc = fitz.open(stream=data, filetype="pdf")
         if doc.needs_pass:
@@ -120,19 +123,29 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         text_parts = []
         for page in doc:
             page_size = (page.rect.width, page.rect.height)
-            for block in page.get_text("dict")["blocks"]:
+            # Span dicts carry no render mode, so take invisible (mode 3) runs
+            # from the text trace and match spans to them by position.
+            invisible = _invisible_boxes(page)
+            # Keep text outside the page box; the default clip silently drops it
+            # (a flag alone is not enough, an explicit infinite clip is), which
+            # would hide off-page stuffing from the scanner.
+            everything = fitz.INFINITE_RECT()
+            for block in page.get_text("dict", clip=everything)["blocks"]:
                 for line in block.get("lines", []):
                     for sp in line.get("spans", []):
+                        bbox = tuple(sp["bbox"])
                         spans.append(
                             Span(
                                 text=sp["text"],
                                 size=float(sp["size"]),
                                 color=int(sp.get("color", 0)),
-                                bbox=tuple(sp["bbox"]),
-                                render_mode=int(sp.get("render_mode", 0)),
+                                bbox=bbox,
+                                render_mode=int(
+                                    sp.get("render_mode", 3 if _in_boxes(bbox, invisible) else 0)
+                                ),
                             )
                         )
-            text_parts.append(page.get_text())
+            text_parts.append(page.get_text("text", clip=everything))
         by_parser["pymupdf"] = "\n".join(text_parts)
     except UnreadableFile:
         raise
@@ -175,6 +188,18 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         page_size=page_size,
         source=filename,
     )
+
+
+def _invisible_boxes(page) -> list[tuple[float, float, float, float]]:
+    try:
+        return [tuple(t["bbox"]) for t in page.get_texttrace() if t.get("type") == 3]
+    except Exception:  # noqa: BLE001 - older builds: no trace, no OCR detection
+        return []
+
+
+def _in_boxes(bbox, boxes) -> bool:
+    cx, cy = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
+    return any(b[0] <= cx <= b[2] and b[1] <= cy <= b[3] for b in boxes)
 
 
 def _is_visible(span: Span, page_size: tuple[float, float]) -> bool:

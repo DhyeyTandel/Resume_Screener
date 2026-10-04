@@ -157,3 +157,61 @@ def check_linkedin_consistency(
                     }
                 )
     return out
+
+
+_DEGREE_WORD = re.compile(
+    r"\b(bachelor\w*|b\.?\s?s\.?c?|b\.?\s?tech|b\.?\s?e|master\w*|m\.?\s?s\.?c?|m\.?\s?tech|"
+    r"mba|ph\.?\s?d|doctorate)\b",
+    re.I,
+)
+_YEAR = re.compile(r"(?<!\d)(19[5-9]\d|20\d\d)(?!\d)")
+_SENIOR_TITLE = re.compile(r"\b(senior|sr\.?|lead|principal|staff|manager)\b", re.I)
+_EXEMPT_TITLE = re.compile(
+    r"\b(intern\w*|part[- ]?time|student|teaching\s+assistant|research\s+assistant|"
+    r"junior|jr\.?|trainee|apprentice|co-?op)\b",
+    re.I,
+)
+
+
+def graduation_year(education: list[str]) -> int | None:
+    """Latest plausible year on a line naming a degree; None when absent."""
+    this_year = date.today().year
+    years = []
+    for line in education or []:
+        if not _DEGREE_WORD.search(line):
+            continue
+        years += [int(y) for y in _YEAR.findall(line) if int(y) <= this_year]
+    return max(years) if years else None
+
+
+def check_graduation_consistency(
+    education: list[str], experience: list[dict], role_level: str | None = None
+) -> list[dict]:
+    """Flag only a clear mismatch: a senior-level full-time role that starts
+    more than a year before the stated graduation year. Working while studying
+    is normal, so ordinary, intern, part-time or junior roles are never flagged.
+    Missing data yields no finding."""
+    grad = graduation_year(education)
+    if grad is None:
+        return []
+    out = []
+    for e in experience:
+        title = (e.get("title") or "").strip()
+        start = _parse_year(e.get("start", ""))
+        if not title or start is None:
+            continue
+        if _EXEMPT_TITLE.search(title) or not _SENIOR_TITLE.search(title):
+            continue
+        if start < grad - 1:
+            out.append(
+                {
+                    "type": "graduation_inconsistency",
+                    "detail": (
+                        f"'{title}' is shown as starting in {start}, while the education "
+                        f"section lists a graduation year of {grad}. The dates may reflect "
+                        "work alongside study or an earlier qualification; worth confirming."
+                    ),
+                    "sources": ["resume"],
+                }
+            )
+    return out

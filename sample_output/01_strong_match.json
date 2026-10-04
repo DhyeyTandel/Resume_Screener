@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "f504be64",
+    "candidate_id": "365cedfa",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -494,7 +494,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "f504be64",
+      "candidate_id": "365cedfa",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1110,7 +1110,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0001,
+      "_latency_seconds": 0.0,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1130,11 +1130,11 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 4,
+          "latency_ms": 3,
           "status": "ok"
         },
         "authenticity": {
-          "latency_ms": 3,
+          "latency_ms": 4,
           "status": "ok"
         },
         "narrative": {
@@ -1153,7 +1153,7 @@
       "llm_provider": "mock",
       "mock_mode": true,
       "config_version": "1.0.0",
-      "latency_ms": 9,
+      "latency_ms": 7,
       "llm_calls": 2
     }
   }

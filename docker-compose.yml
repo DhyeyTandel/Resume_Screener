@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8077:8077"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Overrides OLLAMA_BASE_URL from .env (which targets localhost for non-Docker runs).
+      # Only reachable when started with: docker compose --profile ollama up
+      # Otherwise the app falls back to the mock provider.
+      OLLAMA_BASE_URL: ${DOCKER_OLLAMA_BASE_URL:-http://ollama:11434}
+      SCREENING_DB_PATH: /app/data/screening.db
+    volumes:
+      - app_data:/app/data
+    restart: unless-stopped
+
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  ollama_models:

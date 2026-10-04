@@ -141,6 +141,8 @@ async function poll(sid){
   const s=await api('/v1/screenings/'+sid);
   rows=s.candidates; render();
   $('#prog').textContent=`${s.done} / ${s.total} candidates screened`;
+  if(s.status==='interrupted'){ $('#run').disabled=false;
+    $('#prog').textContent=`Interrupted by a server restart after ${s.done} / ${s.total} candidates. Run the screening again for the rest.`; return; }
   if(s.status!=='complete') return setTimeout(()=>poll(sid),400);
   $('#run').disabled=false; $('#prog').textContent=`Done - ${s.total} candidates screened.`;
 }

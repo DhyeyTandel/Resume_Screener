@@ -13,6 +13,7 @@ make install     # python3 -m venv .venv && pip install -r requirements.txt
 make test        # 44 tests
 make seed        # screen every sample resume, write sample_output/
 make dev         # dashboard + API on http://localhost:8077
+make docker-up   # same, in Docker (add the ollama profile with make docker-up-ollama)
 ```
 
 Open <http://localhost:8077>, press **Load sample JD**, paste a resume from
@@ -97,4 +98,4 @@ estimated (Spec 0.5 forbids fabricating results).
 
 See PLAN.md and ASSUMPTIONS.md. In short: Module B's Stage 3 judge is deterministic
 rule-based rather than an LLM judge, a real annotated dataset for Module B's harder
-metrics, SQLite persistence, Docker, and the Vite/React frontend.
+metrics, and the Vite/React frontend. The Docker image has not been built locally.

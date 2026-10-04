@@ -13,7 +13,9 @@ from ...config import cfg
 from .collectors.github import GitHubEvidence, collect_github
 from .collectors.linkedin import LinkedInEvidence, collect_linkedin
 from .collectors.portfolio import PortfolioEvidence, collect_portfolio
-from .consistency import check_anachronisms, check_linkedin_consistency, check_role_overlap
+from .consistency import (check_anachronisms, check_graduation_consistency,
+                          check_linkedin_consistency, check_role_overlap, graduation_year)
+from .consistency import _parse_year
 from .matching import (STATUS_V, authenticity_flags, judge_project_claim, judge_role_claim,
                        judge_skill_claim, judge_skill_claim_with_portfolio, portfolio_flags)
 
@@ -225,6 +227,11 @@ async def assess(
         check_anachronisms(resume_text)
         + check_role_overlap(parsed["experience"])
         + check_linkedin_consistency(parsed["experience"], li)
+        + check_graduation_consistency(parsed.get("education", []), parsed["experience"])
+    )
+    grad_check = int(
+        graduation_year(parsed.get("education", [])) is not None
+        and any(_parse_year(e.get("start", "")) is not None for e in parsed["experience"])
     )
     contradictions = [
         {"type": c["type"], "detail": c["detail"], "sources": c["sources"]}
@@ -234,7 +241,8 @@ async def assess(
         1,
         len(re.findall(r"\d+\s*\+?\s*years?", resume_text, re.I))
         + max(0, len(parsed["experience"]) - 1)  # pairs of roles checked for overlap
-        + (len(parsed["experience"]) if li.status == "ok" else 0),
+        + (len(parsed["experience"]) if li.status == "ok" else 0)
+        + grad_check,
     )
     consistency = round(1 - len(contradictions) / checks_performed, 3)
 

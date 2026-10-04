@@ -10,12 +10,10 @@ from fastapi.responses import JSONResponse
 from ..config import cfg
 from ..llm.client import LLMClient
 from ..modules.interview_questions.generator import generate_interview_questions
+from ..db.store import get_store
 from ..pipeline.orchestrator import screen_candidate
 
 router = APIRouter(prefix="/v1")
-SCREENINGS: dict[str, dict] = {}
-CANDIDATES: dict[str, dict] = {}
-AUDIT: list[dict] = []
 
 
 def err(code: str, message: str, field: str | None = None, remediation: str | None = None):
@@ -107,18 +105,14 @@ async def create_screening(
                 }
             )
 
-    SCREENINGS[sid] = {
-        "screening_id": sid,
-        "status": "processing",
-        "total": len(inputs),
-        "done": 0,
-        "candidates": [],
-    }
+    get_store().create_screening(sid, len(inputs))
     asyncio.create_task(_run(sid, jd_text, inputs))
     return {"screening_id": sid, "total_candidates": len(inputs), "status": "processing"}
 
 
 async def _run(sid: str, jd_text: str, inputs: list[dict]) -> None:
+    store = get_store()
+    done = 0
     for item in inputs:
         try:
             report = await screen_candidate(jd_text=jd_text, llm=LLMClient(), **item)
@@ -133,10 +127,21 @@ async def _run(sid: str, jd_text: str, inputs: list[dict]) -> None:
                                "candidate_id": str(uuid.uuid4())[:8]},
             }
         cid = report["extensions"]["candidate_id"]
-        CANDIDATES[cid] = report
-        SCREENINGS[sid]["candidates"].append(_row(cid, report))
-        SCREENINGS[sid]["done"] += 1
-    SCREENINGS[sid]["status"] = "complete"
+        row = _row(cid, report)
+        store.save_candidate(cid, sid, report, row)
+        store.append_audit(
+            cid,
+            "screening_completed",
+            {
+                "screening_id": sid,
+                "integrity_verdict": row["integrity_verdict"],
+                "integrity_action": row["integrity_action"],
+                "config_version": cfg("app.config_version"),
+            },
+        )
+        done += 1
+        store.update_screening(sid, status="processing", done=done)
+    store.update_screening(sid, status="complete", done=done)
 
 
 def _row(cid: str, r: dict) -> dict:
@@ -162,21 +167,24 @@ def _row(cid: str, r: dict) -> dict:
 
 @router.get("/screenings/{sid}")
 async def get_screening(sid: str):
-    if sid not in SCREENINGS:
+    screening = get_store().get_screening(sid)
+    if screening is None:
         raise HTTPException(404, err("NOT_FOUND", f"No screening {sid}."))
-    return SCREENINGS[sid]
+    return screening
 
 
 @router.get("/candidates/{cid}")
 async def get_candidate(cid: str):
-    if cid not in CANDIDATES:
+    report = get_store().get_candidate(cid)
+    if report is None:
         raise HTTPException(404, err("NOT_FOUND", f"No candidate {cid}."))
-    return CANDIDATES[cid]
+    return report
 
 
 @router.post("/candidates/{cid}/decision")
 async def record_decision(cid: str, decision: str = Form(...), note: str = Form("")):
-    if cid not in CANDIDATES:
+    store = get_store()
+    if store.get_candidate(cid) is None:
         raise HTTPException(404, err("NOT_FOUND", f"No candidate {cid}."))
     import datetime
 
@@ -187,13 +195,23 @@ async def record_decision(cid: str, decision: str = Form(...), note: str = Form(
         "at": datetime.datetime.now(datetime.UTC).isoformat(),
         "config_version": cfg("app.config_version"),
     }
-    AUDIT.append(entry)  # append-only
+    store.append_audit(
+        cid,
+        "recruiter_decision",
+        {"decision": decision, "note": note, "at": entry["at"],
+         "config_version": entry["config_version"]},
+    )  # append-only
     return entry
 
 
 @router.get("/candidates/{cid}/audit")
 async def get_audit(cid: str):
-    return [a for a in AUDIT if a["candidate_id"] == cid]
+    # Same shape as before: recruiter decisions only. screening_completed rows
+    # stay in the table but are not returned here (frontend reads a.decision).
+    return [
+        {"candidate_id": cid, **a["payload"]}
+        for a in get_store().list_audit(cid, event="recruiter_decision")
+    ]
 
 
 @router.post("/interview-questions")

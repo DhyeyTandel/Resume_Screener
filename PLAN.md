@@ -16,7 +16,7 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 | M6 Module D + adapter + orchestrator + unified report + invariants | **done** |
 | M7 Frontend | **done** as a single-file dashboard (A-8) |
 | M8 `perturb.py` + eval harness + `report.md` | **done** - see eval/report.md, measured not estimated |
-| M9 README, Docker, demo script | README done; Docker not built |
+| M9 README, Docker, demo script | README, Dockerfile, compose and CI done; image never built locally (A-11) |
 
 ## Risks
 
@@ -35,9 +35,9 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 ## Next, in order
 
 1. `pip install PyMuPDF pdfplumber`, then add PDF red-team fixtures generated as real files.
-2. Graduation-year consistency check (experience dates vs education, Spec 11 Stage 4)
-   - the last unimplemented Stage 4 check named in the spec.
+2. Vite + React + Tailwind frontend (Spec 14.2); the current dashboard is a single
+   dependency-free HTML file.
 3. Collect a real, consenting-candidate dataset and re-run `eval/run_eval.py`'s "Not
    evaluated here" metrics (claim-extraction F1, AUROC, fairness gap, calibration ECE);
    only then tune thresholds, on a held-out split (never the test set).
-4. SQLite persistence for screenings, candidates and the audit log.
+4. Run the first real Docker build in CI and fix whatever it surfaces.

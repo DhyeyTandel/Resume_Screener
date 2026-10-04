@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "36c40d70",
+    "candidate_id": "e39caa2c",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -476,12 +476,12 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "36c40d70",
+      "candidate_id": "e39caa2c",
       "band": "NEEDS_VERIFICATION",
       "scores": {
-        "authenticity": 0.431,
+        "authenticity": 0.581,
         "reliability": 0.631,
-        "consistency": 0.0,
+        "consistency": 0.5,
         "coverage": 0.632,
         "inflation_index": 0.472,
         "assessment_confidence": 0.479

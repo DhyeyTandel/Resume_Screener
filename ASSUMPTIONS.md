@@ -72,10 +72,28 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   the live API with a real upload, not by the unit tests alone - the existing tests all
   happened to use matching companies on both sides, which is exactly the case this bug
   doesn't trigger on.
-- **A-7.** Storage is in-process (dicts) rather than SQLite. The audit log is append-only
-  in behaviour but does not survive a restart.
+- **A-7 (storage, updated).** Screenings, candidate reports and the audit log persist in
+  SQLite via stdlib `sqlite3` (`backend/app/db/store.py`) rather than SQLAlchemy, to keep
+  the dependency list short. The audit log is append-only at the database level (triggers
+  reject UPDATE and DELETE), not just by API surface. A screening still "processing" when
+  the server restarts is marked `interrupted` on startup, since nothing resumes it; the
+  dashboard stops polling and tells the recruiter to re-run.
 - **A-8.** The frontend is a single dependency-free HTML page served by FastAPI rather than
   a Vite/React/Tailwind app. It covers the layout, tabs, filters and states of Section 14.2.
 - **A-9.** JD requirement extraction is heuristic and graph-driven: a requirement is raised
   for any skill in `graph.json` named in the JD, plus years-of-experience and degree lines.
   A skill absent from the graph is not extracted as a requirement.
+- **A-9 (real-PDF bugs).** Running the integrity scanner against generated PDF files
+  (`backend/tests/fixtures/pdfs/`) exposed two bugs the in-memory test doubles could not:
+  (1) PyMuPDF span dicts carry no `render_mode` key, so invisible (render mode 3) text was
+  never detected and an OCR layer read as ordinary visible text; fixed via
+  `page.get_texttrace()`. (2) PyMuPDF clips extraction to the page box, so off-page text was
+  silently dropped and only surfaced as a misleading PARSER_DIVERGENCE; fixed by extracting
+  with an unbounded clip so HIDDEN_TEXT fires correctly.
+- **A-10 (graduation check).** Stage 4's graduation consistency check flags only a
+  senior/lead/principal/staff/manager title starting more than a year before the stated
+  graduation year. Working while studying is normal, so ordinary, intern, junior, part-time
+  and assistant roles are never flagged. The `role_level` argument is accepted but unused.
+- **A-11 (Docker).** Docker was not available on the build machine, so the Dockerfile and
+  compose file are syntax-checked (YAML parse) but have never been built here; the first
+  real build is CI. The Ollama service is opt-in via `docker compose --profile ollama up`.
