@@ -247,6 +247,8 @@ class _ProvenanceRecorder:
         template_reason = (stages.get("narrative") or {}).get("fallback")
         for name in _TASK_ORDER:
             mine = [c for c in calls if _TASK_NAMES.get(c["task"], c["task"]) == name]
+            # Calls complete in arbitrary order now; sort so ties and reason order are stable.
+            mine.sort(key=lambda c: (c["provider"], c["model"], c["reason"] or ""))
             if not mine:
                 continue
             tally: dict[tuple, int] = {}
@@ -335,7 +337,15 @@ async def _screen_candidate(
     if stages["core"]["status"] == "error":
         return _error_report(candidate_id, candidate_name, stages, started, llm)
 
-    # --- Stages 3 & 4 in parallel -----------------------------------------
+    # --- Stages 3, 4 and the integrity interpreter, all concurrent ---------
+    # The interpreter reads only the scanner result, base_score and the JD, so it needs nothing
+    # from authenticity or the narrative and starts as soon as core has produced base_score.
+    # Module D (below) stays after authenticity: it consumes its results.
+    async def run_interpreter() -> dict | None:
+        with Stage(stages, "integrity_interpret", _emit):
+            return await interpret(scanner, scores["base_score"], jd_text, llm)
+        return None  # Stage swallowed an exception; the fallback below handles it
+
     async def run_authenticity() -> dict:
         with Stage(stages, "authenticity", _emit):
             return await assess(
@@ -402,15 +412,20 @@ async def _screen_candidate(
 
     auth_task = asyncio.create_task(run_authenticity())
     narr_task = asyncio.create_task(run_narrative())
+    integ_task = asyncio.create_task(run_interpreter())
     authenticity = await auth_task
     narrative = await narr_task
+    integrity = await integ_task  # None if the interpreter raised (Stage swallows it)
     authenticity = authenticity if isinstance(authenticity, dict) else None
     narrative = narrative if isinstance(narrative, dict) else {}
+    # Concurrent stages finish in arbitrary order; keep meta.stages in a fixed order.
+    _order = ("parse", "integrity", "core", "authenticity", "narrative", "integrity_interpret")
+    _sorted = {k: stages[k] for k in _order if k in stages}
+    _sorted.update({k: v for k, v in stages.items() if k not in _sorted})
+    stages.clear()
+    stages.update(_sorted)
 
     # --- Stage 5: aggregation (deterministic) ------------------------------
-    integrity = None  # stays None if the interpreter raises (Stage swallows it); handled below
-    with Stage(stages, "integrity_interpret", _emit):
-        integrity = await interpret(scanner, scores["base_score"], jd_text, llm)
     if not isinstance(integrity, dict):
         # The interpreter only writes prose. Penalty, intent and action are deterministic
         # facts from the scanner and must not be lost when the interpreter fails: an attack

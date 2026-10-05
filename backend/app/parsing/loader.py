@@ -6,7 +6,9 @@ back to a minimal built-in PDF text reader so the demo never dies (Spec 0.6).
 from __future__ import annotations
 
 import re
+import struct
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from io import BytesIO
 
@@ -115,13 +117,142 @@ def _wval(el) -> str | None:
     return None if el is None else el.get(_W + "val")
 
 
-def _load_xml(z: zipfile.ZipFile, name: str):
+_DOCX_HELP = "Re-save the file from Word as a normal DOCX, or export it as a PDF, or paste the text."
+
+
+def _lim(name: str, default: int) -> int:
+    return int(cfg("ingest." + name, default))
+
+
+def _bad_docx(why: str) -> UnreadableFile:
+    return UnreadableFile(f"This DOCX was not opened because {why}.", _DOCX_HELP)
+
+
+def _safe_member_name(name: str) -> bool:
+    parts = name.replace("\\", "/").split("/")
+    return not (
+        not name or name.startswith(("/", "\\")) or "\x00" in name or ".." in parts
+        or (len(name) > 1 and name[1] == ":")
+    )
+
+
+class _SafeZip:
+    """A read-only view of a DOCX package that cannot be used to exhaust memory. The caps are
+    checked on the declared sizes first, then again on the bytes that really come out of the
+    decompressor, so a header that lies about its size gains nothing. Nothing is extracted to
+    disk, but member names are still validated."""
+
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+        self.max_member = _lim("docx_max_member_bytes", 20 * 1024 * 1024)
+        self.budget = _lim("docx_max_total_bytes", 50 * 1024 * 1024)
+        max_members = _lim("docx_max_members", 500)
+        # The central directory size comes from the end record. Checking it before zipfile
+        # builds one ZipInfo per entry keeps a package with millions of members cheap.
+        eocd = data.rfind(b"PK\x05\x06", max(0, len(data) - 65557))
+        if eocd >= 0 and len(data) - eocd >= 22:
+            cd_size = struct.unpack("<I", data[eocd + 12 : eocd + 16])[0]
+            if cd_size > max_members * 1024:
+                raise _bad_docx("it contains too many parts")
+        zf = zipfile.ZipFile(BytesIO(data))
+        infos = zf.infolist()
+        if len(infos) > max_members:
+            raise _bad_docx("it contains too many parts")
+        total = 0
+        ratio = _lim("docx_max_ratio", 100)
+        floor = _lim("docx_ratio_floor_bytes", 65536)
+        for i in infos:
+            if not _safe_member_name(i.filename):
+                raise _bad_docx("it contains a part with an unsafe name")
+            if i.file_size > self.max_member:
+                raise _bad_docx("one of its parts is far larger than a resume should be")
+            if i.file_size > floor and i.file_size > ratio * max(i.compress_size, 1):
+                raise _bad_docx("it is compressed far more than a real document would be")
+            total += i.file_size
+        if total > self.budget:
+            raise _bad_docx("it would expand to far more data than a resume should hold")
+        if total > floor and total > ratio * max(len(data), 1):
+            raise _bad_docx("it is compressed far more than a real document would be")
+        self.infos = {i.filename: i for i in infos}
+
+    def namelist(self) -> list[str]:
+        return list(self.infos)
+
+    def read(self, name: str) -> bytes:
+        """Decompress one member, counting the bytes actually produced."""
+        info = self.infos[name]
+        if info.flag_bits & 0x1:
+            raise _bad_docx("it is password protected")
+        off = info.header_offset
+        hdr = self.data[off : off + 30]
+        if len(hdr) < 30 or hdr[:4] != b"PK\x03\x04":
+            raise _bad_docx("it is damaged")
+        nlen, xlen = struct.unpack("<HH", hdr[26:30])
+        start = off + 30 + nlen + xlen
+        raw = self.data[start : start + info.compress_size]
+        limit = min(info.file_size, self.max_member, self.budget)
+        if info.compress_type == zipfile.ZIP_STORED:
+            out = raw
+            if len(out) > limit:
+                raise _bad_docx("it contains a part that is larger than its header says")
+        elif info.compress_type == zipfile.ZIP_DEFLATED:
+            d = zlib.decompressobj(-15)
+            parts: list[bytes] = []
+            got, step = 0, 64 * 1024
+            try:
+                for pos in range(0, len(raw), step):
+                    piece = d.decompress(raw[pos : pos + step], step)
+                    while True:
+                        got += len(piece)
+                        if got > limit:  # the real output, not the header, is capped
+                            raise _bad_docx("it contains a part that is larger than its header says")
+                        parts.append(piece)
+                        if d.eof or (not d.unconsumed_tail and len(piece) < step):
+                            break  # a full-size piece may hide buffered output: ask again
+                        piece = d.decompress(d.unconsumed_tail, step)
+                    if d.eof:
+                        break
+            except zlib.error as exc:
+                raise _bad_docx("it is damaged") from exc
+            out = b"".join(parts)
+        else:
+            raise _bad_docx("it uses an unsupported compression method")
+        if len(out) != info.file_size:
+            raise _bad_docx("it is damaged")
+        self.budget -= len(out)
+        if self.budget < 0:
+            raise _bad_docx("it would expand to far more data than a resume should hold")
+        return out
+
+
+def _load_xml(z, name: str):
     import xml.etree.ElementTree as ET
 
     raw = z.read(name)
     if b"<!DOCTYPE" in raw[:4096].upper() or b"<!ENTITY" in raw.upper():
         raise ValueError(f"DTD or entity declarations are not allowed ({name})")
-    return ET.fromstring(raw)
+    # Depth and element count are counted while parsing, so a hostile part is abandoned
+    # early instead of being built in full (and later walked by recursive code).
+    max_depth, max_el = _lim("xml_max_depth", 100), _lim("xml_max_elements", 300000)
+    parser: ET.XMLPullParser = ET.XMLPullParser(events=("start", "end"))
+    depth = count = 0
+    root = None
+    for i in range(0, len(raw), 65536):
+        parser.feed(raw[i : i + 65536])
+        for event in parser.read_events():
+            ev, el = event  # type: ignore[misc]  # typeshed types events as 1-tuples
+            if ev == "start":
+                root = el if root is None else root
+                depth += 1
+                count += 1
+                if depth > max_depth or count > max_el:
+                    raise _bad_docx("its text is structured in an unusually deep or large way")
+            else:
+                depth -= 1
+    parser.close()
+    if root is None:
+        raise ET.ParseError("no element found")
+    return root
 
 
 def _theme_colors(root) -> dict[str, int]:
@@ -387,7 +518,7 @@ def _luminance_of(rgb: int) -> float:
     return _luminance(rgb)
 
 
-def _rels(z: zipfile.ZipFile, names: set[str]) -> dict[str, tuple[str, str]]:
+def _rels(z: _SafeZip, names: set[str]) -> dict[str, tuple[str, str]]:
     """document.xml.rels as {rId: (relationship type suffix, package path)}."""
     import posixpath
 
@@ -396,8 +527,8 @@ def _rels(z: zipfile.ZipFile, names: set[str]) -> dict[str, tuple[str, str]]:
         return out
     try:
         root = _load_xml(z, "word/_rels/document.xml.rels")
-    except ValueError:
-        raise  # DTD / entity declarations are rejected outright
+    except (ValueError, UnreadableFile):
+        raise  # DTD / entity declarations and hostile parts are rejected outright
     except Exception:
         return out
     for rel in root:
@@ -416,84 +547,86 @@ def _docx(data: bytes, filename: str) -> ParsedDoc:
     import html
 
     try:
-        with zipfile.ZipFile(BytesIO(data)) as z:
-            names = set(z.namelist())
-            root = _load_xml(z, "word/document.xml")
-            core = z.read("docProps/core.xml").decode("utf-8", "replace") if "docProps/core.xml" in names else ""
-            rels = _rels(z, names)
+        z = _SafeZip(data)
+        names = set(z.namelist())
+        root = _load_xml(z, "word/document.xml")
+        core = z.read("docProps/core.xml").decode("utf-8", "replace") if "docProps/core.xml" in names else ""
+        rels = _rels(z, names)
 
-            def optional(path: str | None):
-                if not path or path not in names:
-                    return None
-                try:
-                    return _load_xml(z, path)
-                except ValueError:
-                    raise
-                except Exception:
-                    return None  # an unparseable optional part adds no text a reader could see
+        def optional(path: str | None):
+            if not path or path not in names:
+                return None
+            try:
+                return _load_xml(z, path)
+            except (ValueError, UnreadableFile):
+                raise
+            except Exception:
+                return None  # an unparseable optional part adds no text a reader could see
 
-            theme_path = next((p for t, p in rels.values() if t == "theme"), "word/theme/theme1.xml")
-            theme = _theme_colors(optional(theme_path))
-            styles_path = next((p for t, p in rels.values() if t == "styles"), "word/styles.xml")
-            styles = _parse_styles(optional(styles_path), theme)
-            settings = optional(next((p for t, p in rels.values() if t == "settings"), "word/settings.xml"))
-            even_odd = settings is not None and any(
-                (_wval(e) or "true").lower() not in _OFF for e in settings.iter(_W + "evenAndOddHeaders")
-            )
+        theme_path = next((p for t, p in rels.values() if t == "theme"), "word/theme/theme1.xml")
+        theme = _theme_colors(optional(theme_path))
+        styles_path = next((p for t, p in rels.values() if t == "styles"), "word/styles.xml")
+        styles = _parse_styles(optional(styles_path), theme)
+        settings = optional(next((p for t, p in rels.values() if t == "settings"), "word/settings.xml"))
+        even_odd = settings is not None and any(
+            (_wval(e) or "true").lower() not in _OFF for e in settings.iter(_W + "evenAndOddHeaders")
+        )
 
-            docx = _Docx(styles, theme)
-            body = docx.part(root)
+        docx = _Docx(styles, theme)
+        body = docx.part(root)
 
-            # Headers and footers print on every page, so their text counts as resume text,
-            # but only the ones a section really displays: a first-page header needs
-            # w:titlePg and an even-page one needs evenAndOddHeaders.
-            shown: dict[str, list[str]] = {"header": [], "footer": []}
-            for sect in root.iter(_W + "sectPr"):
-                title_pg = sect.find(_W + "titlePg")
-                first_on = title_pg is not None and (_wval(title_pg) or "true").lower() not in _OFF
-                for ref in list(sect):
-                    kind = ref.tag.removeprefix(_W).removesuffix("Reference")
-                    if ref.tag not in (_W + "headerReference", _W + "footerReference"):
-                        continue
-                    typ = ref.get(_W + "type", "default")
-                    on = typ == "default" or (typ == "first" and first_on) or (typ == "even" and even_odd)
-                    rid = ref.get(_R + "id")
-                    if on and rid in rels and rels[rid][1] not in shown[kind]:
-                        shown[kind].append(rels[rid][1])
-            done: set[str] = set()
-            seen_hf: set[str] = set()
-            hf_lines: dict[str, list[str]] = {"header": [], "footer": []}
-            for kind in ("header", "footer"):
-                for path in shown[kind]:
-                    part_root = optional(path)
-                    done.add(path)
-                    if part_root is not None:
-                        for line in docx.part(part_root):
-                            if line not in seen_hf:
-                                seen_hf.add(line)
-                                hf_lines[kind].append(line)
-
-            # Footnotes and endnotes: visible only when the body references them.
-            note_lines: list[str] = []
-            for kind in ("footnote", "endnote"):
-                path = next((p for t, p in rels.values() if t == kind + "s"), None)  # type: ignore[assignment]  # reuses the name `path` from the loop above
-                part_root = optional(path)
-                if part_root is None:
+        # Headers and footers print on every page, so their text counts as resume text,
+        # but only the ones a section really displays: a first-page header needs
+        # w:titlePg and an even-page one needs evenAndOddHeaders.
+        shown: dict[str, list[str]] = {"header": [], "footer": []}
+        for sect in root.iter(_W + "sectPr"):
+            title_pg = sect.find(_W + "titlePg")
+            first_on = title_pg is not None and (_wval(title_pg) or "true").lower() not in _OFF
+            for ref in list(sect):
+                kind = ref.tag.removeprefix(_W).removesuffix("Reference")
+                if ref.tag not in (_W + "headerReference", _W + "footerReference"):
                     continue
+                typ = ref.get(_W + "type", "default")
+                on = typ == "default" or (typ == "first" and first_on) or (typ == "even" and even_odd)
+                rid = ref.get(_R + "id")
+                if on and rid in rels and rels[rid][1] not in shown[kind]:
+                    shown[kind].append(rels[rid][1])
+        done: set[str] = set()
+        seen_hf: set[str] = set()
+        hf_lines: dict[str, list[str]] = {"header": [], "footer": []}
+        for kind in ("header", "footer"):
+            for path in shown[kind]:
+                part_root = optional(path)
                 done.add(path)
-                used = {e.get(_W + "id") for e in root.iter(_W + kind + "Reference")}
-                by_id = {n.get(_W + "id"): n for n in part_root.iter(_W + kind)}
-                for nid, node in by_id.items():
-                    note_lines += docx.part(node, hidden=nid not in used)
+                if part_root is not None:
+                    for line in docx.part(part_root):
+                        if line not in seen_hf:
+                            seen_hf.add(line)
+                            hf_lines[kind].append(line)
 
-            # Everything else that carries text but never prints: comments (not part of the
-            # printed page), and header/footer/note parts nothing displays.
-            for name in sorted(names - done):
-                if _HIDDEN_PART.fullmatch(name):
-                    part_root = optional(name)
-                    if part_root is not None:
-                        origin = "comment" if "/comments" in name else "body"
-                        docx.part(part_root, hidden=True, origin=origin)
+        # Footnotes and endnotes: visible only when the body references them.
+        note_lines: list[str] = []
+        for kind in ("footnote", "endnote"):
+            path = next((p for t, p in rels.values() if t == kind + "s"), None)  # type: ignore[assignment]  # reuses the name `path` from the loop above
+            part_root = optional(path)
+            if part_root is None:
+                continue
+            done.add(path)
+            used = {e.get(_W + "id") for e in root.iter(_W + kind + "Reference")}
+            by_id = {n.get(_W + "id"): n for n in part_root.iter(_W + kind)}
+            for nid, node in by_id.items():
+                note_lines += docx.part(node, hidden=nid not in used)
+
+        # Everything else that carries text but never prints: comments (not part of the
+        # printed page), and header/footer/note parts nothing displays.
+        for name in sorted(names - done):
+            if _HIDDEN_PART.fullmatch(name):
+                part_root = optional(name)
+                if part_root is not None:
+                    origin = "comment" if "/comments" in name else "body"
+                    docx.part(part_root, hidden=True, origin=origin)
+    except UnreadableFile:
+        raise
     except Exception as exc:
         raise UnreadableFile(
             f"The DOCX file could not be opened ({exc}).", "Re-export as PDF or paste the text."
@@ -531,8 +664,11 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
                 "The PDF is password protected.", "Remove the password or paste the text."
             )
         pages = doc.page_count
+        _check_pdf_pages(pages)
         meta = {k: str(v) for k, v in (doc.metadata or {}).items() if v}
         text_parts = []
+        max_spans, max_chars = _lim("pdf_max_spans", 200000), _lim("pdf_max_chars", 2000000)
+        chars = 0
         for page in doc:  # type: ignore[attr-defined]  # pymupdf stubs omit Document.__iter__
             page_size = (page.rect.width, page.rect.height)
             # Span dicts carry no render mode, so take invisible (mode 3) runs
@@ -546,6 +682,9 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
                 for line in block.get("lines", []):
                     for sp in line.get("spans", []):
                         bbox = tuple(sp["bbox"])
+                        chars += len(sp["text"])
+                        if len(spans) >= max_spans or chars > max_chars:
+                            raise _pdf_too_dense()
                         spans.append(
                             Span(
                                 text=sp["text"],
@@ -573,9 +712,12 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
 
         with pdfplumber.open(BytesIO(data)) as pdf:
             pages = len(pdf.pages)
+            _check_pdf_pages(pages)
             by_parser["pdfplumber"] = "\n".join(p.extract_text() or "" for p in pdf.pages)
     except ImportError:
         pass
+    except UnreadableFile:
+        raise
     except Exception:
         by_parser["pdfplumber"] = ""
 
@@ -611,6 +753,22 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
     )
 
 
+def _check_pdf_pages(pages: int) -> None:
+    limit = _lim("pdf_max_pages", 50)
+    if pages > limit:
+        raise UnreadableFile(
+            f"This PDF has {pages} pages; the limit is {limit}.",
+            "Upload just the resume pages, or paste the text.",
+        )
+
+
+def _pdf_too_dense() -> UnreadableFile:
+    return UnreadableFile(
+        "This PDF holds far more text than a resume should.",
+        "Upload just the resume pages, or paste the text.",
+    )
+
+
 def _ocr_pdf(data: bytes) -> str | None:
     """OCR for a PDF with no text layer. Optional (Spec 7): needs the pytesseract package,
     Pillow and a tesseract binary. Returns None when any of them is missing, when OCR fails,
@@ -629,9 +787,10 @@ def _ocr_pdf(data: bytes) -> str | None:
             import fitz  # type: ignore[no-redef]
 
         doc = fitz.open(stream=data, filetype="pdf")
-        limit = int(cfg("ingest.ocr_max_pages", 5))
+        limit = min(int(cfg("ingest.ocr_max_pages", 5)), _lim("pdf_max_pages", 50))
         out = []
-        for page in list(doc)[:limit]:  # type: ignore[call-overload]  # pymupdf stubs omit __iter__
+        for n in range(min(limit, doc.page_count)):  # never materialise every page
+            page = doc.load_page(n)
             pix = page.get_pixmap(dpi=200)
             out.append(pytesseract.image_to_string(Image.open(BytesIO(pix.tobytes("png")))))
         return "\n".join(out).strip() or None

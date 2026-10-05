@@ -53,3 +53,10 @@ All milestones M0-M9 are built. The remaining gaps are external, not code:
 2. **No real labelled dataset.** Claim-extraction F1, AUROC, calibration ECE and the
    fairness false-flag gap stay "not evaluated" in eval/report.md.
 3. **Detection rates are on synthetic fixtures only** (25/25 attacks, 0/8 false positives).
+
+## Before any real deployment
+
+**Add authentication.** The API has none, and CORS allows every origin, so anyone who can reach
+the service can read every candidate's report by ID. This is the top blocker for handling real
+candidate data (see ASSUMPTIONS.md A-28 for the full list). It needs a product decision: API key,
+SSO, per-recruiter ownership of screenings.

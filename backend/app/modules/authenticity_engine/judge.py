@@ -21,6 +21,7 @@ All third-party text goes to the model wrapped in untrusted_document tags.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 
 from ...config import cfg
@@ -154,22 +155,33 @@ def _validate(claim: dict, det: dict, raw: dict, index: dict) -> dict | None:
     }
 
 
+def _judge_concurrency() -> int:
+    try:
+        return max(1, int(cfg("authenticity.judge_concurrency", 4)))
+    except (TypeError, ValueError):
+        return 4
+
+
 async def llm_judge_claims(claims: list[dict], evidence_index: dict, llm: LLMClient) -> list[dict]:
     """Judge each claim; `claims` items are {claim_id, type, text, deterministic: {...}}.
 
-    Returns one dict per input claim: {claim_id, status, evidence, rationale,
+    Returns one dict per input claim, in input order: {claim_id, status, evidence, rationale,
     judge_confidence, llm_called, upgraded}. No LLM call when the index is empty or
-    the claim is not WEAK/UNSUPPORTED, so output without sources is unchanged."""
-    out = []
+    the claim is not WEAK/UNSUPPORTED, so output without sources is unchanged.
+
+    The per-claim model calls run concurrently, at most `authenticity.judge_concurrency` at a
+    time. Each claim is judged independently from its own deterministic result, so completion
+    order cannot change any outcome, and gather returns results in claim order."""
     view = _model_view(evidence_index) if evidence_index else []
-    for c in claims:
+    sem = asyncio.Semaphore(_judge_concurrency())
+
+    async def one(c: dict) -> dict:
         det = c["deterministic"]
         res = {"claim_id": c["claim_id"], "status": det["status"], "evidence": det["evidence"],
                "rationale": det["rationale"], "judge_confidence": det["judge_confidence"],
                "llm_called": False, "upgraded": False}
         if not evidence_index or det["status"] not in JUDGE_CANDIDATE_STATUSES:
-            out.append(res)
-            continue
+            return res
         payload = {
             "claim": {"claim_id": c["claim_id"], "type": c["type"],
                       "text": wrap_untrusted(c["text"])},
@@ -180,12 +192,14 @@ async def llm_judge_claims(claims: list[dict], evidence_index: dict, llm: LLMCli
         }
         res["llm_called"] = True
         try:
-            r = await llm.complete_json(SYSTEM_PROMPT, payload, task="claim_judge", temperature=0)
+            async with sem:
+                r = await llm.complete_json(SYSTEM_PROMPT, payload, task="claim_judge", temperature=0)
             upgraded = _validate(c, det, r.data, evidence_index)
         except Exception:
             upgraded = None  # provider failure keeps the deterministic result
         if upgraded:
             res.update(upgraded)
             res["upgraded"] = True
-        out.append(res)
-    return out
+        return res
+
+    return list(await asyncio.gather(*(one(c) for c in claims)))

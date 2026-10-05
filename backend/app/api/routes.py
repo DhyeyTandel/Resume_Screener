@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -110,6 +111,80 @@ async def health() -> dict:
     }
 
 
+def _lim(name: str, default: int) -> int:
+    return int(cfg("ingest." + name, default))
+
+
+def sanitize_filename(name: str | None) -> str:
+    """A safe display name for an upload: no directories, no control or invisible characters,
+    bounded length, extension kept (the loader dispatches on it)."""
+    text = name or ""
+    text = text.replace("\\", "/").rsplit("/", 1)[-1]
+    text = "".join(c for c in text if unicodedata.category(c) not in ("Cc", "Cf", "Cs", "Co", "Cn"))
+    text = " ".join(text.split()).lstrip(".").strip()
+    if not text:
+        return "upload"
+    limit = max(_lim("max_filename_chars", 120), 8)
+    if len(text) > limit:
+        stem, dot, ext = text.rpartition(".")
+        if dot and 0 < len(ext) <= 8:
+            text = stem[: limit - len(ext) - 1] + "." + ext
+        else:
+            text = text[:limit]
+    return text
+
+
+def _clean_label(text: str, n: int = 60) -> str:
+    return "".join(c for c in text if unicodedata.category(c) not in ("Cc", "Cf")).strip()[:n]
+
+
+def _limit_error(status: int, code: str, message: str, field: str, remediation: str):
+    return JSONResponse(status_code=status, content=err(code, message, field, remediation))
+
+
+async def _bounded_read(f: UploadFile, limit: int) -> bytes:
+    """At most limit+1 bytes, so callers can tell "over the limit" without holding the rest."""
+    return await f.read(limit + 1)
+
+
+def _check_screening_limits(
+    jd_text: str, files: list, pasted: list[str], linkedin: list, github: list, portfolio: list
+):
+    max_files, max_pasted = _lim("max_files", 25), _lim("max_pasted", 25)
+    jd_max = _lim("jd_max_chars", 50000)
+    if len(jd_text) > jd_max:
+        return _limit_error(
+            413, "JD_TOO_LARGE", f"The job description is longer than {jd_max:,} characters.",
+            "jd_text", "Paste only the role description, not the whole careers page.",
+        )
+    if len(files) > max_files:
+        return _limit_error(
+            422, "TOO_MANY_FILES", f"At most {max_files} resume files can be screened at once.",
+            "files", f"Split the batch into groups of {max_files} or fewer.",
+        )
+    if len(pasted) > max_pasted:
+        return _limit_error(
+            422, "TOO_MANY_PASTED_RESUMES",
+            f"At most {max_pasted} pasted resumes can be screened at once.", "pasted_resumes",
+            f"Split the batch into groups of {max_pasted} or fewer.",
+        )
+    if len(linkedin) > max_files or len(github) > max_files or len(portfolio) > max_files:
+        return _limit_error(
+            422, "TOO_MANY_ATTACHMENTS",
+            f"At most {max_files} LinkedIn, GitHub or portfolio entries can be sent at once.",
+            "linkedin_files", "Send one entry per resume file.",
+        )
+    pasted_max = _lim("pasted_max_chars", 200000)
+    for text in pasted:
+        if len(text) > pasted_max:
+            return _limit_error(
+                413, "PASTED_RESUME_TOO_LARGE",
+                f"A pasted resume is longer than {pasted_max:,} characters.", "pasted_resumes",
+                "Paste only the resume text.",
+            )
+    return None
+
+
 @router.post("/screenings")
 async def create_screening(
     jd_text: str = Form(...),
@@ -130,6 +205,11 @@ async def create_screening(
                 "Paste the job description before screening.",
             ),
         )
+    too_big = _check_screening_limits(
+        jd_text, files, pasted_resumes, linkedin_files, github_usernames, portfolio_urls
+    )
+    if too_big is not None:
+        return too_big
     if not files and not pasted_resumes:
         return JSONResponse(
             status_code=422,
@@ -142,10 +222,19 @@ async def create_screening(
     consent = {"github": consent_github, "linkedin": consent_linkedin, "portfolio": consent_portfolio}
     sid = str(uuid.uuid4())[:8]
     inputs: list[dict] = []
+    li_max = _lim("linkedin_max_bytes", 2 * 1024 * 1024)
+    file_max = int(cfg("ingest.max_bytes", 10 * 1024 * 1024))
     for i, f in enumerate(files):
         linkedin_export = None
         if i < len(linkedin_files) and linkedin_files[i] and linkedin_files[i].filename:
-            content = (await linkedin_files[i].read()).decode("utf-8", "replace")
+            raw = await _bounded_read(linkedin_files[i], li_max)
+            if len(raw) > li_max:
+                return _limit_error(
+                    413, "LINKEDIN_FILE_TOO_LARGE",
+                    f"A LinkedIn export is larger than the {li_max / (1024 * 1024):g} MB limit.",
+                    "linkedin_files", "Upload the profile export only, not other documents.",
+                )
+            content = raw.decode("utf-8", "replace")
             # A .json upload is a structured export; anything else is treated as a
             # "Save to PDF" text export (Spec 11: no scraping, export only).
             import json as _json
@@ -153,15 +242,17 @@ async def create_screening(
             if (linkedin_files[i].filename or "").lower().endswith(".json"):
                 try:
                     linkedin_export = {"type": "structured_json", "content": _json.loads(content)}
-                except ValueError:
+                except (ValueError, RecursionError):
                     linkedin_export = {"type": "pdf_export", "content": content}
             else:
                 linkedin_export = {"type": "pdf_export", "content": content}
+        safe_name = sanitize_filename(f.filename)
         inputs.append(
             {
-                "filename": f.filename,
-                "data": await f.read(),
-                "candidate_name": (f.filename or "").rsplit(".", 1)[0].replace("_", " ").title(),
+                "filename": safe_name,
+                # One byte past the limit is enough for the loader to refuse it as before.
+                "data": await _bounded_read(f, file_max),
+                "candidate_name": safe_name.rsplit(".", 1)[0].replace("_", " ").title(),
                 "github_username": github_usernames[i] if i < len(github_usernames) else None,
                 "portfolio_url": portfolio_urls[i] if i < len(portfolio_urls) else None,
                 "linkedin_export": linkedin_export,
@@ -173,7 +264,7 @@ async def create_screening(
             inputs.append(
                 {
                     "pasted_text": text,
-                    "candidate_name": text.strip().splitlines()[0][:60] or "Pasted candidate",
+                    "candidate_name": _clean_label(text.strip().splitlines()[0]) or "Pasted candidate",
                     "consent": consent,
                 }
             )

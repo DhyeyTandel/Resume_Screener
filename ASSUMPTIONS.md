@@ -305,3 +305,29 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   for the first time: Module D's first reply on the attack case hit the token limit and the
   doubled-budget retry succeeded, in both runs. Screening rows now carry their compact
   provenance, so the dashboard no longer fetches every full report just to label each row.
+- **A-27 (latency).** The integrity interpreter needs only the scanner result, base score and JD,
+  so it now runs concurrently with the authenticity check and the narrative instead of after
+  them; claim-judge calls run concurrently under a semaphore (`authenticity.judge_concurrency`,
+  default 4). Module D still waits for authenticity (it needs the 3.2 adapter's input). Results
+  are kept in claim order; provenance and `meta.stages` are re-sorted into a fixed order so
+  reports stay deterministic now that calls finish in arbitrary order. Simulated (0.2s per
+  call): 2.03s -> 0.62s for a 10-call candidate with identical report content. Live on
+  OpenRouter: the judge-heavy case went from ~38-40s to 22.7s with no rate limiting at 4-way
+  concurrency; a 2-call case is unchanged within model latency noise (24.2s this run, 10-14s
+  earlier; one call alone took 16.4s). Both measured runs are under the 25s p50 target, but
+  two runs are not a p50.
+- **A-28 (upload hardening).** Defences against resource abuse by hostile uploads, all
+  configurable under `ingest:`: DOCX zip-bomb caps (members, per-member and total uncompressed
+  size, compression ratio) enforced on bytes actually decompressed, so a lying header gains
+  nothing; traversal member names; bounded incremental XML parsing (depth and element caps);
+  PDF page cap that rejects rather than truncates (truncating would let hidden text past page
+  50 escape the integrity scan); a streaming request-body limit that also handles chunked and
+  lying-Content-Length bodies; per-screening counts and text-length caps; sanitized filenames.
+  Every hostile case is rejected in well under a second with bounded memory, and every
+  legitimate fixture parses identically to before.
+  **Remaining security gaps, most important first:** (1) **no authentication or
+  authorization on any endpoint** and CORS allows all origins: anyone who can reach the
+  service can read every candidate report, audit trail and authenticity result by ID;
+  (2) no rate limiting or bounded work queue; (3) PDF parsing has no CPU/time limit (a
+  subprocess sandbox would bound it); (4) `/interview-questions` accepts an unvalidated dict.
+  Authentication is a product decision and was deliberately not added unasked.

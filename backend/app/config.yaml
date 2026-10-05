@@ -9,7 +9,7 @@ llm:
   max_retries: 2
   timeout_s: 60
 cache: { enabled: true, ttl_hours: 24 }
-ingest: { max_bytes: 10485760 }
+ingest: { max_bytes: 10485760, ocr_max_pages: 5, docx_max_total_bytes: 52428800, docx_max_member_bytes: 20971520, docx_max_members: 500, docx_max_ratio: 100, docx_ratio_floor_bytes: 65536, xml_max_depth: 100, xml_max_elements: 100000, pdf_max_pages: 50, pdf_max_spans: 200000, pdf_max_chars: 2000000, max_files: 25, max_pasted: 25, max_request_bytes: 52428800, linkedin_max_bytes: 2097152, jd_max_chars: 50000, pasted_max_chars: 200000, max_filename_chars: 120 }
 integrity:
   hidden_font_pt_max: 4.0
   min_contrast_ratio: 1.3
@@ -29,6 +29,7 @@ semantic:
   transfer_weights: { skill_similarity: 0.25, concept_overlap: 0.25, experience_years: 0.10, project_evidence: 0.20, tech_proximity: 0.10, learning_curve: 0.10 }
   transfer_classes: { strongly: 0.75, moderately: 0.55, weakly: 0.30 }
 authenticity:
+  judge_concurrency: 4
   weights: { alpha: 0.6, beta: 0.3, gamma: 0.1, required_skill_multiplier: 1.5 }
   claim_weights: { PROJECT: 1.0, ROLE: 1.0, METRIC: 1.0, CERTIFICATION: 0.8, EDUCATION: 0.8, SKILL: 0.6, ACHIEVEMENT: 0.7 }
   bands: { min_confidence: 0.40, high_trust: 0.75, moderate: 0.50 }

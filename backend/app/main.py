@@ -10,13 +10,83 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api.routes import router
+from .api.routes import err, router
+from .config import cfg
 
 app = FastAPI(
     title="AI Resume Screening Assistant",
     version="0.1.0",
     description="Recruiter-facing decision support. A human recruiter always decides.",
 )
+
+
+class _TooLarge(Exception):
+    pass
+
+
+class BodyLimitMiddleware:
+    """Caps the request body before any parser sees it. A declared Content-Length over the limit
+    is refused outright; otherwise (chunked uploads, or a header that lies) the bytes are counted
+    as they stream in and the request is abandoned at the limit, so the body is never read into
+    memory in full."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http" or scope["method"] not in ("POST", "PUT", "PATCH") or not scope[
+            "path"
+        ].startswith("/v1/"):
+            await self.app(scope, receive, send)
+            return
+        limit = int(cfg("ingest.max_request_bytes", 50 * 1024 * 1024))
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and declared.isdigit() and int(declared) > limit:
+            await self._refuse(send, limit)
+            return
+        seen = 0
+        started = False
+
+        async def counted_receive():
+            nonlocal seen
+            msg = await receive()
+            if msg["type"] == "http.request":
+                seen += len(msg.get("body", b""))
+                if seen > limit:
+                    raise _TooLarge
+            return msg
+
+        async def tracking_send(msg):
+            nonlocal started
+            started = started or msg["type"] == "http.response.start"
+            await send(msg)
+
+        try:
+            await self.app(scope, counted_receive, tracking_send)
+        except _TooLarge:
+            if not started:
+                await self._refuse(send, limit)
+
+    @staticmethod
+    async def _refuse(send, limit: int) -> None:
+        resp = JSONResponse(
+            status_code=413,
+            content=err(
+                "REQUEST_TOO_LARGE",
+                f"The upload is larger than the {limit / (1024 * 1024):g} MB request limit.",
+                None,
+                "Upload fewer or smaller files, or paste the text instead.",
+            ),
+            headers={"Connection": "close"},
+        )
+        await resp({"type": "http", "method": "POST"}, _no_receive, send)
+
+
+async def _no_receive():
+    return {"type": "http.disconnect"}
+
+
+app.add_middleware(BodyLimitMiddleware)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
