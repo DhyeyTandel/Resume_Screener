@@ -5,8 +5,10 @@ back to a minimal built-in PDF text reader so the demo never dies (Spec 0.6).
 """
 from __future__ import annotations
 
+import multiprocessing
 import re
 import struct
+import sys
 import zipfile
 import zlib
 from dataclasses import dataclass, field
@@ -648,7 +650,7 @@ def _docx(data: bytes, filename: str) -> ParsedDoc:
     )
 
 
-def _pdf(data: bytes, filename: str) -> ParsedDoc:
+def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
     spans: list[Span] = []
     by_parser: dict[str, str] = {}
     pages, page_size, meta = 1, (612.0, 792.0), {}
@@ -751,6 +753,153 @@ def _pdf(data: bytes, filename: str) -> ParsedDoc:
         source=filename,
         ocr_used=ocr_used,
     )
+
+
+# ---- PDF sandbox (A-28 item 3) -------------------------------------------------------------
+# PyMuPDF and pdfplumber cannot be capped per page, so a crafted PDF can burn CPU or memory
+# inside the native library with no time bound. The whole PDF parse (including OCR) runs in a
+# fresh child process that the parent kills on a wall-clock timeout. In the child, RLIMIT_AS
+# bounds memory where the OS honours it (Linux; macOS ignores it, so only the timeout and an
+# RLIMIT_CPU backstop apply there). One fresh process per parse: a killed worker cannot poison
+# a pool, and with the fork start method the overhead is a few milliseconds.
+
+_PDF_HELP = "Re-export the PDF from its source application, or paste the text instead."
+
+
+def _apply_memory_limit(mem_bytes: int) -> bool:
+    """Cap the child's address space at its current size plus mem_bytes. Returns False when the
+    OS does not enforce RLIMIT_AS (macOS), so the caller knows only the timeout protects it."""
+    if sys.platform == "darwin" or mem_bytes <= 0:
+        return False
+    try:
+        import resource
+
+        base = 0
+        try:  # the forked child already maps the parent's address space: budget on top of it
+            with open("/proc/self/statm") as fh:
+                base = int(fh.read().split()[0]) * resource.getpagesize()
+        except (OSError, ValueError, IndexError):
+            pass
+        resource.setrlimit(resource.RLIMIT_AS, (base + mem_bytes, base + mem_bytes))
+        return True
+    except (ImportError, ValueError, OSError):
+        return False
+
+
+def _apply_cpu_limit(seconds: int) -> None:
+    try:
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_CPU, (seconds, seconds + 1))
+    except (ImportError, ValueError, OSError):
+        pass
+
+
+def _pdf_child_main(conn, data: bytes, filename: str, ingest: dict | None, mem_bytes: int,
+                    cpu_s: int) -> None:
+    """Runs in the child. Sends exactly one message: ("ok", ParsedDoc), ("unreadable", cls,
+    reason, remediation) or ("limit",). Exceptions are sent as plain tuples because
+    UnreadableFile does not pickle across processes."""
+    try:
+        if ingest is not None:  # spawned child: carry the parent's effective limits over
+            from .. import config as _config
+
+            _config.get_config()["ingest"].update(ingest)
+        _apply_cpu_limit(cpu_s)
+        _apply_memory_limit(mem_bytes)
+        try:
+            msg: tuple = ("ok", _pdf_inprocess(data, filename))
+        except NoTextLayer as exc:
+            msg = ("unreadable", "NoTextLayer", exc.reason, exc.remediation)
+        except UnreadableFile as exc:
+            msg = ("unreadable", "UnreadableFile", exc.reason, exc.remediation)
+        except MemoryError:
+            msg = ("limit",)
+        conn.send(msg)
+    except BaseException:  # includes a failed send; the parent treats silence as a crash
+        pass
+    finally:
+        conn.close()
+
+
+# Looked up at call time so tests can substitute the function the child runs.
+_SANDBOX_TARGET = _pdf_child_main
+
+
+def _sandbox_context():
+    want = str(cfg("ingest.pdf_sandbox_start", "fork"))
+    methods = multiprocessing.get_all_start_methods()
+    return multiprocessing.get_context(want if want in methods else "spawn")
+
+
+def _pdf_sandboxed(data: bytes, filename: str) -> ParsedDoc:
+    import time
+    import warnings
+
+    timeout = float(cfg("ingest.pdf_timeout_s", 20))
+    mem_bytes = int(cfg("ingest.pdf_memory_mb", 1024)) * 1024 * 1024
+    ctx = _sandbox_context()
+    ingest = None if ctx.get_start_method() == "fork" else dict(cfg("ingest", {}) or {})
+    parent, child_conn = ctx.Pipe(duplex=False)
+    with warnings.catch_warnings():
+        # Python 3.12+ warns when forking a threaded process. The child only parses and the
+        # timeout kills it if it ever deadlocks on an inherited lock.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        proc = ctx.Process(
+            target=_SANDBOX_TARGET,
+            args=(child_conn, data, filename, ingest, mem_bytes, int(timeout) + 1),
+            daemon=True,
+        )
+        proc.start()
+    child_conn.close()  # parent's copy, so EOF arrives if the child dies
+    msg = None
+    timed_out = False
+    try:
+        deadline = time.monotonic() + timeout
+        while msg is None:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                timed_out = True
+                break
+            if parent.poll(min(left, 0.25)):
+                try:
+                    msg = parent.recv()
+                except (EOFError, OSError):
+                    break  # child died without a result
+                except Exception:  # an unpicklable or corrupt reply is treated as a crash
+                    break
+            elif not proc.is_alive() and not parent.poll(0):
+                break
+    finally:
+        if proc.is_alive():
+            proc.kill()
+        proc.join()
+        parent.close()
+        proc.close()
+    if timed_out:
+        raise UnreadableFile(
+            f"This PDF took longer than {timeout:g} seconds to read and was stopped.",
+            "It may be damaged or crafted to be expensive. " + _PDF_HELP,
+        )
+    if msg is None:
+        raise UnreadableFile(
+            "The PDF reader stopped unexpectedly on this file.", _PDF_HELP
+        )
+    if msg[0] == "ok":
+        return msg[1]
+    if msg[0] == "limit":
+        raise UnreadableFile(
+            "This PDF needed more memory than the safety limit allows.",
+            "Upload just the resume pages, or paste the text.",
+        )
+    exc_cls = NoTextLayer if msg[1] == "NoTextLayer" else UnreadableFile
+    raise exc_cls(msg[2], msg[3])
+
+
+def _pdf(data: bytes, filename: str) -> ParsedDoc:
+    if not cfg("ingest.pdf_sandbox", True):
+        return _pdf_inprocess(data, filename)
+    return _pdf_sandboxed(data, filename)
 
 
 def _check_pdf_pages(pages: int) -> None:

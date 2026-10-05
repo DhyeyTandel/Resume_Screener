@@ -7,11 +7,11 @@ import os
 import unicodedata
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..config import cfg
 from ..db.store import get_store
@@ -22,6 +22,8 @@ from ..modules.core_screening.core import extract_requirements, structure_resume
 from ..modules.interview_questions.generator import generate_interview_questions
 from ..modules.skill_intelligence.transfer import analyze_skill
 from ..pipeline.orchestrator import UI_STAGES, screen_candidate
+from .auth import auth_required
+from .limits import release_admission, screening_slot, screening_slots, try_admit
 
 router = APIRouter(prefix="/v1")
 
@@ -108,6 +110,8 @@ async def health() -> dict:
         "fallback_chain": llm.chain,
         "mock_mode": llm.provider == "mock",
         "config_version": cfg("app.config_version"),
+        # A flag only: never keys or labels. The SPA reads it to decide whether to show a prompt.
+        "auth_required": auth_required(),
     }
 
 
@@ -187,6 +191,7 @@ def _check_screening_limits(
 
 @router.post("/screenings")
 async def create_screening(
+    request: Request,
     jd_text: str = Form(...),
     files: list[UploadFile] = File(default=[]),
     pasted_resumes: list[str] = Form(default=[]),
@@ -269,51 +274,67 @@ async def create_screening(
                 }
             )
 
+    # Bounded queue: refuse up front (nothing stored yet) rather than queue without limit.
+    if not try_admit(len(inputs)):
+        return screening_slots.rejection_response()
     get_store().create_screening(sid, len(inputs))
     progress = _register_progress(sid, inputs)
-    asyncio.create_task(_run(sid, jd_text, inputs, progress))
+    actor = getattr(request.state, "actor", None)
+    # `actor` is passed only when auth is on, so the open-mode call shape is unchanged.
+    asyncio.create_task(
+        _run(sid, jd_text, inputs, progress, **({"actor": actor} if actor else {}))
+    )
     return {"screening_id": sid, "total_candidates": len(inputs), "status": "processing"}
 
 
 async def _run(
-    sid: str, jd_text: str, inputs: list[dict], progress: list[dict] | None = None
+    sid: str,
+    jd_text: str,
+    inputs: list[dict],
+    progress: list[dict] | None = None,
+    actor: str | None = None,
 ) -> None:
     store = get_store()
     done = 0
     progress = progress if progress is not None else _new_progress(inputs)
-    for item, entry in zip(inputs, progress, strict=True):
-        entry["status"] = "running"
-        try:
-            report = await screen_candidate(
-                jd_text=jd_text, llm=LLMClient(), on_stage=_stage_callback(entry), **item
+    try:
+        for item, entry in zip(inputs, progress, strict=True):
+            entry["status"] = "running"
+            try:
+                async with screening_slot():  # at most N candidates screen at once, process-wide
+                    report = await screen_candidate(
+                        jd_text=jd_text, llm=LLMClient(), on_stage=_stage_callback(entry), **item
+                    )
+            except Exception as exc:
+                report = {
+                    "candidate_name": item.get("candidate_name", "Candidate"),
+                    "overall_match_score": 0,
+                    "recommendation": "Review Manually",
+                    "summary": f"This file could not be screened: {exc}",
+                    "requirement_match": [],
+                    "extensions": {"status": "Error", "error": str(exc),
+                                   "candidate_id": str(uuid.uuid4())[:8]},
+                }
+            _finish_progress(entry, failed=report["extensions"].get("status") == "Error")
+            cid = report["extensions"]["candidate_id"]
+            row = _row(cid, report)
+            store.save_candidate(cid, sid, report, row)
+            store.append_audit(
+                cid,
+                "screening_completed",
+                {
+                    "screening_id": sid,
+                    "integrity_verdict": row["integrity_verdict"],
+                    "integrity_action": row["integrity_action"],
+                    "config_version": cfg("app.config_version"),
+                    **({"actor": actor} if actor else {}),
+                },
             )
-        except Exception as exc:
-            report = {
-                "candidate_name": item.get("candidate_name", "Candidate"),
-                "overall_match_score": 0,
-                "recommendation": "Review Manually",
-                "summary": f"This file could not be screened: {exc}",
-                "requirement_match": [],
-                "extensions": {"status": "Error", "error": str(exc),
-                               "candidate_id": str(uuid.uuid4())[:8]},
-            }
-        _finish_progress(entry, failed=report["extensions"].get("status") == "Error")
-        cid = report["extensions"]["candidate_id"]
-        row = _row(cid, report)
-        store.save_candidate(cid, sid, report, row)
-        store.append_audit(
-            cid,
-            "screening_completed",
-            {
-                "screening_id": sid,
-                "integrity_verdict": row["integrity_verdict"],
-                "integrity_action": row["integrity_action"],
-                "config_version": cfg("app.config_version"),
-            },
-        )
-        done += 1
-        store.update_screening(sid, status="processing", done=done)
-    store.update_screening(sid, status="complete", done=done)
+            done += 1
+            store.update_screening(sid, status="processing", done=done)
+        store.update_screening(sid, status="complete", done=done)
+    finally:
+        release_admission(len(inputs))  # always, even if the run is cancelled or crashes
 
 
 def _row(cid: str, r: dict) -> dict:
@@ -358,7 +379,9 @@ async def get_candidate(cid: str):
 
 
 @router.post("/candidates/{cid}/decision")
-async def record_decision(cid: str, decision: str = Form(...), note: str = Form("")):
+async def record_decision(
+    request: Request, cid: str, decision: str = Form(...), note: str = Form("")
+):
     store = get_store()
     if store.get_candidate(cid) is None:
         raise HTTPException(404, err("NOT_FOUND", f"No candidate {cid}."))
@@ -371,12 +394,14 @@ async def record_decision(cid: str, decision: str = Form(...), note: str = Form(
         "at": datetime.datetime.now(datetime.UTC).isoformat(),
         "config_version": cfg("app.config_version"),
     }
-    store.append_audit(
-        cid,
-        "recruiter_decision",
-        {"decision": decision, "note": note, "at": entry["at"],
-         "config_version": entry["config_version"]},
-    )  # append-only
+    payload = {"decision": decision, "note": note, "at": entry["at"],
+               "config_version": entry["config_version"]}
+    # The authenticated key's LABEL (never the key). Absent when auth is off, so open-mode
+    # entries are byte-for-byte what they were before.
+    actor = getattr(request.state, "actor", None)
+    if actor:
+        payload["actor"] = entry["actor"] = actor
+    store.append_audit(cid, "recruiter_decision", payload)  # append-only
     return entry
 
 
@@ -390,9 +415,24 @@ async def get_audit(cid: str):
     ]
 
 
+class InterviewReqIn(BaseModel):
+    """One Module D input item (MASTER_SPEC Section 12)."""
+
+    skill: str = Field(min_length=1, max_length=200)
+    evidence_level: Literal["strong_evidence", "claimed", "not_demonstrated", "transferable"]
+    detail: str | None = Field(default=None, max_length=2000)
+    jd_priority: Literal["must_have", "nice_to_have"] | None = None
+
+
+class InterviewQuestionsIn(BaseModel):
+    requirements: list[InterviewReqIn] = Field(default_factory=list, max_length=100)
+
+
 @router.post("/interview-questions")
-async def interview_questions(payload: dict):
-    return await generate_interview_questions(payload.get("requirements", []))
+async def interview_questions(body: InterviewQuestionsIn):
+    return await generate_interview_questions(
+        [r.model_dump(exclude_unset=True) for r in body.requirements]
+    )
 
 
 @router.get("/samples")

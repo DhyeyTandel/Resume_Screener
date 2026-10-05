@@ -56,7 +56,7 @@ All milestones M0-M9 are built. The remaining gaps are external, not code:
 
 ## Before any real deployment
 
-**Add authentication.** The API has none, and CORS allows every origin, so anyone who can reach
-the service can read every candidate's report by ID. This is the top blocker for handling real
-candidate data (see ASSUMPTIONS.md A-28 for the full list). It needs a product decision: API key,
-SSO, per-recruiter ownership of screenings.
+Authentication, CORS, rate limiting, a bounded queue and a PDF sandbox are in (A-29). Set
+`SCREENING_API_KEYS` and `SCREENING_CORS_ORIGINS` in production. Still open: **per-recruiter
+ownership** (any valid key can read every report), limits that are per process rather than
+shared across workers, and a hardened `spawn` PDF sandbox if the threat model needs it.

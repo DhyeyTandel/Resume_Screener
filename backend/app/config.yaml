@@ -9,7 +9,10 @@ llm:
   max_retries: 2
   timeout_s: 60
 cache: { enabled: true, ttl_hours: 24 }
-ingest: { max_bytes: 10485760, ocr_max_pages: 5, docx_max_total_bytes: 52428800, docx_max_member_bytes: 20971520, docx_max_members: 500, docx_max_ratio: 100, docx_ratio_floor_bytes: 65536, xml_max_depth: 100, xml_max_elements: 100000, pdf_max_pages: 50, pdf_max_spans: 200000, pdf_max_chars: 2000000, max_files: 25, max_pasted: 25, max_request_bytes: 52428800, linkedin_max_bytes: 2097152, jd_max_chars: 50000, pasted_max_chars: 200000, max_filename_chars: 120 }
+ingest: { max_bytes: 10485760, ocr_max_pages: 5, docx_max_total_bytes: 52428800, docx_max_member_bytes: 20971520, docx_max_members: 500, docx_max_ratio: 100, docx_ratio_floor_bytes: 65536, xml_max_depth: 100, xml_max_elements: 100000, pdf_max_pages: 50, pdf_sandbox: true, pdf_timeout_s: 20, pdf_memory_mb: 1024, pdf_sandbox_start: fork, pdf_max_spans: 200000, pdf_max_chars: 2000000, max_files: 25, max_pasted: 25, max_request_bytes: 52428800, linkedin_max_bytes: 2097152, jd_max_chars: 50000, pasted_max_chars: 200000, max_filename_chars: 120 }
+limits:
+  rate: { enabled: true, trust_proxy: false, expensive_per_min: 10, expensive_burst: 5, read_per_min: 300, read_burst: 100, max_clients: 10000 }
+  queue: { screening_slots: 4, max_pending_candidates: 100, retry_after_s: 15 }
 integrity:
   hidden_font_pt_max: 4.0
   min_contrast_ratio: 1.3

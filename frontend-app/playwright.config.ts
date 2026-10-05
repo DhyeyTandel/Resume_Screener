@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 8090;
+const AUTH_PORT = 8091; // second backend started WITH an API key, for e2e/auth.spec.ts only
+const AUTH_KEY = "e2e-test-key-do-not-use-in-prod";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // A throwaway DB so the e2e run never touches real data. Set once, inherited by workers.
@@ -26,8 +28,15 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
+  projects: [
+    { name: "chromium", testIgnore: /auth\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "auth",
+      testMatch: /auth\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${AUTH_PORT}` },
+    },
+  ],
+  webServer: [{
     // Serves the built frontend-app/dist, so run `npm run build` first.
     command: `${python} -m uvicorn backend.app.main:app --host 127.0.0.1 --port ${PORT}`,
     cwd: repoRoot,
@@ -39,4 +48,16 @@ export default defineConfig({
       SCREENING_DB_PATH: join(process.env.E2E_DB_DIR, "screening.db"),
     },
   },
+  {
+    command: `${python} -m uvicorn backend.app.main:app --host 127.0.0.1 --port ${AUTH_PORT}`,
+    cwd: repoRoot,
+    url: `http://127.0.0.1:${AUTH_PORT}/v1/health`,
+    reuseExistingServer: false,
+    timeout: 60_000,
+    env: {
+      LLM_PROVIDER: "mock",
+      SCREENING_DB_PATH: join(process.env.E2E_DB_DIR, "screening-auth.db"),
+      SCREENING_API_KEYS: `e2e:${AUTH_KEY}`,
+    },
+  }],
 });

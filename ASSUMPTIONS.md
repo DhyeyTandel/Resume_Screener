@@ -331,3 +331,29 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   (2) no rate limiting or bounded work queue; (3) PDF parsing has no CPU/time limit (a
   subprocess sandbox would bound it); (4) `/interview-questions` accepts an unvalidated dict.
   Authentication is a product decision and was deliberately not added unasked.
+- **A-29 (auth, rate limits, queue, PDF sandbox; supersedes the gaps listed in A-28).**
+  **Authentication is opt-in.** With `SCREENING_API_KEYS` unset, behaviour is exactly as before
+  (the local demo stays open). When set (`label:key`, `label:sha256:<hex>` or `sha256:<hex>`),
+  every `/v1` route except `GET /v1/health` requires `Authorization: Bearer` or `X-API-Key`
+  (never a query string; keys in URLs leak into logs). It is ASGI middleware, so an
+  unauthenticated upload is refused before its body is read; a non-blank but invalid key list
+  locks the API rather than silently opening it; comparison is constant-time on SHA-256
+  digests. Audit entries record the key's label as `actor`, never the key. The dashboard
+  prompts for a key and keeps it in sessionStorage only. CORS is an allowlist
+  (`SCREENING_CORS_ORIGINS`, default local dev origins). Per-recruiter ownership of screenings
+  is NOT implemented: any valid key can read any report. That is the next product decision.
+  **Rate limiting:** per-client token buckets (expensive routes 10/min, burst 5; reads
+  300/min), 429 + Retry-After, X-Forwarded-For ignored unless a trusted proxy is configured,
+  bounded memory. Per process only. Middleware order, outermost first: CORS, rate limit,
+  auth, body limit, so unauthenticated floods are throttled too.
+  **Bounded queue:** at most 4 candidates screen at once process-wide; a screening that would
+  push pending work past 100 is refused up front with 503 + Retry-After, before anything is
+  stored; admission is always released, even on a crash.
+  **PDF sandbox:** each PDF is parsed in a child process with a 20s wall-clock timeout and,
+  where the OS honours it, a memory cap (macOS ignores RLIMIT_AS; a CPU-time limit and the
+  timeout apply there). About 8ms overhead per PDF; identical output on every fixture. It
+  uses `fork` so tests can patch the parse; forking a threaded process can occasionally
+  deadlock the child, which the timeout turns into a rejected upload rather than a hang.
+  `spawn` is a config switch for hardened deployments (about 300ms per PDF). Parsing still
+  runs on the event loop, bounded by the timeout; moving it to a thread would make fork
+  riskier, so it was left as is. `/v1/interview-questions` now validates its input.

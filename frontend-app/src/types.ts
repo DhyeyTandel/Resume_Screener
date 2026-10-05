@@ -192,6 +192,8 @@ export interface Health {
   configured_provider?: string;
   key_present?: boolean;
   fallback_chain?: string[];
+  /** True when the server requires an API key. Absent on servers that predate auth. */
+  auth_required?: boolean;
 }
 
 export interface AuditEntry {

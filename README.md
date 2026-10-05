@@ -68,6 +68,11 @@ recommendation is computed in Python (see ASSUMPTIONS.md A-3).
 
 Env vars: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_BASE_URL`, `LLM_PROVIDER`. Put them in a repo-root `.env` (gitignored; loaded automatically; a variable already set in your shell wins). The test suite never reads `.env`, so a real key can never trigger paid calls from `make test`.
 
+**Locking it down:** set `SCREENING_API_KEYS=alice:<long-random-key>` (or `alice:sha256:<hex>` to
+store only a hash) to require a key on every `/v1` route except health; the dashboard then asks
+for it. Set `SCREENING_CORS_ORIGINS` to your real origins. Rate limits, a bounded screening queue
+and a sandboxed PDF parser are on by default (`limits:` and `ingest:` in `config.yaml`).
+
 ## Architecture
 
 ```

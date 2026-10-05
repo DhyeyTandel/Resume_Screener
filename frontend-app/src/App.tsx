@@ -1,7 +1,8 @@
-import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiKeySnapshot, clearApiKey, getHealth, getSamples, getScreening, postForm, rowFromReport, subscribeApiKey } from "./api";
 import type { Row } from "./types";
+import KeyPrompt from "./components/KeyPrompt";
 import JdPanel from "./components/JdPanel";
 import ResumeUpload, { type Consents, type FileEntry, type FileState } from "./components/ResumeUpload";
 import ResultsTable from "./components/ResultsTable";
@@ -23,18 +24,31 @@ export default function App() {
   const [selected, setSelected] = useState<Row | null>(null);
   const [tried, setTried] = useState(false);
 
+  const qc = useQueryClient();
+  const { key: apiKey, rejected } = useSyncExternalStore(subscribeApiKey, apiKeySnapshot);
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth });
-  const samples = useQuery({ queryKey: ["samples"], queryFn: getSamples });
+  const needsKey = health.data?.auth_required === true;
+  const locked = needsKey && !apiKey;
+  const samples = useQuery({ queryKey: ["samples", apiKey], queryFn: getSamples, enabled: !locked });
   const screening = useQuery({
     queryKey: ["screening", screeningId],
     queryFn: () => getScreening(screeningId as string),
-    enabled: !!screeningId,
+    enabled: !!screeningId && !locked,
     refetchInterval: (q) => {
       const s = q.state.data?.status;
       if (q.state.status === "error" || s === "complete" || s === "interrupted") return false;
       return 700;
     },
   });
+
+  // Signing out, or a 401, drops the key: forget everything fetched with it.
+  useEffect(() => {
+    if (apiKey || !needsKey) return;
+    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "health" });
+    setScreeningId(null);
+    setSelected(null);
+    setView("samples");
+  }, [apiKey, needsKey, qc]);
 
   const usable = entries.filter((e) => !e.problem);
   const hasResume = usable.length > 0 || paste.trim() !== "";
@@ -124,6 +138,17 @@ export default function App() {
   const jdMissing = tried && !jd.trim();
   const resumeMissing = tried && !hasResume;
 
+  if (locked) {
+    return (
+      <div className="min-h-screen">
+        <header className="border-b border-line bg-surface px-4 py-3 sm:px-6">
+          <h1 className="text-[17px] font-bold">AI Resume Screening Assistant</h1>
+        </header>
+        <main className="px-4 pt-8 sm:px-6"><KeyPrompt rejected={rejected} /></main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen">
       <header ref={headerRef} className="sticky top-0 z-30">
@@ -143,6 +168,9 @@ export default function App() {
             </Chip>
           )}
           {served && <Chip tone="mute" title="What actually wrote the prose in the current screening">{`Served: ${served}`}</Chip>}
+          {needsKey && apiKey && (
+            <button type="button" className="btn-ghost ml-auto" onClick={() => clearApiKey()}>Sign out</button>
+          )}
         </div>
         <div role="note" className="border-b border-accent/20 bg-accent-soft px-4 py-2 text-xs text-accent-ink sm:px-6">
           <strong>Fairness notice.</strong> {FAIRNESS}

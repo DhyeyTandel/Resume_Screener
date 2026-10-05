@@ -1,5 +1,83 @@
 import type { ApiError, AuditEntry, Health, Report, Row, Screening } from "./types";
 
+const KEY_NAME = "screening.api_key";
+
+/** The API key lives in sessionStorage only (gone when the tab closes), is sent in a header
+ * only, and is never placed in a URL or localStorage. */
+function readStored(): string | null {
+  try {
+    return sessionStorage.getItem(KEY_NAME);
+  } catch {
+    return null;
+  }
+}
+
+let memoryKey: string | null = null; // fallback when sessionStorage is unavailable
+let rejected = false;
+let snapshot = { key: readStored(), rejected };
+const listeners = new Set<() => void>();
+
+function publish() {
+  snapshot = { key: getApiKey(), rejected };
+  listeners.forEach((l) => l());
+}
+
+export function getApiKey(): string | null {
+  return readStored() ?? memoryKey;
+}
+
+export function setApiKey(key: string) {
+  rejected = false;
+  memoryKey = key;
+  try {
+    sessionStorage.setItem(KEY_NAME, key);
+  } catch {
+    /* memory fallback only */
+  }
+  publish();
+}
+
+export function clearApiKey(wasRejected = false) {
+  rejected = wasRejected;
+  memoryKey = null;
+  try {
+    sessionStorage.removeItem(KEY_NAME);
+  } catch {
+    /* ignore */
+  }
+  publish();
+}
+
+export const subscribeApiKey = (l: () => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+/** Stable object while nothing changed (required by useSyncExternalStore). Reads storage each
+ * time so a key written by another tab script or a test is seen. */
+export function apiKeySnapshot() {
+  const key = getApiKey();
+  if (key !== snapshot.key || rejected !== snapshot.rejected) snapshot = { key, rejected };
+  return snapshot;
+}
+
+function withAuth(init: RequestInit = {}): RequestInit {
+  const key = getApiKey();
+  if (!key) return init;
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${key}`);
+  return { ...init, headers };
+}
+
+/** Checks a candidate key against a protected endpoint without storing it. */
+export async function verifyApiKey(key: string): Promise<"ok" | "rejected" | "unreachable"> {
+  try {
+    const res = await fetch("/v1/samples/jd", { headers: { Authorization: `Bearer ${key}` } });
+    return res.status === 401 ? "rejected" : "ok";
+  } catch {
+    return "unreachable";
+  }
+}
+
 export class ApiFailure extends Error {
   constructor(message: string, public remediation?: string) {
     super(message);
@@ -7,6 +85,11 @@ export class ApiFailure extends Error {
 }
 
 async function readError(res: Response): Promise<ApiFailure> {
+  if (res.status === 401) {
+    // A key the server refuses is dropped at once and the UI re-prompts.
+    clearApiKey(true);
+    return new ApiFailure("Your API key was not accepted.", "Enter a valid key to continue.");
+  }
   try {
     const body = await res.json();
     const e: ApiError = body?.detail && typeof body.detail === "object" ? body.detail : body;
@@ -22,7 +105,7 @@ async function readError(res: Response): Promise<ApiFailure> {
 async function get<T>(path: string): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path);
+    res = await fetch(path, withAuth());
   } catch {
     throw new ApiFailure("Could not reach the server. Check that the backend is running.");
   }
@@ -39,7 +122,7 @@ export const getAudit = (id: string) => get<AuditEntry[]>(`/v1/candidates/${id}/
 export async function getSampleJd(): Promise<string> {
   let res: Response;
   try {
-    res = await fetch("/v1/samples/jd");
+    res = await fetch("/v1/samples/jd", withAuth());
   } catch {
     throw new ApiFailure("Could not reach the server.");
   }
@@ -50,7 +133,7 @@ export async function getSampleJd(): Promise<string> {
 export async function postForm<T>(path: string, fd: FormData): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, { method: "POST", body: fd });
+    res = await fetch(path, withAuth({ method: "POST", body: fd }));
   } catch {
     throw new ApiFailure("Could not reach the server. Check that the backend is running.");
   }
