@@ -105,8 +105,10 @@ test("(f) the stage timeline shows all six stages finished after a real screenin
 test("(g) mock mode is labelled as mock template in the row, header and drawer, never as a model", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Mock analysis mode")).toBeVisible();
-  // Pre-computed samples predate provenance, so they must say so rather than name a model.
-  await expect(page.getByText("Prose: not recorded").first()).toBeVisible();
+  // The pre-computed samples are generated in mock mode and carry provenance: they must say
+  // "mock template" and never name a real model.
+  await expect(page.getByText(/^Prose: mock template/).first()).toBeVisible();
+  await expect(page.locator("tbody").getByText(/openrouter|nemotron|ollama/i)).toHaveCount(0);
 
   await screenPdf(page, "clean.pdf");
   const row = page.locator("tbody tr");
