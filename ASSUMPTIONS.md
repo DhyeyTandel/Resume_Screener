@@ -281,3 +281,20 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   candidate. Only one run was made to stay inside the free daily cap, so cross-run determinism
   for OpenRouter is not measured (it is for Ollama). LLM-written summaries are not yet checked
   against the structured facts they summarise.
+- **A-25 (fact check and provenance).** Two gaps that only matter once a real model writes
+  the prose. (1) **Fact-consistency check** (`backend/app/llm/fact_check.py`): the model's
+  summary/strengths/risks are checked deterministically against the structured facts. A
+  missing skill named as a strength, a matched skill named as a gap, a wrong score or count,
+  or accusatory/hiring-decision language discards the prose for the fact-only template; a
+  mentioned skill outside the facts (often a legitimate supporting skill) is recorded only.
+  Violation types and details go to `meta.stages.narrative.fact_check`, never the prose. It
+  errs toward passing prose: partially matched requirements are not judged either way. The
+  narrative facts now include partially matched and not-enough-evidence requirements: a real
+  model had written "meets 8 of 10" when 7 matched, counting a partial match as met; with the
+  fuller facts it wrote the exact breakdown. Checked on every captured real-model sample with
+  no false positives, and live on OpenRouter. (2) **Provenance**: each report records, per
+  LLM task, which provider and model actually answered and whether it fell back, with the
+  sanitized reason (`meta.provenance`). The dashboard shows it per candidate ("Prose:
+  openrouter / nemotron..." or "mock template (rate-limited)"), and the landing badge says
+  what is *configured* rather than implying what served. `/v1/health` adds
+  `configured_provider`, `key_present` (a boolean, never the key) and `fallback_chain`.

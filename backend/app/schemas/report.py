@@ -290,6 +290,17 @@ class StageInfo(_Open):
     note: str | None = None
 
 
+class ProvenanceEntry(_Open):
+    """Which provider and model actually served one LLM-using task (additive, optional)."""
+
+    task: str
+    provider: str
+    model: str | None = None
+    fell_back: bool = False
+    reason: str | None = None
+    calls: int = 0
+
+
 class Meta(_Open):
     stages: dict[str, StageInfo] = Field(default_factory=dict)
     llm_provider: str
@@ -298,6 +309,7 @@ class Meta(_Open):
     config_version: str
     latency_ms: int
     llm_calls: int | None = None
+    provenance: list[ProvenanceEntry] | None = None
     schema_valid: bool | None = None
     schema_errors: list[str] | None = None
 

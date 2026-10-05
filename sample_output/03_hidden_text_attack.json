@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "002f055a",
+    "candidate_id": "90351bc2",
     "candidate_profile": {
       "summary": "Priya Raman [CONTACT] | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -521,7 +521,7 @@
       "human_decides": "A human recruiter always makes the final call."
     },
     "authenticity": {
-      "candidate_id": "002f055a",
+      "candidate_id": "90351bc2",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1139,7 +1139,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0004,
+      "_latency_seconds": 0.0,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1159,11 +1159,11 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 5,
+          "latency_ms": 3,
           "status": "ok"
         },
         "authenticity": {
-          "latency_ms": 4,
+          "latency_ms": 0,
           "status": "ok"
         },
         "narrative": {
@@ -1183,8 +1183,26 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 11,
+      "latency_ms": 5,
       "llm_calls": 2,
+      "provenance": [
+        {
+          "task": "narrative",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        },
+        {
+          "task": "interview_questions",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        }
+      ],
       "schema_valid": true
     }
   }

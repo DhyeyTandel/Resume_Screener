@@ -101,3 +101,23 @@ test("(f) the stage timeline shows all six stages finished after a real screenin
     await expect(list.locator(`[data-stage="${s}"]`)).toContainText("Done");
   }
 });
+
+test("(g) mock mode is labelled as mock template in the row, header and drawer, never as a model", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Mock analysis mode")).toBeVisible();
+  // Pre-computed samples predate provenance, so they must say so rather than name a model.
+  await expect(page.getByText("Prose: not recorded").first()).toBeVisible();
+
+  await screenPdf(page, "clean.pdf");
+  const row = page.locator("tbody tr");
+  await expect(row.getByText(/^Prose: mock template/)).toBeVisible();
+  await expect(row.getByText(/openrouter|nemotron/i)).toHaveCount(0);
+  await expect(page.getByText(/^Served: mock template x1/)).toBeVisible();
+
+  await row.getByRole("button", { name: /^Open details for/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText(/^Prose: mock template/).first()).toBeVisible();
+  const list = dialog.getByTestId("provenance-row");
+  expect(await list.count()).toBeGreaterThanOrEqual(2);
+  await expect(list.first()).toContainText("Mock template (deterministic placeholder, not a model)");
+});

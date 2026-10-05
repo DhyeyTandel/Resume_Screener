@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "140a05d7",
+    "candidate_id": "cf323e75",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
@@ -492,7 +492,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "140a05d7",
+      "candidate_id": "cf323e75",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1130,15 +1130,15 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 4,
-          "status": "ok"
-        },
-        "authenticity": {
           "latency_ms": 3,
           "status": "ok"
         },
+        "authenticity": {
+          "latency_ms": 4,
+          "status": "ok"
+        },
         "narrative": {
-          "latency_ms": 0,
+          "latency_ms": 2,
           "status": "ok"
         },
         "integrity_interpret": {
@@ -1154,8 +1154,26 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 8,
+      "latency_ms": 11,
       "llm_calls": 2,
+      "provenance": [
+        {
+          "task": "narrative",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        },
+        {
+          "task": "interview_questions",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        }
+      ],
       "schema_valid": true
     }
   }

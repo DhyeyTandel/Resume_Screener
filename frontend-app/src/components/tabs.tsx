@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { getAudit, recordDecision } from "../api";
 import type { Report } from "../types";
+import { ProvenanceList } from "./provenance";
 import { BandChip, Chip, Empty, ErrorBox, Spinner } from "./ui";
 
 const H3 = ({ children }: { children: ReactNode }) => <h3 className="h3">{children}</h3>;
@@ -74,6 +75,8 @@ export function OverviewTab({ r }: { r: Report }) {
       <List items={r.strengths} none="None listed." />
       <H3>Risks</H3>
       <List items={r.risks} none="None listed." />
+      <H3>Which model wrote this</H3>
+      <ProvenanceList entries={r.extensions.meta?.provenance} />
     </div>
   );
 }

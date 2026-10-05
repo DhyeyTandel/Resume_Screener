@@ -911,6 +911,21 @@
           "title": "Mock Mode",
           "type": "boolean"
         },
+        "provenance": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ProvenanceEntry"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provenance"
+        },
         "schema_errors": {
           "anyOf": [
             {
@@ -970,6 +985,60 @@
         }
       },
       "title": "ProjectItem",
+      "type": "object"
+    },
+    "ProvenanceEntry": {
+      "additionalProperties": true,
+      "description": "Which provider and model actually served one LLM-using task (additive, optional).",
+      "properties": {
+        "calls": {
+          "default": 0,
+          "title": "Calls",
+          "type": "integer"
+        },
+        "fell_back": {
+          "default": false,
+          "title": "Fell Back",
+          "type": "boolean"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "task": {
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task",
+        "provider"
+      ],
+      "title": "ProvenanceEntry",
       "type": "object"
     },
     "RequirementContribution": {

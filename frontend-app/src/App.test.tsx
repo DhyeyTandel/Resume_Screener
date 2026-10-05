@@ -152,3 +152,23 @@ describe("App stage timeline", () => {
     expect(screen.queryByTestId("stage-timeline")).toBeNull();
   });
 });
+
+describe("App provider badge", () => {
+  const withHealth = (body: object): Handler[] => [
+    (u) => (u === "/v1/health" ? jsonResponse({ status: "ok", mock_mode: false, ...body }) : undefined),
+    ...baseHandlers.slice(1),
+  ];
+
+  it("states configuration, not a served model", async () => {
+    mockFetch(...withHealth({ llm_provider: "openrouter", configured_provider: "openrouter", key_present: true, fallback_chain: ["openrouter", "mock"] }));
+    renderWithClient(<App />);
+    expect(await screen.findByText("Configured: openrouter (key present)")).toBeInTheDocument();
+    expect(screen.queryByText(/^LLM:/)).not.toBeInTheDocument();
+  });
+
+  it("flags a configured provider with no key", async () => {
+    mockFetch(...withHealth({ llm_provider: "openrouter", configured_provider: "openrouter", key_present: false }));
+    renderWithClient(<App />);
+    expect(await screen.findByText("Configured: openrouter (no key)")).toBeInTheDocument();
+  });
+});

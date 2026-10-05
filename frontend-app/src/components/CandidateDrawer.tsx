@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getCandidate } from "../api";
 import type { Report, Row } from "../types";
 import { ErrorBox, RecChip, Spinner } from "./ui";
+import { ProseChip } from "./provenance";
 import { AuditTab, AuthenticityTab, IntegrityTab, OverviewTab, QuestionsTab, RequirementsTab, SkillsTab } from "./tabs";
 
 const TABS = [
@@ -110,6 +111,7 @@ export default function CandidateDrawer({ row, sampleReports, onClose }: Props) 
               <span>Score {Math.round(row.overall_match_score)}</span>
               <RecChip rec={row.recommendation} />
               {isSample && <span className="chip chip-mute">Sample data</span>}
+              {report && <ProseChip entries={report.extensions.meta?.provenance ?? null} />}
             </div>
           </div>
           <button type="button" className="btn-ghost" onClick={onClose}>Close</button>

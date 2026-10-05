@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -89,12 +90,20 @@ def err(code: str, message: str, field: str | None = None, remediation: str | No
     return body
 
 
+def _key_present(provider: str) -> bool:
+    env = cfg(f"llm.{provider}.api_key_env", "")
+    return bool(env and os.getenv(str(env)))
+
+
 @router.get("/health")
 async def health() -> dict:
     llm = LLMClient()
     return {
         "status": "ok",
         "llm_provider": llm.provider,
+        "configured_provider": llm.provider,
+        # Presence only, never the key. The chain's mock tail is always keyless.
+        "key_present": _key_present(llm.provider),
         "fallback_chain": llm.chain,
         "mock_mode": llm.provider == "mock",
         "config_version": cfg("app.config_version"),

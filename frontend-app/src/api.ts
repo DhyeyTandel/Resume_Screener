@@ -82,6 +82,7 @@ export function rowFromReport(r: Report): Row {
     integrity_action: e.integrity?.recommended_action ?? "proceed",
     authenticity_band: e.authenticity?.band ?? null,
     mock_mode: e.meta?.mock_mode ?? true,
+    provenance: e.meta?.provenance ?? null,
     source: "sample",
   };
 }

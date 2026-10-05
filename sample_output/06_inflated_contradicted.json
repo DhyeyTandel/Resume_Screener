@@ -349,7 +349,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "c888b33d",
+    "candidate_id": "fee86a3e",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
@@ -476,7 +476,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "c888b33d",
+      "candidate_id": "fee86a3e",
       "band": "NEEDS_VERIFICATION",
       "scores": {
         "authenticity": 0.581,
@@ -1049,15 +1049,15 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 5,
+          "latency_ms": 2,
           "status": "ok"
         },
         "authenticity": {
-          "latency_ms": 3,
+          "latency_ms": 1,
           "status": "ok"
         },
         "narrative": {
-          "latency_ms": 0,
+          "latency_ms": 1,
           "status": "ok"
         },
         "integrity_interpret": {
@@ -1073,8 +1073,26 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 10,
+      "latency_ms": 5,
       "llm_calls": 2,
+      "provenance": [
+        {
+          "task": "narrative",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        },
+        {
+          "task": "interview_questions",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        }
+      ],
       "schema_valid": true
     }
   }

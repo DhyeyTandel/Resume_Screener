@@ -109,7 +109,17 @@ export interface Extensions {
     interview_questions?: InterviewQuestion[];
     skipped_strong_evidence?: string[];
   };
-  meta?: { llm_provider?: string; mock_mode?: boolean };
+  meta?: { llm_provider?: string; mock_mode?: boolean; provenance?: ProvenanceEntry[] };
+}
+
+/** Which provider and model actually served one LLM-using task (report meta.provenance). */
+export interface ProvenanceEntry {
+  task: string;
+  provider: string;
+  model?: string | null;
+  fell_back: boolean;
+  reason?: string | null;
+  calls: number;
 }
 
 export interface Report {
@@ -141,6 +151,8 @@ export interface Row {
   integrity_action: string;
   authenticity_band?: string | null;
   mock_mode?: boolean;
+  /** undefined: not loaded yet; null: the report predates provenance. Filled client-side. */
+  provenance?: ProvenanceEntry[] | null;
   /** "sample" rows come from /v1/samples and are not in the database. */
   source: "sample" | "screening";
 }
@@ -176,6 +188,10 @@ export interface Health {
   status: string;
   llm_provider: string;
   mock_mode: boolean;
+  /** Absent on servers that predate provenance. */
+  configured_provider?: string;
+  key_present?: boolean;
+  fallback_chain?: string[];
 }
 
 export interface AuditEntry {

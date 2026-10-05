@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { getCandidate, getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
 import type { Row } from "./types";
 import JdPanel from "./components/JdPanel";
 import ResumeUpload, { type Consents, type FileEntry, type FileState } from "./components/ResumeUpload";
@@ -8,6 +8,7 @@ import ResultsTable from "./components/ResultsTable";
 const CandidateDrawer = lazy(() => import("./components/CandidateDrawer"));
 import StageTimeline from "./components/StageTimeline";
 import { Chip, ErrorBox, Spinner } from "./components/ui";
+import { servedSummary } from "./components/provenance";
 
 const FAIRNESS =
   "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.";
@@ -74,10 +75,25 @@ export default function App() {
   };
 
   const sampleRows = useMemo(() => (samples.data ?? []).map(rowFromReport), [samples.data]);
+  const screenedBase = screening.data?.candidates;
+  // Row JSON carries no provenance, so read each report (same cache key as the drawer).
+  const reports = useQueries({
+    queries: (screenedBase ?? []).map((c) => ({
+      queryKey: ["candidate", c.candidate_id],
+      queryFn: () => getCandidate(c.candidate_id),
+      staleTime: 60_000,
+    })),
+  });
   const screenedRows: Row[] = useMemo(
-    () => (screening.data?.candidates ?? []).map((c) => ({ ...c, source: "screening" as const })),
-    [screening.data],
+    () =>
+      (screenedBase ?? []).map((c, i) => {
+        const q = reports[i];
+        const provenance = q?.data ? (q.data.extensions.meta?.provenance ?? null) : q?.isError ? null : undefined;
+        return { ...c, provenance, source: "screening" as const };
+      }),
+    [screenedBase, reports.map((q) => q.dataUpdatedAt + q.status).join("|")],
   );
+  const served = view === "screening" ? servedSummary(screenedRows.map((r) => r.provenance)) : null;
   const rows = view === "samples" ? sampleRows : screenedRows;
 
   const fileStates = useMemo(() => {
@@ -127,8 +143,18 @@ export default function App() {
           <h1 className="text-[17px] font-bold">AI Resume Screening Assistant</h1>
           {health.isLoading && <Chip tone="mute">Checking provider...</Chip>}
           {health.isError && <Chip tone="stop" title="The /v1/health call failed">Backend unreachable</Chip>}
-          {health.data?.mock_mode && <Chip tone="warn">Mock analysis mode</Chip>}
-          {health.data && !health.data.mock_mode && <Chip tone="info">{`LLM: ${health.data.llm_provider}`}</Chip>}
+          {health.data?.mock_mode && <Chip tone="warn" title="No real model is configured. Prose comes from a deterministic template.">Mock analysis mode</Chip>}
+          {health.data && !health.data.mock_mode && (
+            <Chip
+              tone={health.data.key_present === false ? "warn" : "info"}
+              title={`Configuration only: this does not prove a model answered. Fallback chain: ${(health.data.fallback_chain ?? []).join(", ") || "unknown"}.`}
+            >
+              {`Configured: ${health.data.configured_provider ?? health.data.llm_provider}${
+                health.data.key_present === undefined ? "" : health.data.key_present ? " (key present)" : " (no key)"
+              }`}
+            </Chip>
+          )}
+          {served && <Chip tone="mute" title="What actually wrote the prose in the current screening">{`Served: ${served}`}</Chip>}
         </div>
         <div role="note" className="border-b border-accent/20 bg-accent-soft px-4 py-2 text-xs text-accent-ink sm:px-6">
           <strong>Fairness notice.</strong> {FAIRNESS}

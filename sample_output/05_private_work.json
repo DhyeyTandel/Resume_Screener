@@ -348,7 +348,7 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "254bd3c8",
+    "candidate_id": "135b0bf8",
     "candidate_profile": {
       "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Backend engineer, four years, mostly on closed-source enterprise systems under NDA.",
       "skills": [
@@ -482,7 +482,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "254bd3c8",
+      "candidate_id": "135b0bf8",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
@@ -1043,7 +1043,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 6,
+          "latency_ms": 2,
           "status": "ok"
         },
         "authenticity": {
@@ -1051,7 +1051,7 @@
           "status": "ok"
         },
         "narrative": {
-          "latency_ms": 0,
+          "latency_ms": 1,
           "status": "ok"
         },
         "integrity_interpret": {
@@ -1067,8 +1067,26 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 8,
+      "latency_ms": 4,
       "llm_calls": 2,
+      "provenance": [
+        {
+          "task": "narrative",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        },
+        {
+          "task": "interview_questions",
+          "provider": "mock",
+          "model": "mock-heuristic-v1",
+          "fell_back": false,
+          "reason": null,
+          "calls": 1
+        }
+      ],
       "schema_valid": true
     }
   }

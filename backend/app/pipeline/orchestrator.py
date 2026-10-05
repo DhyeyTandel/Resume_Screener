@@ -8,7 +8,8 @@ import uuid
 from collections.abc import Callable
 
 from ..config import cfg
-from ..llm.client import MOCK_TASKS, LLMClient
+from ..llm.client import MOCK_TASKS, LLMClient, _model_for, _redact
+from ..llm.fact_check import check_narrative
 from ..llm.redaction import redact_for_scoring
 from ..modules.authenticity_engine.engine import assess
 from ..modules.core_screening.core import extract_requirements, match_requirements, structure_resume
@@ -179,11 +180,102 @@ async def screen_candidate(
     "skipped". See `_StageEmitter` for how internal stages map onto those six.
     """
     emitter = _StageEmitter(on_stage)
+    llm = kwargs.get("llm") or LLMClient()
+    kwargs["llm"] = llm
+    recorder = _ProvenanceRecorder(llm)
     try:
         report = await _screen_candidate(*args, _emit=emitter, **kwargs)
     finally:
+        recorder.uninstall()
         emitter.flush()
+    recorder.apply(report)
     return validate_report(report)
+
+
+# --- LLM provenance ---------------------------------------------------------------------
+# Which model actually wrote what. The recorder wraps complete_json on the ONE client used
+# for this screening (instance attribute, removed afterwards), so LLMClient, its signature and
+# its behaviour are untouched, and the client's type is preserved (Module D checks it).
+_TASK_NAMES = {
+    "summary": "narrative",
+    "integrity_interpret": "integrity_interpret",
+    "claim_judge": "claim_judge",
+    "interview_questions": "interview_questions",
+}
+_TASK_ORDER = list(_TASK_NAMES.values())
+_REASON_MAX = 300
+
+
+class _ProvenanceRecorder:
+    def __init__(self, llm: LLMClient) -> None:
+        self.llm = llm
+        self.calls: list[dict] = []
+        self._had_own = "complete_json" in vars(llm)
+        self._orig = llm.complete_json
+        llm.complete_json = self._complete_json  # type: ignore[method-assign]
+
+    def uninstall(self) -> None:
+        if self._had_own:
+            self.llm.complete_json = self._orig  # type: ignore[method-assign]
+        else:
+            vars(self.llm).pop("complete_json", None)
+
+    async def _complete_json(self, *args, task: str, **kwargs):
+        try:
+            res = await self._orig(*args, task=task, **kwargs)
+        except Exception as exc:
+            self.calls.append({"task": task, "provider": "template", "model": "deterministic-template",
+                               "fell_back": True, "reason": _redact(str(exc)) or type(exc).__name__})
+            raise
+        errors = [_redact(str(e)) for e in (getattr(res, "errors", None) or [])]
+        self.calls.append({"task": task, "provider": res.provider, "model": res.model,
+                           "fell_back": bool(errors), "reason": "; ".join(errors) or None})
+        return res
+
+    def provenance(self, ext: dict) -> list[dict]:
+        calls = list(self.calls)
+        questions = ext.get("interview_questions_detailed") or {}
+        if (not any(c["task"] == "interview_questions" for c in calls)
+                and questions.get("_attempts") and questions.get("_model")):
+            # Module D built its own client (Anthropic upgrade, Spec 6.2), so it was not seen.
+            model = str(questions["_model"])
+            mock = model == _model_for("mock")
+            calls.append({"task": "interview_questions", "provider": "mock" if mock else "anthropic",
+                          "model": model, "fell_back": False, "reason": None})
+        out: list[dict] = []
+        stages = (ext.get("meta") or {}).get("stages") or {}
+        template_reason = (stages.get("narrative") or {}).get("fallback")
+        for name in _TASK_ORDER:
+            mine = [c for c in calls if _TASK_NAMES.get(c["task"], c["task"]) == name]
+            if not mine:
+                continue
+            tally: dict[tuple, int] = {}
+            for c in mine:
+                tally[(c["provider"], c["model"])] = tally.get((c["provider"], c["model"]), 0) + 1
+            (provider, model), _n = max(tally.items(), key=lambda kv: kv[1])
+            reasons = list(dict.fromkeys(c["reason"] for c in mine if c["reason"]))
+            fell_back = any(c["fell_back"] for c in mine)
+            if name == "narrative" and template_reason:
+                reasons.append(f"{template_reason} (answered by {provider}/{model})")
+                provider, model, fell_back = "template", "deterministic-template", True
+            out.append({"task": name, "provider": provider, "model": model, "fell_back": fell_back,
+                        "reason": "; ".join(reasons)[:_REASON_MAX] or None, "calls": len(mine)})
+        return out
+
+    def apply(self, report: dict) -> None:
+        try:
+            ext = report["extensions"]
+            meta = ext["meta"]
+            prov = self.provenance(ext)
+            meta["provenance"] = prov
+            if prov:
+                weight: dict[str, int] = {}
+                for p in prov:
+                    weight[p["provider"]] = weight.get(p["provider"], 0) + p["calls"]
+                meta["llm_provider"] = max(weight.items(), key=lambda kv: kv[1])[0]
+                meta["mock_mode"] = all(p["provider"] in ("mock", "template") for p in prov)
+        except Exception:
+            log.warning("provenance could not be recorded", exc_info=True)
 
 
 async def _screen_candidate(
@@ -264,6 +356,11 @@ async def _screen_candidate(
             facts = {
                 "matched": [r["requirement"] for r in matched if r["status"] == "Matched"],
                 "missing": [r["requirement"] for r in matched if r["status"] == "Missing"],
+                # Without these the model had to infer the rest: a real model wrote "meets 8 of
+                # 10" when 7 were matched, counting a partial match as met.
+                "partially_matched": [r["requirement"] for r in matched if r["status"] == "Partially Matched"],
+                "not_enough_evidence": [r["requirement"] for r in matched
+                                        if r["status"] == "Not Enough Evidence"],
                 "base_score": scores["base_score"],
                 "total_requirements": len(matched),
             }
@@ -281,6 +378,21 @@ async def _screen_candidate(
                   and isinstance(data.get("strengths", []), list)
                   and isinstance(data.get("risks", []), list))
             if ok:
+                # Spec 2.8 / 9.7: the model writes prose from the facts and never invents them.
+                # High-severity contradictions (a missing skill named as a strength, a wrong
+                # score) discard the prose for the fact-only template; low-severity findings are
+                # recorded only. Violation types and details are kept, never the prose itself.
+                violations = check_narrative(data, {
+                    **facts, "partial": facts["partially_matched"] + facts["not_enough_evidence"]})
+                if violations:
+                    stages.setdefault("narrative", {})["fact_check"] = [
+                        {"type": v["type"], "severity": v["severity"], "detail": v["detail"]}
+                        for v in violations]
+                if any(v["severity"] == "high" for v in violations):
+                    stages.setdefault("narrative", {})["fallback"] = (
+                        "template: model prose contradicted the facts ("
+                        + ", ".join(sorted({v["type"] for v in violations if v["severity"] == "high"})) + ")")
+                    return MOCK_TASKS["summary"](facts)
                 return data
             # A real model returned the wrong shape (measured: every report blank against a
             # local 7B model before the keys were stated). Fall back to the deterministic,

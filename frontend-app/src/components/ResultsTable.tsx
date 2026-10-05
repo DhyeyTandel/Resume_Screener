@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Row } from "../types";
 import { BandChip, Chip, Empty, IntegrityChip, RecChip } from "./ui";
+import { ProseChip } from "./provenance";
 
 type SortKey = "candidate_name" | "overall_match_score" | "recommendation" | "status";
 const FILTERS = [
@@ -74,7 +75,7 @@ export default function ResultsTable({ rows, onOpen, emptyMessage }: Props) {
         <Empty>No candidates match this search or filter.</Empty>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-[13px]">
+          <table className="w-full min-w-[980px] border-collapse text-[13px]">
             <thead className="border-b border-line">
               <tr>
                 {th("candidate_name", "Candidate")}
@@ -85,6 +86,7 @@ export default function ResultsTable({ rows, onOpen, emptyMessage }: Props) {
                 {th("status", "Status")}
                 {plain("Integrity")}
                 {plain("Authenticity")}
+                {plain("Prose source")}
               </tr>
             </thead>
             <tbody>
@@ -114,6 +116,7 @@ export default function ResultsTable({ rows, onOpen, emptyMessage }: Props) {
                     <td className="px-2 py-3"><Chip tone={r.status === "Complete" ? "ok" : r.status === "Error" ? "stop" : "warn"}>{r.status}</Chip></td>
                     <td className="px-2 py-3"><IntegrityChip action={r.integrity_action} /></td>
                     <td className="px-2 py-3"><BandChip band={r.authenticity_band} /></td>
+                    <td className="px-2 py-3"><ProseChip entries={r.provenance} /></td>
                   </tr>
                 );
               })}
