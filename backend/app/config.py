@@ -73,8 +73,36 @@ def _mini_yaml(text: str) -> dict:
     return root
 
 
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
+
+def load_dotenv(path: Path = _ENV_FILE) -> list[str]:
+    """Load KEY=VALUE lines from the repo-root .env (gitignored) into os.environ.
+
+    Stdlib only. A variable already set in the real environment always wins. Values are
+    never logged or returned; only the names that were set are returned, for diagnostics."""
+    if os.getenv("SCREENING_NO_DOTENV") or not path.is_file():
+        return []
+    loaded = []
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.removeprefix("export ").partition("=")
+        key, val = key.strip(), val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "'\"":
+            val = val[1:-1]
+        elif " #" in val:
+            val = val.split(" #", 1)[0].rstrip()
+        if key and val and key not in os.environ:
+            os.environ[key] = val
+            loaded.append(key)
+    return loaded
+
+
 @lru_cache(maxsize=1)
 def get_config() -> dict:
+    load_dotenv()
     cfg = _mini_yaml(_PATH.read_text())
     # Env overrides for the documented switches.
     if os.getenv("LLM_PROVIDER"):

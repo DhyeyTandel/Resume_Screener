@@ -65,7 +65,7 @@ LLM_PROVIDER=ollama make dev
 **The provider changes wording, never numbers.** Every score, penalty, band and
 recommendation is computed in Python (see ASSUMPTIONS.md A-3).
 
-Env vars: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_BASE_URL`, `LLM_PROVIDER`.
+Env vars: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `OLLAMA_BASE_URL`, `LLM_PROVIDER`. Put them in a repo-root `.env` (gitignored; loaded automatically; a variable already set in your shell wins). The test suite never reads `.env`, so a real key can never trigger paid calls from `make test`.
 
 ## Architecture
 
