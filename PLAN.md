@@ -46,7 +46,7 @@ report, with the safeguards of Section 2 enforced in code and asserted by tests.
 ## Status after the hardening rounds
 
 All milestones M0-M9 are built. The remaining gaps are external, not code:
-1. **Real model: Ollama verified, Anthropic not.** A local `qwen2.5:7b-instruct` run found and
+1. **Real models: Ollama and OpenRouter verified, Anthropic not.** A local `qwen2.5:7b-instruct` run found and
    fixed four real bugs (A-23). The Anthropic path is still tested only against simulated
    HTTP; it needs an API key. Real-model latency (~50-100s per candidate locally) misses the
    25s p50 target.

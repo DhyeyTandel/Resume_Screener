@@ -61,6 +61,7 @@ LLM_PROVIDER=ollama make dev
 | `mock` (default) | nothing | Deterministic prose from heuristics. Dashboard shows "Mock analysis mode". |
 | `ollama` | Ollama on :11434 | Local model writes the prose. Zero cost. Verified end to end with `qwen2.5:7b-instruct` (`eval/llm_smoke.py`, report in `eval/llm_smoke_report.md`); about 50-100s per candidate on an M4. |
 | `anthropic` | `ANTHROPIC_API_KEY` | Best prose quality. |
+| `openrouter` | `OPENROUTER_API_KEY` (free tier works) | OpenAI-compatible; defaults to free `nvidia/nemotron-3-super-120b-a12b:free` with free Gemma fallbacks routed by OpenRouter; the model that actually answered is recorded. Measured: ~3s per call, 10-47s per candidate. Free tier is rate-limited (about 50 requests/day; shared free models can be throttled upstream). |
 
 **The provider changes wording, never numbers.** Every score, penalty, band and
 recommendation is computed in Python (see ASSUMPTIONS.md A-3).

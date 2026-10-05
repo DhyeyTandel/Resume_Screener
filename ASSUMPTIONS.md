@@ -265,3 +265,19 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   questions per candidate that follow the evidence-level strategies. **Latency misses the
   spec:** about 50-100s per candidate (call p50 8-10s) against a 25s p50 target. Calls share one
   local GPU, so this is mostly hardware; it is reported, not tuned away.
+- **A-24 (OpenRouter provider and a free-tier lesson).** Added an OpenAI-compatible
+  `openrouter` provider (key `OPENROUTER_API_KEY` in the gitignored `.env`). Its first real run
+  showed why `eval/llm_smoke.py` records who actually served each call: **27 of 30 calls were
+  rate-limited (429) and silently fell back to mock, yet every report was schema-valid and
+  safe**, so the run would otherwise have looked like a complete success. Diagnosis: the
+  account was fine; Google's shared free capacity for the configured Gemma model was
+  "temporarily rate-limited upstream", with no Retry-After. Fixes: the client now honours a
+  server's Retry-After (capped at 20s); the default free model is Nemotron with free Gemma
+  models listed as OpenRouter-side fallbacks; and the model that actually answered is recorded
+  in `LLMResult.model`, so a routed fallback is never silent either. Module D's Claude model
+  override is ignored for OpenRouter (only Anthropic can serve it). Re-run: 15/15 calls served
+  by OpenRouter, call p50 3.1s, 10-47s per candidate (vs 50-100s on local Ollama), every report
+  schema-valid, attack penalty kept, no injected text or accusatory language, 8 questions per
+  candidate. Only one run was made to stay inside the free daily cap, so cross-run determinism
+  for OpenRouter is not measured (it is for Ollama). LLM-written summaries are not yet checked
+  against the structured facts they summarise.

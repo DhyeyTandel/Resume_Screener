@@ -4,6 +4,7 @@ llm:
   fallback_chain: [ollama, mock]
   ollama: { base_url: "http://localhost:11434", model: "qwen2.5:7b-instruct" }
   anthropic: { api_key_env: ANTHROPIC_API_KEY, model: "claude-sonnet-4-6" }
+  openrouter: { api_key_env: OPENROUTER_API_KEY, model: "nvidia/nemotron-3-super-120b-a12b:free", fallback_models: [google/gemma-4-31b-it:free, google/gemma-4-26b-a4b-it:free], base_url: "https://openrouter.ai/api/v1" }
   temperature: 0
   max_retries: 2
   timeout_s: 60

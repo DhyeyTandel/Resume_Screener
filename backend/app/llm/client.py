@@ -46,7 +46,19 @@ class LLMTruncated(RuntimeError):
 
 
 class _Retryable(Exception):
-    pass
+    def __init__(self, msg: str, retry_after: float = 0.0) -> None:
+        super().__init__(msg)
+        self.retry_after = retry_after
+
+
+RETRY_AFTER_CAP_S = 20.0  # honour a server's Retry-After, but never stall a screening longer
+
+
+def _retry_after(resp: Any) -> float:
+    try:
+        return min(RETRY_AFTER_CAP_S, max(0.0, float(resp.headers.get("retry-after", 0))))
+    except (TypeError, ValueError):
+        return 0.0  # an HTTP-date or junk value: fall back to normal backoff
 
 
 @dataclass
@@ -54,12 +66,17 @@ class _Raw:
     text: str
     usage: dict
     stop_reason: str | None
+    served_model: str | None = None  # what actually answered (OpenRouter may route elsewhere)
 
 
 def _redact(text: str) -> str:
-    """Never let the API key reach a log line, exception message or result."""
-    key = os.getenv(str(cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY")), "")
-    return text.replace(key, "[REDACTED]") if key else text
+    """Never let any provider API key reach a log line, exception message or result."""
+    for env in (cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY"),
+                cfg("llm.openrouter.api_key_env", "OPENROUTER_API_KEY")):
+        key = os.getenv(str(env), "")
+        if key:
+            text = text.replace(key, "[REDACTED]")
+    return text
 
 
 async def _default_sleep(seconds: float) -> None:
@@ -114,7 +131,7 @@ class LLMClient:
         errors: list[str] = []
         for provider in self.chain:
             try:
-                data, attempts, usage, stop = await self._dispatch(
+                data, attempts, usage, stop, served = await self._dispatch(
                     provider, system, payload, task, temperature, max_tokens, model
                 )
                 self.calls += 1
@@ -122,7 +139,7 @@ class LLMClient:
                 return LLMResult(
                     data=data,
                     provider=provider,
-                    model=_model_for(provider, model),
+                    model=served or _model_for(provider, model),
                     latency_ms=int((time.perf_counter() - started) * 1000),
                     attempts=attempts,
                     usage=usage,
@@ -146,15 +163,15 @@ class LLMClient:
         temperature: float | None,
         max_tokens: int | None,
         model: str | None,
-    ) -> tuple[dict, int, dict, str | None]:
+    ) -> tuple[dict, int, dict, str | None, str | None]:
         if provider == "mock":
             data = MOCK_TASKS[task](json.loads(user) if user.startswith("{") else {"text": user})
-            return data, 1, {}, None
+            return data, 1, {}, None, None
         if provider == "ollama":
             return await self._http_json(provider, system, user, temperature, max_tokens, model)
-        if provider == "anthropic":
-            if not os.getenv(str(cfg("llm.anthropic.api_key_env", "ANTHROPIC_API_KEY"))):
-                raise RuntimeError("anthropic: no API key in environment")
+        if provider in ("anthropic", "openrouter"):
+            if not os.getenv(str(cfg(f"llm.{provider}.api_key_env", ""))):
+                raise RuntimeError(f"{provider}: no API key in environment")
             return await self._http_json(provider, system, user, temperature, max_tokens, model)
         raise RuntimeError(f"unknown provider {provider}")
 
@@ -166,7 +183,7 @@ class LLMClient:
         temperature: float | None,
         max_tokens: int | None,
         model: str | None,
-    ) -> tuple[dict, int, dict, str | None]:
+    ) -> tuple[dict, int, dict, str | None, str | None]:
         import httpx  # imported lazily: mock mode needs no HTTP stack
 
         retries = int(cfg("llm.max_retries", 2))
@@ -184,7 +201,7 @@ class LLMClient:
                     )
                 usage = raw.usage
                 try:
-                    return extract_json(raw.text), attempt, raw.usage, raw.stop_reason
+                    return extract_json(raw.text), attempt, raw.usage, raw.stop_reason, raw.served_model
                 except ValueError as exc:  # JSONDecodeError is a ValueError
                     if raw.stop_reason == "max_tokens":
                         raise LLMTruncated(
@@ -195,7 +212,9 @@ class LLMClient:
             except _Retryable as exc:
                 last = str(exc)
                 if attempt <= retries:
-                    await self._sleep(1 * (2**backoffs))  # 1s, 2s
+                    # 1s, 2s, or longer when the server asked for it (free tiers throttle in
+                    # bursts; a 1-2s retry measured 3/3 failures against OpenRouter).
+                    await self._sleep(max(1 * (2**backoffs), exc.retry_after))
                     backoffs += 1
         raise RuntimeError(_redact(f"{provider} failed after {retries + 1} attempts: {last}"))
 
@@ -218,6 +237,31 @@ class LLMClient:
                         "stream": False,
                         "format": "json",
                         "options": options,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": msg},
+                        ],
+                    },
+                )
+            elif provider == "openrouter":
+                # OpenAI-compatible chat completions. The model is always the configured one:
+                # Module D's override names a Claude model, which only Anthropic can serve.
+                resp = await http.post(
+                    f"{str(cfg('llm.openrouter.base_url')).rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {os.environ[str(cfg('llm.openrouter.api_key_env'))]}",
+                        "X-Title": "AI Resume Screening Assistant",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": cfg("llm.openrouter.model"),
+                        # OpenRouter's own routing: if the primary free model is rate-limited
+                        # upstream, the next listed one answers. The served model is recorded.
+                        "models": [cfg("llm.openrouter.model"), *(cfg("llm.openrouter.fallback_models") or [])],
+                        "max_tokens": max_tokens or DEFAULT_MAX_TOKENS,
+                        "temperature": temp,
+                        "seed": OLLAMA_SEED,
+                        "response_format": {"type": "json_object"},
                         "messages": [
                             {"role": "system", "content": system},
                             {"role": "user", "content": msg},
@@ -248,13 +292,26 @@ class LLMClient:
             raise _Retryable(f"transport error {exc.__class__.__name__}") from None
         status = resp.status_code
         if status == 429 or status >= 500:
-            raise _Retryable(f"HTTP {status}")
+            raise _Retryable(f"HTTP {status}", _retry_after(resp))
         if status >= 400:
             raise RuntimeError(f"{provider} HTTP {status}")  # 4xx: retrying cannot help
         try:
             body = resp.json()
         except ValueError:
             return _Raw("", {}, None)  # becomes a parse failure and a STRICT retry
+        if provider == "openrouter":
+            # OpenRouter can report a provider-side failure inside an HTTP 200 body.
+            if isinstance(body, dict) and body.get("error"):
+                code = (body["error"] or {}).get("code") if isinstance(body["error"], dict) else None
+                if code == 429 or (isinstance(code, int) and code >= 500):
+                    raise _Retryable(f"openrouter error {code}")
+                raise RuntimeError(f"openrouter error {code}")
+            choice = (body.get("choices") or [{}])[0]
+            u = body.get("usage") or {}
+            usage = {"input_tokens": u.get("prompt_tokens"), "output_tokens": u.get("completion_tokens")}
+            stop = "max_tokens" if choice.get("finish_reason") == "length" else choice.get("finish_reason")
+            return _Raw((choice.get("message") or {}).get("content") or "", usage, stop,
+                        body.get("model"))
         if provider == "ollama":
             usage = {
                 "input_tokens": body.get("prompt_eval_count"),
@@ -277,6 +334,7 @@ def _model_for(provider: str, override: str | None = None) -> str:
         "mock": "mock-heuristic-v1",
         "ollama": str(cfg("llm.ollama.model")),
         "anthropic": str(cfg("llm.anthropic.model")),
+        "openrouter": str(cfg("llm.openrouter.model")),
     }[provider]
 
 
