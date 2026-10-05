@@ -151,7 +151,7 @@ export interface Row {
   integrity_action: string;
   authenticity_band?: string | null;
   mock_mode?: boolean;
-  /** undefined: not loaded yet; null: the report predates provenance. Filled client-side. */
+  /** From the row itself (API) or the sample report; null/absent: the report predates provenance. */
   provenance?: ProvenanceEntry[] | null;
   /** "sample" rows come from /v1/samples and are not in the database. */
   source: "sample" | "screening";

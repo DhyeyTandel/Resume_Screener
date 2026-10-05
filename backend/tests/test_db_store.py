@@ -170,3 +170,19 @@ def test_purge_runs_on_startup(tmp_path):
         conn.execute("UPDATE candidates SET created_at='2000-01-01T00:00:00+00:00'")
     conn.close()
     assert Store(db).get_candidate("old") is None  # a restart applies retention
+
+
+def test_screening_rows_carry_provenance(db_path):
+    """The dashboard labels each row with which model wrote it straight from the screening
+    response, instead of fetching every full report."""
+    with TestClient(app) as client:
+        sid = client.post("/v1/screenings", data={"jd_text": JD, "pasted_resumes": [STRONG]}).json()["screening_id"]
+        for _ in range(100):
+            sc = client.get(f"/v1/screenings/{sid}").json()
+            if sc["status"] == "complete":
+                break
+            time.sleep(0.1)
+        row = sc["candidates"][0]
+        assert isinstance(row["provenance"], list) and row["provenance"]
+        assert {e["task"] for e in row["provenance"]} >= {"narrative"}
+        assert all(e["provider"] in ("mock", "template") for e in row["provenance"])  # suite is pinned to mock

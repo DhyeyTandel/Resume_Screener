@@ -298,3 +298,10 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   openrouter / nemotron..." or "mock template (rate-limited)"), and the landing badge says
   what is *configured* rather than implying what served. `/v1/health` adds
   `configured_provider`, `key_present` (a boolean, never the key) and `fallback_chain`.
+- **A-26 (OpenRouter repeatability, row provenance).** A 2-run check on two cases
+  (`eval/llm_smoke_report_openrouter_cases1-3.md`; `--cases` added to save free-tier quota):
+  identical recommendation, score, band and integrity action across runs; all 10 answered calls
+  served by Nemotron; the attack PDF kept its 0.40 penalty. It also exercised Spec 12.6 for real
+  for the first time: Module D's first reply on the attack case hit the token limit and the
+  doubled-budget retry succeeded, in both runs. Screening rows now carry their compact
+  provenance, so the dashboard no longer fetches every full report just to label each row.

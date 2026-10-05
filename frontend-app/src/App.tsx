@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
-import { getCandidate, getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { getHealth, getSamples, getScreening, postForm, rowFromReport } from "./api";
 import type { Row } from "./types";
 import JdPanel from "./components/JdPanel";
 import ResumeUpload, { type Consents, type FileEntry, type FileState } from "./components/ResumeUpload";
@@ -76,22 +76,10 @@ export default function App() {
 
   const sampleRows = useMemo(() => (samples.data ?? []).map(rowFromReport), [samples.data]);
   const screenedBase = screening.data?.candidates;
-  // Row JSON carries no provenance, so read each report (same cache key as the drawer).
-  const reports = useQueries({
-    queries: (screenedBase ?? []).map((c) => ({
-      queryKey: ["candidate", c.candidate_id],
-      queryFn: () => getCandidate(c.candidate_id),
-      staleTime: 60_000,
-    })),
-  });
+  // Rows carry their own provenance (GET /v1/screenings), so no per-row report fetch.
   const screenedRows: Row[] = useMemo(
-    () =>
-      (screenedBase ?? []).map((c, i) => {
-        const q = reports[i];
-        const provenance = q?.data ? (q.data.extensions.meta?.provenance ?? null) : q?.isError ? null : undefined;
-        return { ...c, provenance, source: "screening" as const };
-      }),
-    [screenedBase, reports.map((q) => q.dataUpdatedAt + q.status).join("|")],
+    () => (screenedBase ?? []).map((c) => ({ ...c, provenance: c.provenance ?? null, source: "screening" as const })),
+    [screenedBase],
   );
   const served = view === "screening" ? servedSummary(screenedRows.map((r) => r.provenance)) : null;
   const rows = view === "samples" ? sampleRows : screenedRows;

@@ -101,12 +101,12 @@ async def run_case(name: str, kw: dict, provider: str) -> dict:
     }
 
 
-async def main(runs: int, provider: str) -> None:
+async def main(runs: int, provider: str, only: list[int] | None = None) -> None:
     get_config()  # loads the gitignored .env so the provider key is available
     model = cfg(f"llm.{provider}.model")
     results = []
     for i in range(runs):
-        for name, kw in CASES:
+        for name, kw in [c for i, c in enumerate(CASES, 1) if not only or i in only]:
             kw = dict(kw)
             if "github_fetch" in kw:
                 kw["github_fetch"] = make_fetch("derek")
@@ -131,8 +131,8 @@ async def main(runs: int, provider: str) -> None:
         det.setdefault(r["case"], set()).add((r["recommendation"], r["score"], r["band"], r["integrity_action"]))
 
     lines = [
-        f"# Real-model smoke run ({provider})", "",
-        (f"Model: `{model}` via {provider}. {runs} run(s) x {len(CASES)} cases. "
+        f"# Real-model smoke run ({provider})" + (f" - cases {only}" if only else ""), "",
+        (f"Model: `{model}` via {provider}. {runs} run(s) x {len(only) if only else len(CASES)} cases. "
          "Measured, not estimated. Not part of CI (needs a model or key)."), "",
         "## Who actually served each LLM call", "",
         "| Provider | Calls |", "|---|---|",
@@ -159,13 +159,21 @@ async def main(runs: int, provider: str) -> None:
               *[f"| {c} | {len(v)} |" for c, v in det.items()], "",
               "## Fallbacks and errors", ""]
     fallbacks = [(r["case"], s) for r in results for s in r["served"] if s["provider"] != provider]
-    lines += ([f"- {c}: task `{s['task']}` served by `{s['provider']}` "
-               f"(errors: {s.get('errors') or s.get('error')})" for c, s in fallbacks] or ["None."])
+    def _describe(c: str, s: dict) -> str:
+        if s.get("error") == "LLMTruncated":
+            # Spec 12.6: Module D retries a reply cut off at max_tokens with a doubled budget.
+            return (f"- {c}: task `{s['task']}` reply hit the token limit; retried with a doubled "
+                    "budget as Spec 12.6 requires (expected, not a fallback)")
+        return f"- {c}: task `{s['task']}` served by `{s['provider']}` (errors: {s.get('errors') or s.get('error')})"
+    lines += ([_describe(c, s) for c, s in fallbacks] or ["None."])
     lines += ["", "## Sample real-model prose (run 1)", ""]
     for r in [x for x in results if x["run"] == 1]:
         lines += [f"**{r['case']}**", "", f"- Summary: {r['summary']}",
                   f"- Integrity headline: {r['headline']}", f"- First interview question: {r['sample_question']}", ""]
-    out = ROOT / "eval" / ("llm_smoke_report.md" if provider == "ollama" else f"llm_smoke_report_{provider}.md")
+    suffix = "" if provider == "ollama" else f"_{provider}"
+    if only:
+        suffix += "_cases" + "-".join(map(str, only))
+    out = ROOT / "eval" / f"llm_smoke_report{suffix}.md"
     out.write_text("\n".join(lines) + "\n")
     print(f"\nWrote {out.relative_to(ROOT)}  | calls by provider: {by_provider}")
 
@@ -174,5 +182,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--provider", default="ollama", choices=["ollama", "openrouter", "anthropic"])
+    ap.add_argument("--cases", default="", help="comma-separated 1-based case numbers, e.g. 1,3 "
+                    "(saves quota on rate-limited free tiers)")
     a = ap.parse_args()
-    asyncio.run(main(a.runs, a.provider))
+    asyncio.run(main(a.runs, a.provider, [int(x) for x in a.cases.split(",") if x.strip()] or None))

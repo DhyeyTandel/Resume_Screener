@@ -243,6 +243,9 @@ def _row(cid: str, r: dict) -> dict:
         "integrity_action": integ.get("recommended_action", "proceed"),
         "authenticity_band": auth.get("band"),
         "mock_mode": ext.get("meta", {}).get("mock_mode", True),
+        # Compact per-task "which model wrote this", so the dashboard needs no extra fetch
+        # of every full report just to label each row. Reasons are already redacted.
+        "provenance": ext.get("meta", {}).get("provenance"),
     }
 
 
