@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 /data/
+# Runtime databases anywhere in the tree (the old /data/ rule missed backend/data/).
+data/
+*.db
 .env
 frontend-app/dist
 frontend-app/node_modules

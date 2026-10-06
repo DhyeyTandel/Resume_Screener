@@ -33,3 +33,13 @@ def _reset_screening_queue():
     screening_slots.reset()
     yield
     screening_slots.reset()
+
+
+# Every test gets a throwaway database unless it sets its own. Without this, a test that
+# calls the API without SCREENING_DB_PATH fell through to the default ./data path relative
+# to the test run, and that file ended up committed (no personal data, but it never belonged
+# in git). Tests that need their own file still monkeypatch the variable.
+import tempfile as _tempfile  # noqa: E402
+
+_SESSION_DB_DIR = _tempfile.mkdtemp(prefix="screening-tests-")
+os.environ["SCREENING_DB_PATH"] = os.path.join(_SESSION_DB_DIR, "session.db")
