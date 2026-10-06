@@ -47,6 +47,27 @@ def auth_required() -> bool:
     return bool(_configured())
 
 
+ENV_ADMINS = "SCREENING_ADMIN_LABELS"
+
+
+def admin_labels() -> set[str]:
+    """Labels (comma-separated in SCREENING_ADMIN_LABELS) that see every owner's data."""
+    return {_label(x) for x in os.environ.get(ENV_ADMINS, "").split(",") if x.strip()}
+
+
+def can_access(owner: str | None, actor: str | None) -> bool:
+    """The one ownership rule (A-30). Auth off: always True. Auth on: admins see everything,
+    anyone else sees only rows they own; a row with no owner (written before ownership, or
+    with auth off) is admin-only. No actor while auth is on fails closed."""
+    if not auth_required():
+        return True
+    if actor is None:
+        return False
+    if actor in admin_labels():
+        return True
+    return owner is not None and owner == actor
+
+
 def load_keys() -> list[tuple[str, bytes]]:
     """Parse the env var into (label, sha256 digest) pairs. Malformed entries are skipped."""
     out: list[tuple[str, bytes]] = []

@@ -57,6 +57,7 @@ All milestones M0-M9 are built. The remaining gaps are external, not code:
 ## Before any real deployment
 
 Authentication, CORS, rate limiting, a bounded queue and a PDF sandbox are in (A-29). Set
-`SCREENING_API_KEYS` and `SCREENING_CORS_ORIGINS` in production. Still open: **per-recruiter
-ownership** (any valid key can read every report), limits that are per process rather than
-shared across workers, and a hardened `spawn` PDF sandbox if the threat model needs it.
+`SCREENING_API_KEYS` and `SCREENING_CORS_ORIGINS` in production. Per-recruiter ownership and erasure
+are in (A-30). Still open: limits that are per process rather than shared across workers, a
+hardened `spawn` PDF sandbox if the threat model needs it, and legacy recruiter notes inside the
+append-only audit log that erasure cannot remove (A-30).

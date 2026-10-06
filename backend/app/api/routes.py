@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ from ..modules.core_screening.core import extract_requirements, structure_resume
 from ..modules.interview_questions.generator import generate_interview_questions
 from ..modules.skill_intelligence.transfer import analyze_skill
 from ..pipeline.orchestrator import UI_STAGES, screen_candidate
-from .auth import auth_required
+from .auth import auth_required, can_access
 from .limits import release_admission, screening_slot, screening_slots, try_admit
 
 router = APIRouter(prefix="/v1")
@@ -91,6 +91,64 @@ def err(code: str, message: str, field: str | None = None, remediation: str | No
     if remediation:
         body["remediation"] = remediation
     return body
+
+
+# --- Ownership guards (A-30) -------------------------------------------------
+# Every route with an id in its path declares exactly one of these as a dependency. They all go
+# through can_access, and a refusal is the SAME 404 body as a missing id, never 403, so a
+# recruiter cannot probe whether another recruiter's id exists. With auth off they return before
+# touching the store. tests/test_ownership.py walks app.routes and fails if an id route lacks one.
+def _actor(request: Request) -> str | None:
+    return getattr(request.state, "actor", None)
+
+
+def _not_found(what: str, key: str) -> HTTPException:
+    return HTTPException(404, err("NOT_FOUND", f"No {what} {key}."))
+
+
+def _guard_screening(request: Request, sid: str) -> None:
+    if not auth_required():
+        return
+    found, owner = get_store().owner_of("screenings", sid)
+    if found and not can_access(owner, _actor(request)):
+        raise _not_found("screening", sid)
+
+
+def _guard_candidate(request: Request, cid: str) -> None:
+    if not auth_required():
+        return
+    found, owner = get_store().owner_of("candidates", cid)
+    if found and not can_access(owner, _actor(request)):
+        raise _not_found("candidate", cid)
+
+
+def _guard_audit(request: Request, cid: str) -> None:
+    """Audit is keyed by candidate id and outlives the candidate row, so after erasure it is 404
+    for everyone. With auth on, a non-admin also needs a live candidate row they own."""
+    store = get_store()
+    if store.was_erased(cid):
+        raise _not_found("candidate", cid)
+    if not auth_required():
+        return
+    actor = _actor(request)
+    found, owner = store.owner_of("candidates", cid)
+    if not can_access(owner if found else None, actor):
+        raise _not_found("candidate", cid)
+
+
+def _guard_authenticity(request: Request, candidate_id: str) -> None:
+    if not auth_required():
+        return
+    found, owner = get_store().authenticity_owner(candidate_id)
+    if found and not can_access(owner, _actor(request)):
+        raise HTTPException(
+            404, err("NOT_FOUND", f"No authenticity assessment for {candidate_id}.")
+        )
+
+
+OWNERSHIP_GUARDS = frozenset(
+    {_guard_screening, _guard_candidate, _guard_audit, _guard_authenticity}
+)
 
 
 def _key_present(provider: str) -> bool:
@@ -277,9 +335,9 @@ async def create_screening(
     # Bounded queue: refuse up front (nothing stored yet) rather than queue without limit.
     if not try_admit(len(inputs)):
         return screening_slots.rejection_response()
-    get_store().create_screening(sid, len(inputs))
-    progress = _register_progress(sid, inputs)
     actor = getattr(request.state, "actor", None)
+    get_store().create_screening(sid, len(inputs), owner=actor)
+    progress = _register_progress(sid, inputs)
     # `actor` is passed only when auth is on, so the open-mode call shape is unchanged.
     asyncio.create_task(
         _run(sid, jd_text, inputs, progress, **({"actor": actor} if actor else {}))
@@ -318,7 +376,7 @@ async def _run(
             _finish_progress(entry, failed=report["extensions"].get("status") == "Error")
             cid = report["extensions"]["candidate_id"]
             row = _row(cid, report)
-            store.save_candidate(cid, sid, report, row)
+            store.save_candidate(cid, sid, report, row, owner=actor)
             store.append_audit(
                 cid,
                 "screening_completed",
@@ -335,6 +393,18 @@ async def _run(
         store.update_screening(sid, status="complete", done=done)
     finally:
         release_admission(len(inputs))  # always, even if the run is cancelled or crashes
+
+
+def _scrub_progress_names() -> None:
+    """The in-memory progress list holds display names and is indexed by position, not id.
+    After an erasure, blank any finished entry whose name no longer matches a stored row."""
+    store = get_store()
+    for sid, entries in _PROGRESS.items():
+        screening = store.get_screening(sid)
+        live = {c["candidate_name"] for c in (screening or {}).get("candidates", [])}
+        for e in entries:
+            if e["status"] in ("done", "error") and e["candidate_name"] not in live:
+                e["candidate_name"] = "Erased candidate"
 
 
 def _row(cid: str, r: dict) -> dict:
@@ -361,7 +431,7 @@ def _row(cid: str, r: dict) -> dict:
     }
 
 
-@router.get("/screenings/{sid}")
+@router.get("/screenings/{sid}", dependencies=[Depends(_guard_screening)])
 async def get_screening(sid: str):
     screening = get_store().get_screening(sid)
     if screening is None:
@@ -370,7 +440,7 @@ async def get_screening(sid: str):
     return {**screening, "progress": _PROGRESS.get(sid, [])}
 
 
-@router.get("/candidates/{cid}")
+@router.get("/candidates/{cid}", dependencies=[Depends(_guard_candidate)])
 async def get_candidate(cid: str):
     report = get_store().get_candidate(cid)
     if report is None:
@@ -378,7 +448,7 @@ async def get_candidate(cid: str):
     return report
 
 
-@router.post("/candidates/{cid}/decision")
+@router.post("/candidates/{cid}/decision", dependencies=[Depends(_guard_candidate)])
 async def record_decision(
     request: Request, cid: str, decision: str = Form(...), note: str = Form("")
 ):
@@ -394,25 +464,57 @@ async def record_decision(
         "at": datetime.datetime.now(datetime.UTC).isoformat(),
         "config_version": cfg("app.config_version"),
     }
-    payload = {"decision": decision, "note": note, "at": entry["at"],
+    # The note text goes to the erasable `notes` table; the audit entry keeps note_present only.
+    payload = {"decision": decision, "at": entry["at"],
                "config_version": entry["config_version"]}
     # The authenticated key's LABEL (never the key). Absent when auth is off, so open-mode
     # entries are byte-for-byte what they were before.
     actor = getattr(request.state, "actor", None)
     if actor:
         payload["actor"] = entry["actor"] = actor
-    store.append_audit(cid, "recruiter_decision", payload)  # append-only
+    store.record_decision(cid, payload, note)  # append-only audit row + erasable note
     return entry
 
 
-@router.get("/candidates/{cid}/audit")
+@router.get("/candidates/{cid}/audit", dependencies=[Depends(_guard_audit)])
 async def get_audit(cid: str):
     # Same shape as before: recruiter decisions only. screening_completed rows
     # stay in the table but are not returned here (frontend reads a.decision).
-    return [
-        {"candidate_id": cid, **a["payload"]}
-        for a in get_store().list_audit(cid, event="recruiter_decision")
-    ]
+    return [{"candidate_id": cid, **p} for p in get_store().decisions(cid)]
+
+
+@router.delete("/candidates/{cid}", dependencies=[Depends(_guard_candidate)])
+async def erase_candidate(request: Request, cid: str):
+    """Right to be forgotten. Deletes the report, row, authenticity report and recruiter notes.
+    The append-only audit log keeps its entries (ids, verdicts, decisions, no free text) and
+    gains one `erased` event with counts and the actor label, no personal data."""
+    counts = get_store().erase_candidate(cid, actor=_actor(request))
+    if counts is None:
+        raise _not_found("candidate", cid)
+    _scrub_progress_names()
+    return {"erased": counts}
+
+
+@router.delete("/screenings/{sid}", dependencies=[Depends(_guard_screening)])
+async def erase_screening(request: Request, sid: str):
+    store = get_store()
+    screening = store.get_screening(sid)
+    if screening is None:
+        raise _not_found("screening", sid)
+    if screening["status"] == "processing":
+        # Deleting under a running screening would let it re-create candidates afterwards.
+        return JSONResponse(
+            status_code=409,
+            content=err(
+                "SCREENING_IN_PROGRESS", "This screening is still running.", None,
+                "Wait for it to finish, then delete it.",
+            ),
+        )
+    counts = store.erase_screening(sid, actor=_actor(request))
+    if counts is None:
+        raise _not_found("screening", sid)
+    _PROGRESS.pop(sid, None)  # progress holds candidate names
+    return {"erased": counts}
 
 
 class InterviewReqIn(BaseModel):
@@ -518,11 +620,17 @@ def _redacted_profile(text: str) -> tuple[str, dict]:
 
 
 @router.post("/authenticity/assess")
-async def authenticity_assess(body: AssessIn):
+async def authenticity_assess(request: Request, body: AssessIn):
     _check_text(body.resume.raw_text, "resume.raw_text", required=True)
     if body.linkedin and isinstance(body.linkedin.content, str):
         _check_text(body.linkedin.content, "linkedin.content", required=False)
     cid = body.candidate_id.strip() or str(uuid.uuid4())[:8]
+    if auth_required():
+        # A supplied id must not overwrite another recruiter's report (INSERT OR REPLACE), so an
+        # id that is taken by someone else is replaced by a fresh one rather than refused.
+        found, owner = get_store().authenticity_owner(cid)
+        if found and not can_access(owner, _actor(request)):
+            cid = str(uuid.uuid4())[:8]
     redacted = redact_for_scoring(body.resume.raw_text)
     parsed = body.resume.parsed_profile or structure_resume(redacted)
     linkedin = (
@@ -543,11 +651,11 @@ async def authenticity_assess(body: AssessIn):
         },
         llm=LLMClient(),
     )
-    get_store().put_authenticity_report(cid, report)
+    get_store().put_authenticity_report(cid, report, owner=_actor(request))
     return report
 
 
-@router.get("/authenticity/{candidate_id}")
+@router.get("/authenticity/{candidate_id}", dependencies=[Depends(_guard_authenticity)])
 async def authenticity_get(candidate_id: str):
     store = get_store()
     report = store.get_authenticity_report(candidate_id)

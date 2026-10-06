@@ -148,6 +148,20 @@ export function recordDecision(id: string, decision: string, note: string) {
   return postForm<AuditEntry>(`/v1/candidates/${id}/decision`, fd);
 }
 
+export interface ErasedCounts { erased: Record<string, number> }
+
+/** Right to be forgotten: removes the candidate's report, row, authenticity report and notes. */
+export async function deleteCandidate(id: string): Promise<ErasedCounts> {
+  let res: Response;
+  try {
+    res = await fetch(`/v1/candidates/${encodeURIComponent(id)}`, withAuth({ method: "DELETE" }));
+  } catch {
+    throw new ApiFailure("Could not reach the server. Check that the backend is running.");
+  }
+  if (!res.ok) throw await readError(res);
+  return res.json() as Promise<ErasedCounts>;
+}
+
 /** Same derivation as the backend `_row`, so sample reports fit the results table. */
 export function rowFromReport(r: Report): Row {
   const e = r.extensions;

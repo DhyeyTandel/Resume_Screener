@@ -42,3 +42,47 @@ test("API requests without a valid key are refused, health stays public", async 
   const health = await request.get("/v1/health");
   expect((await health.json()).auth_required).toBe(true);
 });
+
+// Per-recruiter ownership (A-30): keys for two recruiters and an admin, set in playwright.config.ts.
+const KEY_B = "e2e-test-key-b-do-not-use-in-prod";
+const KEY_ADMIN = "e2e-test-key-admin-do-not-use-in-prod";
+const bearer = (k: string) => ({ Authorization: `Bearer ${k}` });
+
+test("a candidate screened by recruiter A is 404 for recruiter B and visible to an admin", async ({ request }) => {
+  const created = await request.post("/v1/screenings", {
+    headers: bearer(KEY),
+    multipart: {
+      jd_text: "Backend engineer. Must have Python and SQL.",
+      pasted_resumes: "Ada Owner\nBackend engineer with 5 years of Python and SQL experience.",
+    },
+  });
+  expect(created.status()).toBe(200);
+  const sid = (await created.json()).screening_id as string;
+  let candidates: { candidate_id: string }[] = [];
+  await expect.poll(async () => {
+    const r = await request.get(`/v1/screenings/${sid}`, { headers: bearer(KEY) });
+    const body = await r.json();
+    candidates = body.candidates;
+    return body.status;
+  }, { timeout: 45_000 }).toBe("complete");
+  const cid = candidates[0].candidate_id;
+
+  const paths = [`/v1/screenings/${sid}`, `/v1/candidates/${cid}`, `/v1/candidates/${cid}/audit`, `/v1/authenticity/${cid}`];
+  for (const p of paths) {
+    expect((await request.get(p, { headers: bearer(KEY) })).status(), `owner ${p}`).toBe(200);
+    expect((await request.get(p, { headers: bearer(KEY_ADMIN) })).status(), `admin ${p}`).toBe(200);
+    const other = await request.get(p, { headers: bearer(KEY_B) });
+    expect(other.status(), `other ${p}`).toBe(404);
+    expect((await other.json()).detail.code).toBe("NOT_FOUND");
+  }
+  const decide = await request.post(`/v1/candidates/${cid}/decision`, { headers: bearer(KEY_B), form: { decision: "Hold" } });
+  expect(decide.status()).toBe(404);
+  expect((await request.delete(`/v1/candidates/${cid}`, { headers: bearer(KEY_B) })).status()).toBe(404);
+  expect((await request.get("/v1/samples", { headers: bearer(KEY_B) })).status()).toBe(200);
+
+  // The admin may erase it; afterwards it is gone for everyone.
+  const erased = await request.delete(`/v1/candidates/${cid}`, { headers: bearer(KEY_ADMIN) });
+  expect(erased.status()).toBe(200);
+  expect((await erased.json()).erased.candidates).toBe(1);
+  expect((await request.get(`/v1/candidates/${cid}`, { headers: bearer(KEY) })).status()).toBe(404);
+});

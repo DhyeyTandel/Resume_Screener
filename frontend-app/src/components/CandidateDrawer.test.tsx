@@ -90,6 +90,65 @@ describe("CandidateDrawer", () => {
   });
 });
 
+describe("Delete candidate data", () => {
+  const handlers = () => [
+    (url: string) => (url === "/v1/candidates/c1" ? jsonResponse(report) : undefined),
+    (url: string) => (url === "/v1/candidates/c1/audit" ? jsonResponse([]) : undefined),
+  ];
+
+  it("is not offered for sample candidates", async () => {
+    const { user } = setup();
+    await user.click(screen.getByRole("tab", { name: "Audit" }));
+    expect(screen.queryByRole("button", { name: "Delete candidate data" })).toBeNull();
+  });
+
+  it("asks first, names the candidate, says it cannot be undone, and Cancel deletes nothing", async () => {
+    const fetchMock = mockFetch(...handlers());
+    const user = userEvent.setup();
+    renderWithClient(<CandidateDrawer row={makeRow()} sampleReports={[]} onClose={() => {}} />);
+    await user.click(await screen.findByRole("tab", { name: "Audit" }));
+    await user.click(await screen.findByRole("button", { name: "Delete candidate data" }));
+    const group = screen.getByRole("group", { name: /Ada Lovelace/ });
+    expect(group).toHaveTextContent("cannot be undone");
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("group", { name: /Ada Lovelace/ })).toBeNull();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+  });
+
+  it("deletes on confirm, then refreshes the table and closes the drawer", async () => {
+    const fetchMock = mockFetch(
+      (url, init) => (url === "/v1/candidates/c1" && init?.method === "DELETE" ? jsonResponse({ erased: { candidates: 1 } }) : undefined),
+      ...handlers(),
+    );
+    const onClose = vi.fn();
+    const onErased = vi.fn();
+    const user = userEvent.setup();
+    renderWithClient(<CandidateDrawer row={makeRow()} sampleReports={[]} onClose={onClose} onErased={onErased} />);
+    await user.click(await screen.findByRole("tab", { name: "Audit" }));
+    await user.click(await screen.findByRole("button", { name: "Delete candidate data" }));
+    await user.click(screen.getByRole("button", { name: /Yes, permanently delete Ada Lovelace/ }));
+    await vi.waitFor(() => expect(onErased).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE")).toHaveLength(1);
+  });
+
+  it("keeps the drawer open and shows the error when the server refuses", async () => {
+    mockFetch(
+      (url, init) => (url === "/v1/candidates/c1" && init?.method === "DELETE" ? jsonResponse({ detail: { code: "NOT_FOUND", message: "No candidate c1." } }, 404) : undefined),
+      ...handlers(),
+    );
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    renderWithClient(<CandidateDrawer row={makeRow()} sampleReports={[]} onClose={onClose} onErased={() => {}} />);
+    await user.click(await screen.findByRole("tab", { name: "Audit" }));
+    await user.click(await screen.findByRole("button", { name: "Delete candidate data" }));
+    await user.click(screen.getByRole("button", { name: /Yes, permanently delete/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No candidate c1.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
 describe("QuestionsTab", () => {
   it("orders must-have questions before preferred and other topics", () => {
     const r = makeReport({}, {

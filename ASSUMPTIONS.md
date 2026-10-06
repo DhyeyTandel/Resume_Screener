@@ -357,3 +357,23 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   `spawn` is a config switch for hardened deployments (about 300ms per PDF). Parsing still
   runs on the event loop, bounded by the timeout; moving it to a thread would make fork
   riskier, so it was left as is. `/v1/interview-questions` now validates its input.
+- **A-30 (ownership and erasure).** **Per-recruiter ownership**, active only when API keys
+  are on: screenings, candidates and authenticity reports record the creating key's label as
+  `owner`; a recruiter sees only their own, labels in `SCREENING_ADMIN_LABELS` see everything,
+  and rows created before this change (no owner) are admin-only. A non-owner gets **404, not
+  403**, so another recruiter's ids cannot even be confirmed to exist. Each id-taking route
+  declares one guard, and a test walks every route and fails if any id route lacks one.
+  `POST /v1/authenticity/assess` with an id owned by someone else silently gets a fresh id
+  rather than overwriting it (leaks one bit: that the id collided). With auth off, nothing
+  changes. Schema migration is additive and idempotent (`ALTER TABLE ... ADD COLUMN` behind a
+  `PRAGMA table_info` check); verified on a copy of a real pre-existing database.
+  **Erasure:** `DELETE /v1/candidates/{id}` and `DELETE /v1/screenings/{id}` remove reports,
+  rows, authenticity reports and recruiter notes in one transaction and append an `erased`
+  audit event holding only ids, counts and the actor label. The audit log stays append-only.
+  Recruiter notes now live in a separate deletable `notes` table and the audit entry keeps
+  only `note_present`, because free-text notes can contain personal data and the audit log
+  cannot be edited. **Known gap:** notes written before this change sit inside the append-only
+  log and cannot be erased; the delete response counts them as `audit_notes_retained`.
+  Deleting a still-processing screening returns 409, since the running job would otherwise
+  re-create its candidates. The dashboard's Audit tab has a confirmed "Delete candidate data"
+  action for real candidates.

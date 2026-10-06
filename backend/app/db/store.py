@@ -44,11 +44,34 @@ CREATE TABLE IF NOT EXISTS audit_log (
     at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_candidate ON audit_log(candidate_id);
+CREATE TABLE IF NOT EXISTS notes (
+    audit_id INTEGER PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    note TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notes_candidate ON notes(candidate_id);
 CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log
 BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log
 BEGIN SELECT RAISE(ABORT, 'audit_log is append-only'); END;
 """
+
+
+# Tables that carry an `owner` column (the API-key label that created the row, A-30).
+# Added by an additive migration so DB files written by older versions keep working.
+_OWNED_TABLES = ("screenings", "candidates", "authenticity_reports")
+_OWNER_KEYS = {"screenings": "id", "candidates": "id", "authenticity_reports": "candidate_id"}
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """Idempotent: ALTER TABLE ADD COLUMN only when PRAGMA table_info shows it missing."""
+    for table in _OWNED_TABLES:
+        cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+        if "owner" not in cols:
+            try:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN owner TEXT")
+            except sqlite3.OperationalError:  # another process added it between check and alter
+                pass
 
 
 def _now() -> str:
@@ -68,6 +91,7 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._conn() as c:
             c.executescript(_SCHEMA)
+            _migrate(c)
             # A screening still "processing" when the store opens was cut off by a
             # restart; nothing resumes it, so mark it rather than let the UI poll forever.
             c.execute("UPDATE screenings SET status='interrupted' WHERE status='processing'")
@@ -108,10 +132,13 @@ class Store:
             conn.close()
 
     # screenings
-    def create_screening(self, sid: str, total: int, status: str = "processing") -> None:
+    def create_screening(
+        self, sid: str, total: int, status: str = "processing", owner: str | None = None
+    ) -> None:
         self._run(
-            "INSERT INTO screenings (id, status, total, done, created_at) VALUES (?,?,?,0,?)",
-            (sid, status, total, _now()),
+            "INSERT INTO screenings (id, status, total, done, created_at, owner)"
+            " VALUES (?,?,?,0,?,?)",
+            (sid, status, total, _now(), owner),
         )
 
     def update_screening(self, sid: str, *, status: str, done: int) -> None:
@@ -134,11 +161,13 @@ class Store:
         }
 
     # candidates
-    def save_candidate(self, cid: str, sid: str, report: dict, row: dict) -> None:
+    def save_candidate(
+        self, cid: str, sid: str, report: dict, row: dict, owner: str | None = None
+    ) -> None:
         self._run(
-            "INSERT OR REPLACE INTO candidates (id, screening_id, report_json, row_json, created_at)"
-            " VALUES (?,?,?,?,?)",
-            (cid, sid, json.dumps(report), json.dumps(row), _now()),
+            "INSERT OR REPLACE INTO candidates"
+            " (id, screening_id, report_json, row_json, created_at, owner) VALUES (?,?,?,?,?,?)",
+            (cid, sid, json.dumps(report), json.dumps(row), _now(), owner),
         )
 
     def get_candidate(self, cid: str) -> dict | None:
@@ -146,11 +175,13 @@ class Store:
         return json.loads(rows[0]["report_json"]) if rows else None
 
     # standalone authenticity assessments (POST /v1/authenticity/assess)
-    def put_authenticity_report(self, candidate_id: str, report: dict) -> None:
+    def put_authenticity_report(
+        self, candidate_id: str, report: dict, owner: str | None = None
+    ) -> None:
         self._run(
-            "INSERT OR REPLACE INTO authenticity_reports (candidate_id, report_json, created_at)"
-            " VALUES (?,?,?)",
-            (candidate_id, json.dumps(report), _now()),
+            "INSERT OR REPLACE INTO authenticity_reports"
+            " (candidate_id, report_json, created_at, owner) VALUES (?,?,?,?)",
+            (candidate_id, json.dumps(report), _now(), owner),
         )
 
     def get_authenticity_report(self, candidate_id: str) -> dict | None:
@@ -158,6 +189,138 @@ class Store:
             "SELECT report_json FROM authenticity_reports WHERE candidate_id=?", (candidate_id,)
         )
         return json.loads(rows[0]["report_json"]) if rows else None
+
+    # ownership (A-30)
+    def owner_of(self, table: str, key: str) -> tuple[bool, str | None]:
+        """(row exists, its owner). The owner is None for rows written before ownership existed."""
+        if table not in _OWNER_KEYS:
+            raise ValueError(table)
+        rows = self._run(f"SELECT owner FROM {table} WHERE {_OWNER_KEYS[table]}=?", (key,))
+        return (True, rows[0]["owner"]) if rows else (False, None)
+
+    def authenticity_owner(self, cid: str) -> tuple[bool, str | None]:
+        """Owner of the authenticity report GET /v1/authenticity/{id} would serve: the
+        standalone report first, else the screened candidate it is embedded in."""
+        found, owner = self.owner_of("authenticity_reports", cid)
+        return (found, owner) if found else self.owner_of("candidates", cid)
+
+    def was_erased(self, cid: str) -> bool:
+        return bool(self._run(
+            "SELECT 1 FROM audit_log WHERE candidate_id=? AND event='erased' LIMIT 1", (cid,)
+        ))
+
+    # recruiter decisions: the free-text note lives in `notes` (erasable), the append-only
+    # audit entry keeps only a note_present flag. Both rows commit in one transaction.
+    def record_decision(self, cid: str, payload: dict[str, Any], note: str) -> None:
+        conn = self._conn()
+        try:
+            with conn:
+                cur = conn.execute(
+                    "INSERT INTO audit_log (candidate_id, event, payload_json, at) VALUES (?,?,?,?)",
+                    (cid, "recruiter_decision",
+                     json.dumps({**payload, "note_present": bool(note)}), _now()),
+                )
+                if note:
+                    conn.execute(
+                        "INSERT INTO notes (audit_id, candidate_id, note) VALUES (?,?,?)",
+                        (cur.lastrowid, cid, note),
+                    )
+        finally:
+            conn.close()
+
+    def decisions(self, cid: str) -> list[dict]:
+        """Recruiter decisions in the original response shape (`note` is a string again).
+        Legacy entries written before notes moved keep their note inside the payload."""
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT a.payload_json, n.note FROM audit_log a"
+                " LEFT JOIN notes n ON n.audit_id = a.id"
+                " WHERE a.candidate_id=? AND a.event='recruiter_decision' ORDER BY a.id",
+                (cid,),
+            ).fetchall()
+        finally:
+            conn.close()
+        out = []
+        for r in rows:
+            p = json.loads(r["payload_json"])
+            has_flag = "note_present" in p
+            p.pop("note_present", None)
+            if has_flag:
+                p["note"] = r["note"] or ""
+            out.append(p)
+        return out
+
+    # erasure (right to be forgotten). Never touches audit_log except to append `erased`.
+    def _erase(self, conn: sqlite3.Connection, cids: list[str]) -> dict:
+        counts = {"candidates": 0, "authenticity_reports": 0, "notes": 0,
+                  "audit_notes_retained": 0}
+        for cid in cids:
+            counts["candidates"] += conn.execute("DELETE FROM candidates WHERE id=?", (cid,)).rowcount
+            counts["authenticity_reports"] += conn.execute(
+                "DELETE FROM authenticity_reports WHERE candidate_id=?", (cid,)
+            ).rowcount
+            counts["notes"] += conn.execute("DELETE FROM notes WHERE candidate_id=?", (cid,)).rowcount
+            for r in conn.execute(
+                "SELECT payload_json FROM audit_log WHERE candidate_id=? AND event='recruiter_decision'",
+                (cid,),
+            ):
+                p = json.loads(r["payload_json"])
+                if "note_present" not in p and p.get("note"):
+                    counts["audit_notes_retained"] += 1  # legacy: text already in the log
+        return counts
+
+    @staticmethod
+    def _erased_event(
+        conn: sqlite3.Connection, key: str, payload: dict[str, Any]
+    ) -> None:
+        conn.execute(
+            "INSERT INTO audit_log (candidate_id, event, payload_json, at) VALUES (?,?,?,?)",
+            (key, "erased", json.dumps(payload), _now()),
+        )
+
+    def erase_candidate(self, cid: str, actor: str | None = None) -> dict | None:
+        """Delete a candidate's report, row, authenticity report and notes. None when there was
+        nothing to delete (the caller answers 404). Audit gets ids, counts and the label only."""
+        conn = self._conn()
+        try:
+            with conn:
+                counts = self._erase(conn, [cid])
+                if not (counts["candidates"] or counts["authenticity_reports"]):
+                    return None
+                self._erased_event(
+                    conn, cid, {"scope": "candidate", "counts": counts,
+                                **({"actor": actor} if actor else {})},
+                )
+        finally:
+            conn.close()
+        return counts
+
+    def erase_screening(self, sid: str, actor: str | None = None) -> dict | None:
+        """Delete a screening and every candidate in it. One `erased` event per candidate (so
+        each id reads as erased) plus one for the screening."""
+        conn = self._conn()
+        try:
+            with conn:
+                if not conn.execute("SELECT 1 FROM screenings WHERE id=?", (sid,)).fetchall():
+                    return None
+                cids = [r["id"] for r in conn.execute(
+                    "SELECT id FROM candidates WHERE screening_id=?", (sid,))]
+                counts = self._erase(conn, cids)
+                for cid in cids:
+                    self._erased_event(
+                        conn, cid, {"scope": "candidate", "screening_id": sid,
+                                    **({"actor": actor} if actor else {})},
+                    )
+                counts["screenings"] = conn.execute(
+                    "DELETE FROM screenings WHERE id=?", (sid,)).rowcount
+                self._erased_event(
+                    conn, sid, {"scope": "screening", "counts": counts,
+                                **({"actor": actor} if actor else {})},
+                )
+        finally:
+            conn.close()
+        return counts
 
     # audit log: insert and select only
     def append_audit(self, candidate_id: str, event: str, payload: dict[str, Any]) -> dict:

@@ -1,7 +1,7 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { getAudit, recordDecision } from "../api";
+import { deleteCandidate, getAudit, recordDecision } from "../api";
 import type { Report } from "../types";
 import { ProvenanceList } from "./provenance";
 import { BandChip, Chip, Empty, ErrorBox, Spinner } from "./ui";
@@ -339,8 +339,21 @@ export function QuestionsTab({ r }: { r: Report }) {
 }
 
 /* ---------- Audit ---------- */
-export function AuditTab({ id, isSample }: { id: string; isSample: boolean }) {
+export function AuditTab(
+  { id, isSample, name, onErased }: { id: string; isSample: boolean; name?: string; onErased?: () => void },
+) {
   const qc = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+  const cancelBtn = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (confirming) cancelBtn.current?.focus(); }, [confirming]);
+  const erase = useMutation({
+    mutationFn: () => deleteCandidate(id),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ["candidate", id] });
+      qc.removeQueries({ queryKey: ["audit", id] });
+      onErased?.();
+    },
+  });
   const [decision, setDecision] = useState("Advance to interview");
   const [note, setNote] = useState("");
   const log = useQuery({ queryKey: ["audit", id], queryFn: () => getAudit(id), enabled: !isSample });
@@ -391,6 +404,40 @@ export function AuditTab({ id, isSample }: { id: string; isSample: boolean }) {
             ))}
           </ul>
         )}
+
+      {!isSample && (
+        <section aria-labelledby="erase-heading" className="mt-8 border-t border-line pt-4">
+          <h3 id="erase-heading" className="h3 !mt-0">Delete candidate data</h3>
+          {!confirming ? (
+            <>
+              <p className="mb-2 text-xs text-muted">
+                Removes this candidate's report, recruiter notes and any authenticity report from the database.
+              </p>
+              <button type="button" className="btn-ghost !bg-stop-soft !text-stop" onClick={() => { erase.reset(); setConfirming(true); }}>
+                Delete candidate data
+              </button>
+            </>
+          ) : (
+            <div role="group" aria-labelledby="erase-confirm" className="rounded-lg border border-stop p-3">
+              <p id="erase-confirm" className="font-semibold text-stop">
+                Delete all stored data for {name ?? "this candidate"}? This cannot be undone.
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                The report and notes are removed for good. The append-only audit log keeps only ids, verdicts and decisions, plus a record that the data was erased.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" className="btn !bg-stop hover:!bg-stop" disabled={erase.isPending} onClick={() => erase.mutate()}>
+                  {erase.isPending ? "Deleting..." : `Yes, permanently delete ${name ?? "candidate"}`}
+                </button>
+                <button ref={cancelBtn} type="button" className="btn-ghost" disabled={erase.isPending} onClick={() => setConfirming(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {erase.isError && <div className="mt-2"><ErrorBox message={(erase.error as Error).message} /></div>}
+        </section>
+      )}
     </div>
   );
 }

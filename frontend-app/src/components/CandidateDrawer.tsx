@@ -22,9 +22,11 @@ interface Props {
   /** Full report for sample candidates (they are not in the database). */
   sampleReports: Report[];
   onClose: () => void;
+  /** Called after the candidate's data was erased on the server; the host refreshes its table. */
+  onErased?: () => void;
 }
 
-export default function CandidateDrawer({ row, sampleReports, onClose }: Props) {
+export default function CandidateDrawer({ row, sampleReports, onClose, onErased }: Props) {
   const isSample = row.source === "sample";
   const [tab, setTab] = useState<TabId>("overview");
   const panel = useRef<HTMLDivElement>(null);
@@ -89,7 +91,7 @@ export default function CandidateDrawer({ row, sampleReports, onClose }: Props) 
       case "authenticity": return <AuthenticityTab r={report} />;
       case "integrity": return <IntegrityTab r={report} />;
       case "questions": return <QuestionsTab r={report} />;
-      case "audit": return <AuditTab id={row.candidate_id} isSample={isSample} />;
+      case "audit": return <AuditTab id={row.candidate_id} isSample={isSample} name={row.candidate_name} onErased={() => { onErased?.(); onClose(); }} />;
     }
   };
 

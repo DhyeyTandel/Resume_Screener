@@ -107,16 +107,19 @@ def test_malformed_config_fails_closed(db, monkeypatch):
     assert c.get("/v1/samples", headers={"X-API-Key": "no-colon-here"}).status_code == 401
 
 
-def _seed(cid="c1"):
+def _seed(cid="c1", owner=None):
     get_store().save_candidate(
         cid, "s1", {"candidate_name": "X", "extensions": {"candidate_id": cid}},
         {"candidate_id": cid, "candidate_name": "X", "overall_match_score": 1,
          "recommendation": "Review Manually", "status": "Complete"},
+        owner=owner,
     )
 
 
-def test_decision_audit_carries_label_never_key(locked):
-    _seed()
+def test_decision_audit_carries_label_never_key(locked, monkeypatch):
+    # Ownership (A-30): alice owns the row and bob reads it as an admin.
+    monkeypatch.setenv("SCREENING_ADMIN_LABELS", "bob")
+    _seed(owner="alice")
     r = locked.post(
         "/v1/candidates/c1/decision", data={"decision": "advance", "note": "ok"},
         headers={"Authorization": f"Bearer {KEY}"},

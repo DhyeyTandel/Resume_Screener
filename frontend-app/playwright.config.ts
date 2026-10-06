@@ -7,6 +7,8 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 8090;
 const AUTH_PORT = 8091; // second backend started WITH an API key, for e2e/auth.spec.ts only
 const AUTH_KEY = "e2e-test-key-do-not-use-in-prod";
+const AUTH_KEY_B = "e2e-test-key-b-do-not-use-in-prod"; // a second recruiter
+const AUTH_KEY_ADMIN = "e2e-test-key-admin-do-not-use-in-prod"; // label "e2e-admin" is an admin
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // A throwaway DB so the e2e run never touches real data. Set once, inherited by workers.
@@ -57,7 +59,8 @@ export default defineConfig({
     env: {
       LLM_PROVIDER: "mock",
       SCREENING_DB_PATH: join(process.env.E2E_DB_DIR, "screening-auth.db"),
-      SCREENING_API_KEYS: `e2e:${AUTH_KEY}`,
+      SCREENING_API_KEYS: `e2e:${AUTH_KEY},e2e-b:${AUTH_KEY_B},e2e-admin:${AUTH_KEY_ADMIN}`,
+      SCREENING_ADMIN_LABELS: "e2e-admin",
     },
   }],
 });

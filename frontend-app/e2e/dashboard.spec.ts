@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { screenPdf } from "./helpers";
 
@@ -79,6 +80,34 @@ test("(d) a recruiter decision on a real candidate appears in the audit list", a
   await expect(log.getByText("Hold", { exact: true })).toBeVisible();
   await expect(log.getByText("Waiting on references")).toBeVisible();
   await expect(dialog.getByText("No decisions have been recorded yet.")).toHaveCount(0);
+});
+
+test("(d2) deleting a screened candidate removes it for good", async ({ page, request }) => {
+  await screenPdf(page, "clean.pdf");
+  const before = await page.locator("tbody tr").count();
+  const open = page.getByRole("button", { name: /^Open details for/ });
+  const name = (await open.getAttribute("aria-label"))?.replace(/^Open details for\s*/, "") ?? "";
+  // The candidate id is the last path part of the report call the drawer makes.
+  const reportCall = page.waitForResponse((r) => /\/v1\/candidates\/[^/]+$/.test(r.url()) && r.request().method() === "GET");
+  await open.click();
+  const cid = (await reportCall).url().split("/").pop() as string;
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Audit" }).click();
+  const serious = async (label: string) => {
+    const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze();
+    expect(violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${label}: ${v.id}`)).toEqual([]);
+  };
+  await serious("audit tab with delete action");
+  await dialog.getByRole("button", { name: "Delete candidate data" }).click();
+  await expect(dialog.getByRole("group")).toContainText("cannot be undone");
+  await serious("delete confirmation");
+  if (name) await expect(dialog.getByRole("group")).toContainText(name);
+  await dialog.getByRole("button", { name: /^Yes, permanently delete/ }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("tbody tr")).toHaveCount(before - 1);
+  expect((await request.get(`/v1/candidates/${cid}`)).status()).toBe(404);
+  expect((await request.get(`/v1/candidates/${cid}/audit`)).status()).toBe(404);
+  expect((await request.delete(`/v1/candidates/${cid}`)).status()).toBe(404);
 });
 
 test.describe("mobile", () => {

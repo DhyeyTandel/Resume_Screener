@@ -114,6 +114,10 @@ export default function App() {
   }, [screeningId, screening.data, usable]);
 
   const close = useCallback(() => setSelected(null), []);
+  // After a candidate is erased on the server, refetch the table (the row is gone) and the drawer closes.
+  const erased = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ["screening", screeningId] });
+  }, [qc, screeningId]);
   const trigger = useRef<HTMLElement | null>(null);
   const open = useCallback((r: Row) => {
     // Remember the control that opened the drawer before the page goes inert (which blurs it).
@@ -249,7 +253,7 @@ export default function App() {
 
       {selected && (
         <Suspense fallback={<div className="fixed inset-0 z-40 bg-ink/45"><Spinner label="Loading details" /></div>}>
-          <CandidateDrawer row={selected} sampleReports={samples.data ?? []} onClose={close} />
+          <CandidateDrawer row={selected} sampleReports={samples.data ?? []} onClose={close} onErased={erased} />
         </Suspense>
       )}
     </div>

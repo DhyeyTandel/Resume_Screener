@@ -176,7 +176,7 @@ Notes on the rows above:
 - Citation validity (evidence citation resolves to a collected artifact): 0 unresolved citations
 - Spurious fork/tutorial flag on genuine candidates: genuine candidates never claim a fork or tutorial repo as their own
 
-Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.005 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 6.2 s.
+Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.005 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 6.0 s.
 
 ### Claim status confusion matrix (rows = ground truth, columns = predicted)
 
