@@ -35,13 +35,26 @@ def compose(requirements: list[dict]) -> dict:
                 "excluded": False,
             }
         )
-    base = 100 * num / den if den else 0.0
+    # den == 0 means every requirement was "Not Enough Evidence" (Spec 2.4, 3.5): there is no
+    # honest number. base_score stays a numeric 0.0 so the contract keeps its shape, but
+    # `score_assessable` is False and consumers must not read the 0 as a match result.
+    assessable = den > 0
+    base = 100 * num / den if assessable else 0.0
     confidence = 1 - (excluded_w / total_w) if total_w else 0.0
     return {
+        "score_assessable": assessable,
         "base_score": round(base, 1),
         "score_confidence": round(confidence, 2),
         "per_requirement_contribution": contributions,
     }
+
+
+def is_assessable(requirements: list[dict]) -> bool:
+    """True when at least one requirement carries a value (Spec 3.5 denominator > 0)."""
+    return any(
+        requirement_value(r["status"], r.get("transferability_score")) is not None
+        for r in requirements
+    )
 
 
 def apply_penalty(base_score: float, penalty: float) -> int:

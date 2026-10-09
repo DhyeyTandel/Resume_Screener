@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 from ...config import cfg
@@ -18,9 +19,59 @@ INJECTION_LEXICON = [
     r"as an ai (?:language )?model",
     r"the (?:ideal|perfect) candidate for this role is",
     r"output only",
+    # Evasion-resistant forms (matched on whitespace-normalised, invisible-stripped text).
+    (r"(?:ignore|disregard|forget|override) (?:(?:all|any|the|of|your) )*(?:previous|prior|above|earlier|preceding) "
+     r"(?:instructions?|prompts?|rules|directions|guidelines|context|messages?)"),
+    # Ranking, score and shortlist directives aimed at a screener.
+    (r"(?:give|assign|award|grant|rate|rank|score|mark|place|put) (?:this|the|my) "
+     r"(?:applicant|candidate|resume|cv|profile)\b[^.!?\n]{0,30}?"
+     r"\b(?:top|highest|best|first|number one|#1|maximum|perfect|full marks|excellent|strongest)\b"),
+    (r"(?:give|assign|award|grant) (?:the |a )?(?:top|highest|best|maximum|perfect|full) "
+     r"(?:rank(?:ing)?|score|rating|marks?|priority) (?:to|for) (?:this|the) "
+     r"(?:applicant|candidate|resume|cv)"),
+    (r"this (?:applicant|candidate|resume|cv) (?:should|must|needs to|has to) (?:be )?"
+     r"(?:ranked|scored|rated|shortlisted|selected|hired|placed|put|advanced|recommended)"),
+    (r"(?:please |kindly |you must |always )?(?:shortlist|recommend|select|hire|advance|prioriti[sz]e) "
+     r"this (?:applicant|candidate|resume|cv)"),
+    r"rate (?:this )?(?:candidate|applicant) (?:as )?(?:10|perfect|excellent|highest|top)\b",
 ]
 INFO_CODES = {"OCR_LAYER", "DOCUMENT_COMMENTS"}  # informational; never count against anyone
 _INJECTION_RE = re.compile("|".join(INJECTION_LEXICON), re.I)
+
+# Characters a reader never sees. Tag characters (U+E0000 block) can smuggle a whole message;
+# zero-width characters break up words so a lexicon cannot match them. ZWNJ/ZWJ (U+200C/D)
+# and the soft hyphen are legitimate in Indic/Persian scripts, emoji and PDF text, so they
+# are stripped before matching but never flagged on their own.
+_TAG_RE = re.compile("[\U000E0000-\U000E007F]")
+_FLAG_SEQ_RE = re.compile("\U0001F3F4[\U000E0020-\U000E007E]+\U000E007F")  # subdivision-flag emoji
+_ZW_FLAG_RE = re.compile("[\u200b\u2060\ufeff\u180e]")
+_STRIP_RE = re.compile("[\u200b-\u200f\u2060-\u2064\ufeff\u180e\u00ad\U000E0000-\U000E007F]")
+_WS_RE = re.compile(r"\s+")
+
+
+def normalise(text: str) -> str:
+    """Whitespace-collapsed, invisible-stripped, NFKC text for lexicon matching."""
+    text = unicodedata.normalize("NFKC", _STRIP_RE.sub("", text))
+    return _WS_RE.sub(" ", text).strip()
+
+
+def injection_match(text: str):
+    return _INJECTION_RE.search(normalise(text))
+
+
+def invisible_payload(text: str) -> str:
+    """Hidden content smuggled in invisible characters: decoded tag characters, or a marker
+    for a run of zero-width characters. Empty when the text has none worth flagging."""
+    text = _FLAG_SEQ_RE.sub("", text)
+    parts: list[str] = []
+    tags = _TAG_RE.findall(text)
+    if tags:
+        decoded = "".join(chr(ord(c) - 0xE0000) for c in tags if 0xE0020 <= ord(c) <= 0xE007E)
+        parts.append(decoded.strip() or f"[{len(tags)} invisible tag characters]")
+    zw = _ZW_FLAG_RE.findall(text)
+    if len(zw) >= 3:
+        parts.append(f"[{len(zw)} zero-width characters embedded in the text]")
+    return " ".join(parts)
 TECH_KEYWORDS = set(
     ["python", "java", "javascript", "typescript", "react", "node", "fastapi", "django", "flask", "sql", "postgresql", "mysql", "mongodb", "kafka", "rabbitmq", "docker", "kubernetes", "aws", "azure", "gcp", "terraform", "redis", "graphql", "rest", "git", "ci", "cd", "microservices", "pytorch", "tensorflow", "spark", "airflow"]
 )
@@ -85,6 +136,26 @@ def longest_common_run(a: list[str], b: list[str]) -> tuple[int, int]:
     return longest, total
 
 
+def _area(bbox: tuple[float, float, float, float]) -> float:
+    return max(0.0, bbox[2] - bbox[0]) * max(0.0, bbox[3] - bbox[1])
+
+
+def _is_ocr_layer(doc: Any, ocr_spans: list) -> bool:
+    """Render-mode-3 text counts as a scan's OCR layer only with a page-sized image under it
+    and when it covers at least ocr_page_coverage_min of the text area (not the span count)."""
+    if not ocr_spans:
+        return False
+    if float(getattr(doc, "image_cover", 0.0)) < float(cfg("integrity.ocr_image_coverage_min", 0.80)):
+        return False
+    inv = sum(_area(s.bbox) for s in ocr_spans)
+    total = sum(_area(s.bbox) for s in doc.spans)
+    if total > 0:
+        share = inv / total
+    else:  # no geometry (text-only sources): fall back to the span share
+        share = len(ocr_spans) / max(1, len(doc.spans))
+    return share >= float(cfg("integrity.ocr_page_coverage_min", 0.80))
+
+
 def scan(doc: Any, jd_text: str = "") -> dict:
     """Returns the scanner report of Spec 8.1."""
     flags: list[dict] = []
@@ -95,14 +166,17 @@ def scan(doc: Any, jd_text: str = "") -> dict:
     # they raise only an info-level note; instructions aimed at the screener inside a
     # comment are still INJECTION_HIDDEN.
     comment_spans = [s for s in hidden_spans if getattr(s, "origin", "body") == "comment"]
+    # Invisible text is an OCR layer only when a picture covers most of the page AND the
+    # invisible text dominates the page's text by area (Spec 8.1). Anything else is hidden.
+    is_ocr = _is_ocr_layer(doc, ocr_spans)
     non_ocr_hidden = [s for s in hidden_spans
-                      if getattr(s, "render_mode", 0) != 3 and getattr(s, "origin", "body") != "comment"]
-    hidden_text = " ".join(s.text for s in non_ocr_hidden).strip()
+                      if (getattr(s, "render_mode", 0) != 3 or not is_ocr)
+                      and getattr(s, "origin", "body") != "comment"]
+    smuggled = invisible_payload("\n".join([doc.visible_text] + [s.text for s in doc.spans]))
+    hidden_text = " ".join([s.text for s in non_ocr_hidden] + ([smuggled] if smuggled else [])).strip()
     comment_text = " ".join(s.text for s in comment_spans).strip()
 
-    if ocr_spans and len(ocr_spans) >= max(1, len(doc.spans) * float(
-        cfg("integrity.ocr_page_coverage_min", 0.80)
-    )):
+    if is_ocr:
         flags.append(
             {
                 "code": "OCR_LAYER",
@@ -123,7 +197,7 @@ def scan(doc: Any, jd_text: str = "") -> dict:
                 "evidence": _quote(hidden_text),
             }
         )
-        if _INJECTION_RE.search(hidden_text):
+        if injection_match(hidden_text):
             flags.append(
                 {
                     "code": "INJECTION_HIDDEN",
@@ -135,7 +209,7 @@ def scan(doc: Any, jd_text: str = "") -> dict:
             )
 
     if comment_text:
-        if _INJECTION_RE.search(comment_text):
+        if injection_match(comment_text):
             flags.append(
                 {
                     "code": "INJECTION_HIDDEN",
@@ -158,14 +232,14 @@ def scan(doc: Any, jd_text: str = "") -> dict:
                 }
             )
 
-    if _INJECTION_RE.search(doc.visible_text):
+    if injection_match(doc.visible_text):
         flags.append(
             {
                 "code": "INJECTION_VISIBLE",
                 "severity": "low",
                 "title": "Instruction-like phrasing in the visible text",
                 "detail": "May be innocent wording; carries little weight on its own.",
-                "evidence": _quote(_INJECTION_RE.search(doc.visible_text).group(0)),  # type: ignore[union-attr]  # guarded by the enclosing if
+                "evidence": _quote(injection_match(doc.visible_text).group(0)),  # type: ignore[union-attr]  # guarded by the enclosing if
             }
         )
 

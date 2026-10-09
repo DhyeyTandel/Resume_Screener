@@ -364,7 +364,10 @@ def _mock_summary(p: dict) -> dict:
 
 
 def _mock_integrity(p: dict) -> dict:
-    flags = p.get("flags", [])
+    report = p.get("scanner_report", {})
+    p = {**p, "verdict": report.get("verdict", p.get("verdict", "clean")),
+         "penalty": report.get("penalty", p.get("penalty", 1.0))}
+    flags = report.get("flags", p.get("flags", []))
     explain = {
         "HIDDEN_TEXT": "The file contains text a reader cannot see on the page.",
         "INJECTION_HIDDEN": "The hidden text contains instructions aimed at an automated screener.",

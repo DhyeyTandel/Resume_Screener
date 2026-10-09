@@ -104,9 +104,20 @@ def load_dotenv(path: Path = _ENV_FILE) -> list[str]:
 def get_config() -> dict:
     load_dotenv()
     cfg = _mini_yaml(_PATH.read_text())
-    # Env overrides for the documented switches.
+    return _apply_env_overrides(cfg)
+
+
+def _apply_env_overrides(cfg: dict) -> dict:
+    """Env overrides for the documented switches (testable without touching the cache)."""
     if os.getenv("LLM_PROVIDER"):
         cfg["llm"]["provider"] = os.environ["LLM_PROVIDER"]
+    # Documented in README, .env.example and docker-compose.yml but never read until an
+    # audit caught it: under `docker compose --profile ollama` the app kept calling
+    # localhost:11434, where Ollama is not running inside the app container.
+    if os.getenv("OLLAMA_BASE_URL"):
+        cfg["llm"]["ollama"]["base_url"] = os.environ["OLLAMA_BASE_URL"]
+    if os.getenv("OLLAMA_MODEL"):
+        cfg["llm"]["ollama"]["model"] = os.environ["OLLAMA_MODEL"]
     return cfg
 
 

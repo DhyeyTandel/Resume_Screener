@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..config import cfg
-from .scoring import missing_must_haves
+from .scoring import is_assessable, missing_must_haves
 
 SHORTLIST = "Shortlist"
 REVIEW = "Review Manually"
@@ -27,7 +27,26 @@ def decide(
     if authenticity_band == "NEEDS_VERIFICATION":
         forced_review.append("Authenticity assessment is NEEDS_VERIFICATION.")
 
-    if overall_score < float(p["not_recommended_max"]):
+    # Spec 2.4 / 3.6: absence lowers confidence, never the match. When nothing could be
+    # assessed, or too little could, a low or zero number reflects our parsing limit and
+    # not evidence against the candidate, so the score alone can never give Not Recommended.
+    assessable = is_assessable(requirements)
+    confident = assessable and score_confidence >= float(p["min_score_confidence"])
+    if not assessable:
+        low_evidence = [(
+            "Too little of the resume could be assessed to score it: every requirement was "
+            "Not Enough Evidence."
+        )]
+    elif not confident:
+        low_evidence = [(
+            f"Score confidence {score_confidence} is below {p['min_score_confidence']}; "
+            "too much of the resume could not be judged, so the score is not evidence "
+            "against the candidate."
+        )]
+    else:
+        low_evidence = []
+
+    if confident and overall_score < float(p["not_recommended_max"]):
         reasons.append(f"Score {overall_score} is below the not-recommended threshold "
                        f"{p['not_recommended_max']}.")
         return NOT_RECOMMENDED, reasons + forced_review
@@ -40,7 +59,7 @@ def decide(
         return NOT_RECOMMENDED, reasons + forced_review
 
     if forced_review:
-        return REVIEW, forced_review
+        return REVIEW, low_evidence + forced_review
 
     if (
         overall_score >= float(p["shortlist_min"])
@@ -57,12 +76,8 @@ def decide(
 
     if missing:
         reasons.append(f"Must-have not evidenced: {', '.join(missing)}.")
-    if score_confidence < float(p["min_score_confidence"]):
-        reasons.append(
-            f"Score confidence {score_confidence} is below {p['min_score_confidence']}; "
-            "too much of the resume could not be judged."
-        )
-    if overall_score < float(p["shortlist_min"]):
+    reasons.extend(low_evidence)
+    if assessable and overall_score < float(p["shortlist_min"]):
         reasons.append(f"Score {overall_score} is below the shortlist threshold "
                        f"{p['shortlist_min']}.")
     return REVIEW, reasons or ["No policy rule fired for shortlist or not-recommended."]

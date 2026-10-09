@@ -27,7 +27,18 @@ class LinkedInEvidence:
     error: str | None = None
 
 
-_DATE_RANGE = re.compile(r"(\d{4})\s*(?:-|–|to)\s*(\d{4}|present|current)", re.I)
+# "2020 - Present", "January 2021 - Present (5 years)", "June 2019 - December 2020": LinkedIn's
+# PDF puts a month name before each year.
+_MONTH_WORD = r"(?:(?!present|current)[A-Za-z]{3,9}\.?\s+)?"
+_DATE_RANGE = re.compile(
+    rf"{_MONTH_WORD}(\d{{4}})\s*(?:-|–|—|to)\s*{_MONTH_WORD}(\d{{4}}|present|current)", re.I
+)
+# Section headings of a LinkedIn PDF. Dated lines under Education etc. are not jobs.
+_SECTION = re.compile(
+    r"^(experience|education|skills|top skills|certifications|licenses & certifications|"
+    r"languages|honors-awards|honors & awards|publications|projects|volunteer experience|"
+    r"summary|contact|courses|patents|recommendations)$", re.I
+)
 
 
 def parse_structured_json(data: dict) -> LinkedInEvidence:
@@ -57,7 +68,14 @@ def parse_pdf_export_text(text: str) -> LinkedInEvidence:
         return LinkedInEvidence(status="error", error="empty LinkedIn export")
     roles: list[LinkedInRole] = []
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    has_experience = any(ln.lower() == "experience" for ln in lines)
+    section = ""
     for i, line in enumerate(lines):
+        if _SECTION.match(line):
+            section = line.lower()
+            continue
+        if has_experience and section != "experience":
+            continue  # education, certifications and the like carry dates but are not jobs
         m = _DATE_RANGE.search(line)
         if not m:
             continue
@@ -82,6 +100,9 @@ def collect_linkedin(linkedin: dict | None) -> LinkedInEvidence:
         return LinkedInEvidence(status="missing")
     kind = linkedin.get("type")
     content = linkedin["content"]
+    if kind == "unreadable_export":
+        # The upload step could not read the file (e.g. a malformed PDF): a clean error status.
+        return LinkedInEvidence(status="error", error=f"unreadable LinkedIn export: {content}")
     try:
         if kind == "structured_json":
             return parse_structured_json(content if isinstance(content, dict) else {})

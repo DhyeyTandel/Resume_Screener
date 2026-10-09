@@ -204,6 +204,34 @@ def _limit_error(status: int, code: str, message: str, field: str, remediation: 
     return JSONResponse(status_code=status, content=err(code, message, field, remediation))
 
 
+def _linkedin_export_from_upload(filename: str, raw: bytes) -> dict:
+    """A .json upload is a structured export. A .pdf ("Save to PDF") goes through the sandboxed
+    PDF loader to get its text; decoding the bytes as UTF-8 turned a real export into garbage
+    and a silent "no roles". An unreadable PDF becomes an explicit unreadable_export so the
+    source reads "error" (Spec 11 Stage 2: malformed PDF), never a crash. Anything else is
+    treated as pasted export text. Export only, never scraping (Spec 2.9)."""
+    import json as _json
+
+    low = filename.lower()
+    if low.endswith(".pdf") or raw[:5] == b"%PDF-":
+        from ..parsing.loader import UnreadableFile, load
+
+        try:
+            text = load(filename if low.endswith(".pdf") else "linkedin.pdf", raw).visible_text
+        except UnreadableFile as exc:
+            return {"type": "unreadable_export", "content": exc.reason}
+        except Exception:
+            return {"type": "unreadable_export", "content": "The PDF could not be read."}
+        return {"type": "pdf_export", "content": text}
+    content = raw.decode("utf-8", "replace")
+    if low.endswith(".json"):
+        try:
+            return {"type": "structured_json", "content": _json.loads(content)}
+        except (ValueError, RecursionError):
+            pass
+    return {"type": "pdf_export", "content": content}
+
+
 async def _bounded_read(f: UploadFile, limit: int) -> bytes:
     """At most limit+1 bytes, so callers can tell "over the limit" without holding the rest."""
     return await f.read(limit + 1)
@@ -297,18 +325,7 @@ async def create_screening(
                     f"A LinkedIn export is larger than the {li_max / (1024 * 1024):g} MB limit.",
                     "linkedin_files", "Upload the profile export only, not other documents.",
                 )
-            content = raw.decode("utf-8", "replace")
-            # A .json upload is a structured export; anything else is treated as a
-            # "Save to PDF" text export (Spec 11: no scraping, export only).
-            import json as _json
-
-            if (linkedin_files[i].filename or "").lower().endswith(".json"):
-                try:
-                    linkedin_export = {"type": "structured_json", "content": _json.loads(content)}
-                except (ValueError, RecursionError):
-                    linkedin_export = {"type": "pdf_export", "content": content}
-            else:
-                linkedin_export = {"type": "pdf_export", "content": content}
+            linkedin_export = _linkedin_export_from_upload(linkedin_files[i].filename or "", raw)
         safe_name = sanitize_filename(f.filename)
         inputs.append(
             {

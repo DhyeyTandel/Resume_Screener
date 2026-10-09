@@ -185,7 +185,7 @@ export default function App() {
         {view === "samples" && (
           <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warn/30 bg-warn-soft px-4 py-3 text-warn">
             <span className="font-semibold">Sample data: run your own screening below</span>
-            <span className="text-xs">These six candidates are pre-computed examples and are not saved to the database.</span>
+            <span className="text-xs">These candidates are pre-computed examples and are not saved to the database.</span>
           </div>
         )}
 

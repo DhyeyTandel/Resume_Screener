@@ -278,18 +278,26 @@ async def assess(
             }
         )
 
-    consistency_findings = (
+    # Resume-internal findings (no second source disagrees) vs findings that come from a
+    # second source (LinkedIn). Both are shown and both lower the consistency score, but only
+    # the cross-source kind can force the band (see the band block below).
+    resume_only_findings = (
         check_anachronisms(resume_text)
         + check_role_overlap(parsed["experience"])
-        + li_findings
         + check_graduation_consistency(parsed.get("education", []), parsed["experience"])
     )
+    consistency_findings = resume_only_findings + li_findings
     grad_check = int(
         graduation_year(parsed.get("education", [])) is not None
         and any(_parse_year(e.get("start", "")) is not None for e in parsed["experience"])
     )
     contradictions = [
-        {"type": c["type"], "detail": c["detail"], "sources": c["sources"]}
+        {
+            "type": c["type"], "detail": c["detail"], "sources": c["sources"],
+            # resume_only: nothing but the resume disagrees with itself. It is reported and
+            # asked about, but is not a source-contradicted claim and does not set the band.
+            "scope": "resume_only" if c in resume_only_findings else "cross_source",
+        }
         for c in consistency_findings
     ]
     checks_performed = max(
@@ -308,21 +316,34 @@ async def assess(
         0.5 * coverage + 0.3 * min(n_sources / 3, 1) + 0.2 * mean_judge_conf, 3
     )
     w = cfg("authenticity.weights")
+    # Displayed score: the Spec 11 Stage 6 formula, unchanged, so the dashboard and the
+    # evaluation keep reporting the documented number.
     authenticity = round(
         w["alpha"] * reliability + w["beta"] * consistency + w["gamma"] * (1 - infl["inflation_index"]),
         3,
     )
+    # The BAND is assigned from `band_score`, which leaves inflation_index out (alpha and beta
+    # renormalised). Spec 2.7 says AI-written-text indicators are display-only and never enter
+    # the score, band or recommendation, and Stage 6 puts inflation_index in Authenticity; the
+    # two cannot both hold for the band, so the global safeguard wins. Otherwise a truthful,
+    # buzzword-heavy (or AI-polished, or non-native) resume would score lower and could be
+    # banded lower on style alone.
+    b_score = band_score(reliability, consistency, w)
 
     bands = cfg("authenticity.bands")
     # Spec Stage 6: a CONTRADICTED claim on a required skill or on a role forces at least
     # NEEDS_VERIFICATION. A contradicted METRIC is not on that list: it lowers reliability
-    # (v = -1) but does not by itself force the band.
+    # (v = -1) but does not by itself force the band. Cross-source Stage 4 findings (LinkedIn
+    # date or title conflicts) are source-contradicted role claims and force it. Resume-only
+    # findings (overlap, graduation, anachronism) are not: A-22 already declines to mark a
+    # claim CONTRADICTED for them because no second source disagrees. They become
+    # verification gaps and a note in the summary instead.
     required_contradiction = any(
         c["status"] == "CONTRADICTED"
         and (c["type"] == "ROLE" or (c["type"] == "SKILL" and c["text"].lower() in req_lower))
         for c in out_claims
-    ) or bool(contradictions)  # Stage 4 findings (incl. resume-only ones) stay a forcing signal
-    band = assign_band(confidence, authenticity, required_contradiction, bands)
+    ) or bool(li_findings)
+    band = assign_band(confidence, b_score, required_contradiction, bands)
 
     _NEEDS_VERIFY = {"UNSUPPORTED", "WEAK", "UNVERIFIABLE", "CONTRADICTED"}
     gaps = [
@@ -336,6 +357,7 @@ async def assess(
         if c["type"] == "SKILL" and c["text"].lower() in req_lower
         and c["status"] in _NEEDS_VERIFY
     ][:10]
+    gaps += _resume_only_gaps(resume_only_findings, out_claims)
 
     return {
         "candidate_id": candidate_id,
@@ -347,6 +369,7 @@ async def assess(
             "coverage": coverage,
             "inflation_index": infl["inflation_index"],
             "assessment_confidence": confidence,
+            "band_score": b_score,  # what the band was assigned from: no inflation term
         },
         "inflation_sub_signals": infl["sub_signals"],
         "sources_used": source_status,
@@ -369,7 +392,7 @@ async def assess(
         "verification_gaps": gaps,
         "recruiter_summary": _recruiter_summary(
             gh, out_claims, confidence, n_sources
-        ),
+        ) + _resume_only_note(resume_only_findings),
         "meta": {
             "model": "deterministic-v1",
             "config_version": cfg("app.config_version"),
@@ -377,6 +400,52 @@ async def assess(
             "llm_calls": llm_calls,
         },
     }
+
+
+def band_score(reliability: float, consistency: float, weights: dict) -> float:
+    """Authenticity without the inflation term: alpha and beta renormalised to sum to 1.
+    This is the only score the band is assigned from (Spec 2.7; see `assess`)."""
+    a, b = float(weights["alpha"]), float(weights["beta"])
+    return round((a * reliability + b * consistency) / (a + b), 3)
+
+
+def _resume_only_gaps(findings: list[dict], out_claims: list[dict]) -> list[dict]:
+    """Verification gaps (Spec 3.3 shape) for resume-internal findings, so Module D can ask."""
+    def claim_id(ctype: str, needle: str | None) -> str:
+        needle = (needle or "").lower()
+        for c in out_claims:
+            if c["type"] == ctype and needle and needle in c["text"].lower():
+                return c["claim_id"]
+        return out_claims[0]["claim_id"] if out_claims else ""
+
+    gaps = []
+    for f in findings[:5]:
+        if f["type"] == "overlapping_roles":
+            titles = [t for t in f.get("titles", []) if t]
+            gap = (claim_id("ROLE", titles[0] if titles else None),
+                   "Ask the candidate to confirm the dates and employment type (full-time, "
+                   "part-time, contract) of the roles that overlap on the resume: "
+                   + " and ".join(f"'{t}'" for t in titles) + ".")
+        elif f["type"] == "graduation_inconsistency":
+            gap = (claim_id("ROLE", f.get("title")),
+                   "Ask the candidate to confirm when this role started relative to their "
+                   "studies: " + f["detail"])
+        else:
+            gap = (claim_id("SKILL", f.get("technology")),
+                   "Ask the candidate how long they have actually used this technology: "
+                   + f["detail"])
+        gaps.append({"claim_id": gap[0], "what_to_verify": gap[1], "priority": "med"})
+    return gaps
+
+
+def _resume_only_note(findings: list[dict]) -> str:
+    if not findings:
+        return ""
+    return (
+        f" Note: the resume contains {len(findings)} date or experience item(s) that do not fit "
+        "together on their own (for example overlapping dates). No other source disagrees, so "
+        "this has not changed the trust band; it is listed as a question to ask the candidate."
+    )
 
 
 def assign_band(confidence: float, authenticity: float, forced: bool, bands: dict) -> str:

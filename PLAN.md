@@ -61,3 +61,19 @@ Authentication, CORS, rate limiting, a bounded queue and a PDF sandbox are in (A
 are in (A-30). Still open: limits that are per process rather than shared across workers, a
 hardened `spawn` PDF sandbox if the threat model needs it, and legacy recruiter notes inside the
 append-only audit log that erasure cannot remove (A-30).
+
+## Status after the compliance audit (see ASSUMPTIONS.md A-31, A-32)
+
+Everything the audit could reproduce on the safety and fairness side is fixed and tested.
+Remaining, roughly by priority:
+1. A real, consenting, hand-labelled dataset (Spec 16.1) to replace synthetic-only numbers;
+   P2, P6, AUROC and calibration ECE are unmet on the synthetic corpus.
+2. LLM-assisted JD/resume/claim extraction with the heuristic as fallback, and embedding-based
+   semantic matching for Module C (Spec 9.1, 10.2, 11 Stage 1).
+3. Per-candidate evidence sources and consent in the API and UI (Spec 14.1).
+4. A real `bulk_import` detector (per-commit line counts) and tutorial fingerprints.
+5. Shared (not per-process) rate limits; a DNS-pinned transport for the portfolio fetcher.
+6. Module C accuracy/precision/recall on a real labelled pair set; a Module D rubric review.
+
+Earlier "Risks" and milestone lines above that say there is no eval harness or no
+LinkedIn/portfolio collector are stale; the corrections are in A-32.

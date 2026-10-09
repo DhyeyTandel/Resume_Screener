@@ -203,7 +203,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "",
-      "notes": "7 years computed from dated roles.",
+      "notes": "7.8 years computed from dated roles.",
       "transferability": {}
     },
     {
@@ -211,7 +211,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "B.Tech in Information Technology, [INSTITUTION], 2019",
-      "notes": "A degree at or above the required level was found.",
+      "notes": "A bachelor's degree, at or above the required level, was found.",
       "transferability": {}
     },
     {
@@ -334,8 +334,8 @@
     "Kafka: Exact Match: No - no adjacent experience found for Kafka either.",
     "AWS: Exact Match: No - no adjacent experience found for AWS either."
   ],
-  "education_assessment": "A degree at or above the required level was found.",
-  "experience_assessment": "7 years computed from dated roles.",
+  "education_assessment": "A bachelor's degree, at or above the required level, was found.",
+  "experience_assessment": "7.8 years computed from dated roles.",
   "strengths": [
     "Evidence found for Python",
     "Evidence found for Docker",
@@ -358,9 +358,9 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "9cc103e0",
+    "candidate_id": "sample-02_transferable",
     "candidate_profile": {
-      "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Python web developer with four years building REST services.",
+      "summary": "[CANDIDATE] [CONTACT] Python web developer with four years building REST services.",
       "skills": [
         "Django",
         "Docker",
@@ -378,6 +378,8 @@
           "company": "Bluefin Retail",
           "start": "2021",
           "end": "Present",
+          "start_month": null,
+          "end_month": null,
           "relevant_points": [
             "Built Django REST APIs for the order management system",
             "Tuned MySQL queries and added indexes, reducing report time by 45 percent",
@@ -389,6 +391,8 @@
           "company": "Halcyon Labs",
           "start": "2019",
           "end": "2021",
+          "start_month": null,
+          "end_month": null,
           "relevant_points": [
             "Maintained Flask microservices and wrote pytest coverage"
           ]
@@ -405,9 +409,11 @@
       ],
       "certifications": [],
       "achievements": [],
-      "total_years": 7.0
+      "total_years": 7.83
     },
+    "unrecognised_jd_lines": [],
     "score_breakdown": {
+      "score_assessable": true,
       "base_score": 72.6,
       "integrity_penalty": 1.0,
       "score_confidence": 0.94,
@@ -499,7 +505,7 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "9cc103e0",
+      "candidate_id": "sample-02_transferable",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.686,
@@ -507,7 +513,8 @@
         "consistency": 1.0,
         "coverage": 0.0,
         "inflation_index": 0.141,
-        "assessment_confidence": 0.0
+        "assessment_confidence": 0.0,
+        "band_score": 0.667
       },
       "inflation_sub_signals": {
         "buzzword_density": 0.0,
@@ -1087,7 +1094,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0001,
+      "_latency_seconds": 0,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1108,7 +1115,7 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 0,
           "status": "ok"
         },
         "authenticity": {
@@ -1116,7 +1123,7 @@
           "status": "ok"
         },
         "narrative": {
-          "latency_ms": 1,
+          "latency_ms": 0,
           "status": "ok"
         },
         "integrity_interpret": {
@@ -1132,7 +1139,7 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 4,
+      "latency_ms": 0,
       "llm_calls": 2,
       "provenance": [
         {

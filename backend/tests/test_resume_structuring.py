@@ -1,6 +1,7 @@
 """structure_resume: grouped skills, slash compounds, short names, achievements, role formats."""
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -63,7 +64,8 @@ def test_role_line_formats_populate_title_and_company(line: str) -> None:
     assert (role["title"], role["company"]) == ("Data Engineer", "Acme Corp")
     assert (role["start"], role["end"]) == ("2019", role["end"]) and role["end"] in {"2022"}
     assert role["relevant_points"] == ["Built pipelines"]
-    assert r["total_years"] == 3.0
+    # Month-level math (Spec 9.3): "Jan 2019 - Mar 2022" is 39 months, year-only is 3 full years.
+    assert r["total_years"] == (3.25 if "Jan 2019" in line else 3.0)
 
 
 SAMPLE_EXPECTED = {
@@ -99,4 +101,6 @@ def test_transferable_sample_keeps_skills_and_years() -> None:
     r = structure_resume((ROOT / "sample_data" / "resumes" / "02_transferable.txt").read_text())
     assert {"python", "django", "flask", "mysql", "pytest", "sql"} <= {s.lower() for s in r["skills"]}
     assert [e["company"] for e in r["experience"]] == ["Bluefin Retail", "Halcyon Labs"]
-    assert r["total_years"] == 7.0
+    # 2019 - 2021 then 2021 - Present: the present end is the current month, read from the clock.
+    today = date.today()
+    assert r["total_years"] == round(((today.year - 2019) * 12 + today.month) / 12, 2)

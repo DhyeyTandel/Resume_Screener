@@ -1,17 +1,17 @@
 {
-  "candidate_name": "Alicia Ferreira",
-  "overall_match_score": 88,
+  "candidate_name": "Priya Raman (AI-polished copy)",
+  "overall_match_score": 100,
   "recommendation": "Shortlist",
-  "summary": "The resume covers 7 of 10 job requirements, giving a base match of 87.5. Strongest overlap is in Python, FastAPI, PostgreSQL. No supporting evidence was found for AWS, Pytest. A recruiter should confirm depth in interview.",
+  "summary": "The resume covers 10 of 10 job requirements, giving a base match of 100.0. Strongest overlap is in Python, FastAPI, PostgreSQL. A recruiter should confirm depth in interview.",
   "ai_text_indicators": {
     "level": "Low",
     "disclaimer": "AI-writing indicators are uncertain and should not be used as a sole hiring decision.",
     "evidence": [
       "buzzword_density: 0.0",
-      "specificity_gap: 0.443",
-      "skill_list_bloat: 0.0",
+      "specificity_gap: 0.411",
+      "skill_list_bloat: 0.111",
       "unanchored_metrics: 0.0",
-      "opener_repetition: 0.333"
+      "opener_repetition: 0.278"
     ]
   },
   "requirement_match": [
@@ -19,7 +19,7 @@
       "requirement": "Python",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "Python services for internal reporting, no public repositories",
+      "resume_evidence": "Authored Python services and pytest suites for the reconciliation platform",
       "notes": "Direct evidence of Python was found in the resume.",
       "transferability": {
         "required_skill": "Python",
@@ -30,7 +30,9 @@
         "supporting_skills": [
           "FastAPI"
         ],
-        "supporting_projects": [],
+        "supporting_projects": [
+          "Ledger Service"
+        ],
         "missing_concepts": [
           "oop",
           "packaging",
@@ -44,7 +46,7 @@
           "skill_similarity": 0.55,
           "concept_overlap": 0.0,
           "experience_years": 1.0,
-          "project_evidence": 0.0,
+          "project_evidence": 1.0,
           "tech_proximity": 0.85,
           "learning_curve": 0.6
         },
@@ -55,7 +57,7 @@
       "requirement": "FastAPI",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA",
+      "resume_evidence": "Ledger Service: FastAPI and PostgreSQL service processing settlement events from Kafka",
       "notes": "Direct evidence of FastAPI was found in the resume.",
       "transferability": {
         "required_skill": "FastAPI",
@@ -91,7 +93,7 @@
       "requirement": "PostgreSQL",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA",
+      "resume_evidence": "Ledger Service: FastAPI and PostgreSQL service processing settlement events from Kafka",
       "notes": "Direct evidence of PostgreSQL was found in the resume.",
       "transferability": {
         "required_skill": "PostgreSQL",
@@ -102,7 +104,9 @@
         "supporting_skills": [
           "SQL"
         ],
-        "supporting_projects": [],
+        "supporting_projects": [
+          "Ledger Service"
+        ],
         "missing_concepts": [
           "jsonb",
           "window functions"
@@ -114,7 +118,7 @@
           "skill_similarity": 0.75,
           "concept_overlap": 0.6,
           "experience_years": 1.0,
-          "project_evidence": 0.0,
+          "project_evidence": 1.0,
           "tech_proximity": 0.85,
           "learning_curve": 0.75
         },
@@ -125,7 +129,7 @@
       "requirement": "Kafka",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "Ran Kafka pipelines for appointment event processing",
+      "resume_evidence": "Ledger Service: FastAPI and PostgreSQL service processing settlement events from Kafka",
       "notes": "Direct evidence of Kafka was found in the resume.",
       "transferability": {
         "required_skill": "Kafka",
@@ -159,7 +163,7 @@
       "requirement": "Docker",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "Deployed with Docker across an on-prem cluster",
+      "resume_evidence": "Led ownership of Docker images and the CI/CD pipeline in GitHub Actions",
       "notes": "Direct evidence of Docker was found in the resume.",
       "transferability": {
         "required_skill": "Docker",
@@ -167,7 +171,9 @@
         "semantic_level": "Very High",
         "transferability_score": 1.0,
         "classification": "Exact Match",
-        "supporting_skills": [],
+        "supporting_skills": [
+          "CI/CD"
+        ],
         "supporting_projects": [],
         "missing_concepts": [
           "compose",
@@ -178,12 +184,12 @@
         "reasoning": "Docker appears directly in the resume's own wording.",
         "confidence": "High",
         "factors": {
-          "skill_similarity": 0.0,
+          "skill_similarity": 0.35,
           "concept_overlap": 0.0,
           "experience_years": 1.0,
           "project_evidence": 0.0,
-          "tech_proximity": 0.0,
-          "learning_curve": 0.0
+          "tech_proximity": 0.55,
+          "learning_curve": 0.5
         },
         "evidence": []
       }
@@ -200,22 +206,22 @@
       "requirement": "Bachelor's degree in a computing field",
       "priority": "Must Have",
       "status": "Matched",
-      "resume_evidence": "B.S. in Computer Science, [INSTITUTION], 2019",
+      "resume_evidence": "B.S, which delivered measurable impact. in Computer Science, [INSTITUTION], 2019",
       "notes": "A bachelor's degree, at or above the required level, was found.",
       "transferability": {}
     },
     {
       "requirement": "AWS",
       "priority": "Preferred",
-      "status": "Missing",
-      "resume_evidence": "",
-      "notes": "Exact Match: No - no adjacent experience found for AWS either.",
+      "status": "Matched",
+      "resume_evidence": "Listed in skills: AWS",
+      "notes": "Direct evidence of AWS was found in the resume.",
       "transferability": {
         "required_skill": "AWS",
-        "semantic_match": 0.1,
-        "semantic_level": "Low",
-        "transferability_score": 0.1,
-        "classification": "No Evidence",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
         "supporting_skills": [],
         "supporting_projects": [],
         "missing_concepts": [
@@ -223,9 +229,9 @@
           "iam",
           "object storage"
         ],
-        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for AWS either.",
-        "reasoning": "Neither AWS nor any skill the graph relates to it appears in the resume.",
-        "confidence": "Medium",
+        "recruiter_suggestion": "Direct evidence of AWS was found in the resume.",
+        "reasoning": "AWS appears directly in the resume's own wording.",
+        "confidence": "High",
         "factors": {
           "skill_similarity": 0.0,
           "concept_overlap": 0.0,
@@ -240,15 +246,15 @@
     {
       "requirement": "CI/CD",
       "priority": "Preferred",
-      "status": "Not Enough Evidence",
-      "resume_evidence": "",
-      "notes": "Exact Match: No - Transferability: Weakly - Supporting: Docker - Remaining gap: automated testing, deployment, pipelines.",
+      "status": "Matched",
+      "resume_evidence": "Led ownership of Docker images and the CI/CD pipeline in GitHub Actions",
+      "notes": "Direct evidence of CI/CD was found in the resume.",
       "transferability": {
         "required_skill": "CI/CD",
-        "semantic_match": 0.302,
-        "semantic_level": "Low",
-        "transferability_score": 0.302,
-        "classification": "Weakly Transferable",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
         "supporting_skills": [
           "Docker"
         ],
@@ -258,8 +264,8 @@
           "deployment",
           "pipelines"
         ],
-        "recruiter_suggestion": "Exact Match: No - Transferability: Weakly - Supporting: Docker - Remaining gap: automated testing, deployment, pipelines.",
-        "reasoning": "Docker shares core concepts with CI/CD; the remaining gap is automated testing, deployment, pipelines.",
+        "recruiter_suggestion": "Direct evidence of CI/CD was found in the resume.",
+        "reasoning": "CI/CD appears directly in the resume's own wording.",
         "confidence": "High",
         "factors": {
           "skill_similarity": 0.35,
@@ -275,15 +281,15 @@
     {
       "requirement": "Pytest",
       "priority": "Preferred",
-      "status": "Missing",
-      "resume_evidence": "",
-      "notes": "Exact Match: No - no adjacent experience found for Pytest either.",
+      "status": "Matched",
+      "resume_evidence": "Authored Python services and pytest suites for the reconciliation platform",
+      "notes": "Direct evidence of Pytest was found in the resume.",
       "transferability": {
         "required_skill": "Pytest",
-        "semantic_match": 0.1,
-        "semantic_level": "Low",
-        "transferability_score": 0.1,
-        "classification": "No Evidence",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
         "supporting_skills": [],
         "supporting_projects": [],
         "missing_concepts": [
@@ -291,9 +297,9 @@
           "automated testing",
           "fixtures"
         ],
-        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Pytest either.",
-        "reasoning": "Neither Pytest nor any skill the graph relates to it appears in the resume.",
-        "confidence": "Medium",
+        "recruiter_suggestion": "Direct evidence of Pytest was found in the resume.",
+        "reasoning": "Pytest appears directly in the resume's own wording.",
+        "confidence": "High",
         "factors": {
           "skill_similarity": 0.0,
           "concept_overlap": 0.0,
@@ -313,17 +319,13 @@
     "Kafka",
     "Docker",
     "3+ years of professional experience",
-    "Bachelor's degree in a computing field"
-  ],
-  "missing_or_unclear_skills": [
+    "Bachelor's degree in a computing field",
     "AWS",
     "CI/CD",
     "Pytest"
   ],
-  "technical_gaps": [
-    "AWS: Exact Match: No - no adjacent experience found for AWS either.",
-    "Pytest: Exact Match: No - no adjacent experience found for Pytest either."
-  ],
+  "missing_or_unclear_skills": [],
+  "technical_gaps": [],
   "education_assessment": "A bachelor's degree, at or above the required level, was found.",
   "experience_assessment": "7.8 years computed from dated roles.",
   "strengths": [
@@ -333,8 +335,7 @@
     "Evidence found for Kafka"
   ],
   "risks": [
-    "No resume evidence for AWS",
-    "No resume evidence for Pytest"
+    "No material gaps identified from the resume text alone"
   ],
   "interview_questions": [
     "You list Docker on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
@@ -342,53 +343,61 @@
     "You list Kafka on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
     "You list PostgreSQL on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
     "You list Python on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
-    "We use AWS on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
-    "You have adjacent experience here - where do you expect that to carry over to CI/CD, and where do you expect it to break down?",
-    "We use Pytest on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?"
+    "You list AWS on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+    "You list CI/CD on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+    "You list Pytest on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way."
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "sample-05_private_work",
+    "candidate_id": "sample-08_ai_polished_truthful",
     "candidate_profile": {
-      "summary": "[CANDIDATE] [CONTACT] Backend engineer, four years, mostly on closed-source enterprise systems under NDA.",
+      "summary": "[CANDIDATE] [CONTACT] | [CONTACT] Backend engineer building payment and billing services in Python.",
       "skills": [
+        "AWS",
+        "CI/CD",
         "Docker",
         "FastAPI",
         "Kafka",
         "PostgreSQL",
-        "PostgreSQL-backed",
+        "pytest",
         "Python",
         "SQL"
       ],
       "experience": [
         {
-          "title": "Backend Engineer",
-          "company": "Vantage Health Systems",
-          "start": "2020",
+          "title": "Senior Backend Engineer",
+          "company": "Northwind Payments",
+          "start": "2021",
           "end": "Present",
           "start_month": null,
           "end_month": null,
           "relevant_points": [
-            "Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA",
-            "Ran Kafka pipelines for appointment event processing",
-            "Deployed with Docker across an on-prem cluster"
+            "Engineered and shipped FastAPI services handling 4000 requests per second, reducing p95 latency from 380ms to 120ms",
+            "Architected PostgreSQL schemas and rewrote the settlement query, cutting run time by 60 percent",
+            "Operated Kafka consumer groups for the ledger event stream across 12 partitions",
+            "Led ownership of Docker images and the CI/CD pipeline in GitHub Actions"
           ]
         },
         {
-          "title": "Backend Developer",
-          "company": "Ridgeline Analytics",
+          "title": "Backend Engineer",
+          "company": "Corvid Systems",
           "start": "2019",
-          "end": "2020",
+          "end": "2021",
           "start_month": null,
           "end_month": null,
           "relevant_points": [
-            "Python services for internal reporting, no public repositories"
+            "Authored Python services and pytest suites for the reconciliation platform"
           ]
         }
       ],
-      "projects": [],
+      "projects": [
+        {
+          "name": "Ledger Service",
+          "description": "FastAPI and PostgreSQL service processing settlement events from Kafka"
+        }
+      ],
       "education": [
-        "B.S. in Computer Science, [INSTITUTION], 2019"
+        "B.S, which delivered measurable impact. in Computer Science, [INSTITUTION], 2019"
       ],
       "certifications": [],
       "achievements": [],
@@ -397,9 +406,9 @@
     "unrecognised_jd_lines": [],
     "score_breakdown": {
       "score_assessable": true,
-      "base_score": 87.5,
+      "base_score": 100.0,
       "integrity_penalty": 1.0,
-      "score_confidence": 0.94,
+      "score_confidence": 1.0,
       "per_requirement_contribution": [
         {
           "requirement": "Python",
@@ -453,21 +462,22 @@
         {
           "requirement": "AWS",
           "weight": 1.0,
-          "value": 0.0,
-          "contribution": 0.0,
+          "value": 1.0,
+          "contribution": 1.0,
           "excluded": false
         },
         {
           "requirement": "CI/CD",
           "weight": 1.0,
-          "value": null,
-          "excluded": true
+          "value": 1.0,
+          "contribution": 1.0,
+          "excluded": false
         },
         {
           "requirement": "Pytest",
           "weight": 1.0,
-          "value": 0.0,
-          "contribution": 0.0,
+          "value": 1.0,
+          "contribution": 1.0,
           "excluded": false
         }
       ]
@@ -479,32 +489,32 @@
       "manipulation_attempted": false,
       "findings": [],
       "score_adjustment": {
-        "base_score": 87.5,
+        "base_score": 100.0,
         "penalty": 1.0,
-        "adjusted_score": 87.5,
+        "adjusted_score": 100.0,
         "explanation": "No integrity findings, so the score is unchanged."
       },
       "recommended_action": "proceed",
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "sample-05_private_work",
+      "candidate_id": "sample-08_ai_polished_truthful",
       "band": "INSUFFICIENT_EVIDENCE",
       "scores": {
         "authenticity": 0.684,
         "reliability": 0.5,
         "consistency": 1.0,
         "coverage": 0.0,
-        "inflation_index": 0.155,
+        "inflation_index": 0.16,
         "assessment_confidence": 0.0,
         "band_score": 0.667
       },
       "inflation_sub_signals": {
         "buzzword_density": 0.0,
-        "specificity_gap": 0.443,
-        "skill_list_bloat": 0.0,
+        "specificity_gap": 0.411,
+        "skill_list_bloat": 0.111,
         "unanchored_metrics": 0.0,
-        "opener_repetition": 0.333
+        "opener_repetition": 0.278
       },
       "sources_used": {
         "github": "missing",
@@ -513,6 +523,18 @@
       },
       "source_details": {},
       "skill_evidence": [
+        {
+          "skill": "AWS",
+          "required": true,
+          "status": "UNVERIFIABLE",
+          "evidence": []
+        },
+        {
+          "skill": "CI/CD",
+          "required": true,
+          "status": "UNVERIFIABLE",
+          "evidence": []
+        },
         {
           "skill": "Docker",
           "required": true,
@@ -538,8 +560,8 @@
           "evidence": []
         },
         {
-          "skill": "PostgreSQL-backed",
-          "required": false,
+          "skill": "pytest",
+          "required": true,
           "status": "UNVERIFIABLE",
           "evidence": []
         },
@@ -560,7 +582,7 @@
         {
           "claim_id": "C1",
           "type": "SKILL",
-          "text": "Docker",
+          "text": "AWS",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -571,7 +593,7 @@
         {
           "claim_id": "C2",
           "type": "SKILL",
-          "text": "FastAPI",
+          "text": "CI/CD",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -582,7 +604,7 @@
         {
           "claim_id": "C3",
           "type": "SKILL",
-          "text": "Kafka",
+          "text": "Docker",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -593,7 +615,7 @@
         {
           "claim_id": "C4",
           "type": "SKILL",
-          "text": "PostgreSQL",
+          "text": "FastAPI",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -604,18 +626,18 @@
         {
           "claim_id": "C5",
           "type": "SKILL",
-          "text": "PostgreSQL-backed",
+          "text": "Kafka",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
           "rationale": "No accessible GitHub source could confirm this claim.",
           "judge_confidence": 0.0,
-          "weight": 0.6
+          "weight": 0.9
         },
         {
           "claim_id": "C6",
           "type": "SKILL",
-          "text": "Python",
+          "text": "PostgreSQL",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -626,6 +648,28 @@
         {
           "claim_id": "C7",
           "type": "SKILL",
+          "text": "pytest",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible GitHub source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.9
+        },
+        {
+          "claim_id": "C8",
+          "type": "SKILL",
+          "text": "Python",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible GitHub source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.9
+        },
+        {
+          "claim_id": "C9",
+          "type": "SKILL",
           "text": "SQL",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
@@ -635,7 +679,73 @@
           "weight": 0.6
         },
         {
-          "claim_id": "C8",
+          "claim_id": "C10",
+          "type": "PROJECT",
+          "text": "FastAPI and PostgreSQL service processing settlement events from Kafka",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible GitHub source could confirm this project.",
+          "judge_confidence": 0.0,
+          "weight": 1.0
+        },
+        {
+          "claim_id": "C11",
+          "type": "ROLE",
+          "text": "Senior Backend Engineer",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible LinkedIn export could confirm this role.",
+          "judge_confidence": 0.0,
+          "weight": 1.0
+        },
+        {
+          "claim_id": "C12",
+          "type": "METRIC",
+          "text": "Engineered and shipped FastAPI services handling 4000 requests per second, reducing p95 latency from 380ms to 120ms",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No code artifact could confirm this metric.",
+          "judge_confidence": 0.0,
+          "weight": 1.0
+        },
+        {
+          "claim_id": "C13",
+          "type": "METRIC",
+          "text": "Architected PostgreSQL schemas and rewrote the settlement query, cutting run time by 60 percent",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No code artifact could confirm this metric.",
+          "judge_confidence": 0.0,
+          "weight": 1.0
+        },
+        {
+          "claim_id": "C14",
+          "type": "ACHIEVEMENT",
+          "text": "Operated Kafka consumer groups for the ledger event stream across 12 partitions",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.7
+        },
+        {
+          "claim_id": "C15",
+          "type": "ACHIEVEMENT",
+          "text": "Led ownership of Docker images and the CI/CD pipeline in GitHub Actions",
+          "status": "UNVERIFIABLE",
+          "epistemic_tag": "UNKNOWN",
+          "evidence": [],
+          "rationale": "No accessible source could confirm this claim.",
+          "judge_confidence": 0.0,
+          "weight": 0.7
+        },
+        {
+          "claim_id": "C16",
           "type": "ROLE",
           "text": "Backend Engineer",
           "status": "UNVERIFIABLE",
@@ -646,9 +756,9 @@
           "weight": 1.0
         },
         {
-          "claim_id": "C9",
+          "claim_id": "C17",
           "type": "ACHIEVEMENT",
-          "text": "Built FastAPI services for internal clinical scheduling, PostgreSQL-backed, all code under NDA",
+          "text": "Authored Python services and pytest suites for the reconciliation platform",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -657,53 +767,9 @@
           "weight": 0.7
         },
         {
-          "claim_id": "C10",
-          "type": "ACHIEVEMENT",
-          "text": "Ran Kafka pipelines for appointment event processing",
-          "status": "UNVERIFIABLE",
-          "epistemic_tag": "UNKNOWN",
-          "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
-          "judge_confidence": 0.0,
-          "weight": 0.7
-        },
-        {
-          "claim_id": "C11",
-          "type": "ACHIEVEMENT",
-          "text": "Deployed with Docker across an on-prem cluster",
-          "status": "UNVERIFIABLE",
-          "epistemic_tag": "UNKNOWN",
-          "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
-          "judge_confidence": 0.0,
-          "weight": 0.7
-        },
-        {
-          "claim_id": "C12",
-          "type": "ROLE",
-          "text": "Backend Developer",
-          "status": "UNVERIFIABLE",
-          "epistemic_tag": "UNKNOWN",
-          "evidence": [],
-          "rationale": "No accessible LinkedIn export could confirm this role.",
-          "judge_confidence": 0.0,
-          "weight": 1.0
-        },
-        {
-          "claim_id": "C13",
-          "type": "ACHIEVEMENT",
-          "text": "Python services for internal reporting, no public repositories",
-          "status": "UNVERIFIABLE",
-          "epistemic_tag": "UNKNOWN",
-          "evidence": [],
-          "rationale": "No accessible source could confirm this claim.",
-          "judge_confidence": 0.0,
-          "weight": 0.7
-        },
-        {
-          "claim_id": "C14",
+          "claim_id": "C18",
           "type": "EDUCATION",
-          "text": "B.S. in Computer Science, [INSTITUTION], 2019",
+          "text": "B.S, which delivered measurable impact. in Computer Science, [INSTITUTION], 2019",
           "status": "UNVERIFIABLE",
           "epistemic_tag": "UNKNOWN",
           "evidence": [],
@@ -717,31 +783,46 @@
       "verification_gaps": [
         {
           "claim_id": "C1",
-          "what_to_verify": "Ask the candidate to describe their hands-on use of Docker.",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of AWS.",
           "priority": "high"
         },
         {
           "claim_id": "C2",
-          "what_to_verify": "Ask the candidate to describe their hands-on use of FastAPI.",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of CI/CD.",
           "priority": "high"
         },
         {
           "claim_id": "C3",
-          "what_to_verify": "Ask the candidate to describe their hands-on use of Kafka.",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of Docker.",
           "priority": "high"
         },
         {
           "claim_id": "C4",
-          "what_to_verify": "Ask the candidate to describe their hands-on use of PostgreSQL.",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of FastAPI.",
+          "priority": "high"
+        },
+        {
+          "claim_id": "C5",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of Kafka.",
           "priority": "high"
         },
         {
           "claim_id": "C6",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of PostgreSQL.",
+          "priority": "high"
+        },
+        {
+          "claim_id": "C7",
+          "what_to_verify": "Ask the candidate to describe their hands-on use of pytest.",
+          "priority": "high"
+        },
+        {
+          "claim_id": "C8",
           "what_to_verify": "Ask the candidate to describe their hands-on use of Python.",
           "priority": "high"
         }
       ],
-      "recruiter_summary": "No external source was available for this candidate, so 14 resume claims could not be checked against code, an employment record or a portfolio. That is common and is not a negative signal: private work, NDAs and a simple absence of a public profile all produce this result. The assessment confidence is 0.0, so no headline trust score is shown. Verify the listed items in interview rather than treating them as doubtful.",
+      "recruiter_summary": "No external source was available for this candidate, so 18 resume claims could not be checked against code, an employment record or a portfolio. That is common and is not a negative signal: private work, NDAs and a simple absence of a public profile all produce this result. The assessment confidence is 0.0, so no headline trust score is shown. Verify the listed items in interview rather than treating them as doubtful.",
       "meta": {
         "model": "deterministic-v1",
         "config_version": "1.0.0",
@@ -760,7 +841,9 @@
         "supporting_skills": [
           "FastAPI"
         ],
-        "supporting_projects": [],
+        "supporting_projects": [
+          "Ledger Service"
+        ],
         "missing_concepts": [
           "oop",
           "packaging",
@@ -774,7 +857,7 @@
           "skill_similarity": 0.55,
           "concept_overlap": 0.0,
           "experience_years": 1.0,
-          "project_evidence": 0.0,
+          "project_evidence": 1.0,
           "tech_proximity": 0.85,
           "learning_curve": 0.6
         },
@@ -818,7 +901,9 @@
         "supporting_skills": [
           "SQL"
         ],
-        "supporting_projects": [],
+        "supporting_projects": [
+          "Ledger Service"
+        ],
         "missing_concepts": [
           "jsonb",
           "window functions"
@@ -830,7 +915,7 @@
           "skill_similarity": 0.75,
           "concept_overlap": 0.6,
           "experience_years": 1.0,
-          "project_evidence": 0.0,
+          "project_evidence": 1.0,
           "tech_proximity": 0.85,
           "learning_curve": 0.75
         },
@@ -869,7 +954,9 @@
         "semantic_level": "Very High",
         "transferability_score": 1.0,
         "classification": "Exact Match",
-        "supporting_skills": [],
+        "supporting_skills": [
+          "CI/CD"
+        ],
         "supporting_projects": [],
         "missing_concepts": [
           "compose",
@@ -878,6 +965,32 @@
         ],
         "recruiter_suggestion": "Direct evidence of Docker was found in the resume.",
         "reasoning": "Docker appears directly in the resume's own wording.",
+        "confidence": "High",
+        "factors": {
+          "skill_similarity": 0.35,
+          "concept_overlap": 0.0,
+          "experience_years": 1.0,
+          "project_evidence": 0.0,
+          "tech_proximity": 0.55,
+          "learning_curve": 0.5
+        },
+        "evidence": []
+      },
+      {
+        "required_skill": "AWS",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
+        "supporting_skills": [],
+        "supporting_projects": [],
+        "missing_concepts": [
+          "compute",
+          "iam",
+          "object storage"
+        ],
+        "recruiter_suggestion": "Direct evidence of AWS was found in the resume.",
+        "reasoning": "AWS appears directly in the resume's own wording.",
         "confidence": "High",
         "factors": {
           "skill_similarity": 0.0,
@@ -890,37 +1003,11 @@
         "evidence": []
       },
       {
-        "required_skill": "AWS",
-        "semantic_match": 0.1,
-        "semantic_level": "Low",
-        "transferability_score": 0.1,
-        "classification": "No Evidence",
-        "supporting_skills": [],
-        "supporting_projects": [],
-        "missing_concepts": [
-          "compute",
-          "iam",
-          "object storage"
-        ],
-        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for AWS either.",
-        "reasoning": "Neither AWS nor any skill the graph relates to it appears in the resume.",
-        "confidence": "Medium",
-        "factors": {
-          "skill_similarity": 0.0,
-          "concept_overlap": 0.0,
-          "experience_years": 1.0,
-          "project_evidence": 0.0,
-          "tech_proximity": 0.0,
-          "learning_curve": 0.0
-        },
-        "evidence": []
-      },
-      {
         "required_skill": "CI/CD",
-        "semantic_match": 0.302,
-        "semantic_level": "Low",
-        "transferability_score": 0.302,
-        "classification": "Weakly Transferable",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
         "supporting_skills": [
           "Docker"
         ],
@@ -930,8 +1017,8 @@
           "deployment",
           "pipelines"
         ],
-        "recruiter_suggestion": "Exact Match: No - Transferability: Weakly - Supporting: Docker - Remaining gap: automated testing, deployment, pipelines.",
-        "reasoning": "Docker shares core concepts with CI/CD; the remaining gap is automated testing, deployment, pipelines.",
+        "recruiter_suggestion": "Direct evidence of CI/CD was found in the resume.",
+        "reasoning": "CI/CD appears directly in the resume's own wording.",
         "confidence": "High",
         "factors": {
           "skill_similarity": 0.35,
@@ -945,10 +1032,10 @@
       },
       {
         "required_skill": "Pytest",
-        "semantic_match": 0.1,
-        "semantic_level": "Low",
-        "transferability_score": 0.1,
-        "classification": "No Evidence",
+        "semantic_match": 1.0,
+        "semantic_level": "Very High",
+        "transferability_score": 1.0,
+        "classification": "Exact Match",
         "supporting_skills": [],
         "supporting_projects": [],
         "missing_concepts": [
@@ -956,9 +1043,9 @@
           "automated testing",
           "fixtures"
         ],
-        "recruiter_suggestion": "Exact Match: No - no adjacent experience found for Pytest either.",
-        "reasoning": "Neither Pytest nor any skill the graph relates to it appears in the resume.",
-        "confidence": "Medium",
+        "recruiter_suggestion": "Direct evidence of Pytest was found in the resume.",
+        "reasoning": "Pytest appears directly in the resume's own wording.",
+        "confidence": "High",
         "factors": {
           "skill_similarity": 0.0,
           "concept_overlap": 0.0,
@@ -1009,24 +1096,24 @@
         },
         {
           "skill": "AWS",
-          "evidence_level": "not_demonstrated",
-          "question": "We use AWS on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
-          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
-          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+          "evidence_level": "claimed",
+          "question": "You list AWS on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+          "purpose": "Distinguishes hands-on use from a skills-list entry.",
+          "risk_if_unanswered": "Depth of AWS experience stays unverified before an offer."
         },
         {
           "skill": "CI/CD",
-          "evidence_level": "transferable",
-          "question": "You have adjacent experience here - where do you expect that to carry over to CI/CD, and where do you expect it to break down?",
-          "purpose": "Separates genuine transferable understanding from keyword overlap.",
-          "risk_if_unanswered": "Transferability is assumed rather than tested."
+          "evidence_level": "claimed",
+          "question": "You list CI/CD on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+          "purpose": "Distinguishes hands-on use from a skills-list entry.",
+          "risk_if_unanswered": "Depth of CI/CD experience stays unverified before an offer."
         },
         {
           "skill": "Pytest",
-          "evidence_level": "not_demonstrated",
-          "question": "We use Pytest on this team and it is not on your resume - have you run into it in coursework, a side project or informally, and how would you get up to speed?",
-          "purpose": "Checks for unlisted exposure and gauges ramp-up speed.",
-          "risk_if_unanswered": "A real skill gap could go unnoticed until the candidate is on the team."
+          "evidence_level": "claimed",
+          "question": "You list Pytest on your resume - walk me through the most recent thing you built with it and one decision you had to make along the way.",
+          "purpose": "Distinguishes hands-on use from a skills-list entry.",
+          "risk_if_unanswered": "Depth of Pytest experience stays unverified before an offer."
         }
       ],
       "skipped_strong_evidence": [],
@@ -1036,7 +1123,7 @@
       "_usage": {}
     },
     "recommendation_reasons": [
-      "Score 88 meets the shortlist threshold 75 with no missing must-haves and confidence 0.94."
+      "Score 100 meets the shortlist threshold 75 with no missing must-haves and confidence 1.0."
     ],
     "human_review_required": true,
     "meta": {

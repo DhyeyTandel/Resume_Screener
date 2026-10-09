@@ -31,6 +31,7 @@ export interface Contribution {
 }
 
 export interface ScoreBreakdown {
+  score_assessable?: boolean;
   base_score?: number;
   integrity_penalty?: number;
   score_confidence?: number;
@@ -102,6 +103,7 @@ export interface Extensions {
   error?: string;
   score_breakdown?: ScoreBreakdown;
   recommendation_reasons?: string[];
+  unrecognised_jd_lines?: string[];
   skill_intelligence?: Transferability[];
   authenticity?: Authenticity;
   integrity?: Integrity;

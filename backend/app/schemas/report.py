@@ -137,6 +137,9 @@ class RequirementContribution(_Open):
 
 
 class ScoreBreakdown(_Open):
+    # False when every requirement was Not Enough Evidence: base_score is then a placeholder 0
+    # and must not be read as a match result (Spec 2.4, 3.5).
+    score_assessable: bool = True
     base_score: float
     integrity_penalty: float
     score_confidence: float
@@ -326,6 +329,8 @@ class Extensions(_Open):
     skill_intelligence: list[SkillIntelligenceItem] = Field(default_factory=list)
     interview_questions_detailed: Annotated[InterviewQuestionsDetailed | None, EmptyAsNone] = None
     recommendation_reasons: list[str] = Field(default_factory=list)
+    # JD requirement lines the heuristic extractor could not map to a known skill (Spec 9.1).
+    unrecognised_jd_lines: list[str] = Field(default_factory=list)
     human_review_required: Literal[True]
     meta: Meta
 

@@ -12,7 +12,12 @@ from ..llm.client import MOCK_TASKS, LLMClient, _model_for, _redact
 from ..llm.fact_check import check_narrative
 from ..llm.redaction import redact_for_scoring
 from ..modules.authenticity_engine.engine import assess
-from ..modules.core_screening.core import extract_requirements, match_requirements, structure_resume
+from ..modules.core_screening.core import (
+    extract_requirements,
+    match_requirements,
+    structure_resume,
+    unrecognised_jd_lines,
+)
 from ..modules.integrity_guard.interpreter import enforce_guardrails, interpret
 from ..modules.integrity_guard.scanner import scan
 from ..modules.interview_questions.generator import generate_interview_questions
@@ -331,6 +336,7 @@ async def _screen_candidate(
     # --- Stage 2: Core -----------------------------------------------------
     with Stage(stages, "core", _emit):
         requirements = extract_requirements(jd_text)
+        unrecognised = unrecognised_jd_lines(jd_text)
         parsed = structure_resume(redacted)
         matched = match_requirements(requirements, parsed)
         scores = compose(matched)
@@ -454,6 +460,12 @@ async def _screen_candidate(
         integrity_action=integrity.get("recommended_action", "proceed"),
         authenticity_band=band,
     )
+    if unrecognised:
+        reasons.append(
+            f"{len(unrecognised)} job description requirement line(s) could not be matched to a "
+            "known skill and were not scored, so coverage of the job description is partial; "
+            "check them manually."
+        )
 
     # --- Stage 6: Module D --------------------------------------------------
     questions = None  # stays None if Module D raises (Stage swallows it); handled below
@@ -512,7 +524,9 @@ async def _screen_candidate(
         "extensions": {
             "candidate_id": candidate_id,
             "candidate_profile": parsed,
+            "unrecognised_jd_lines": unrecognised,
             "score_breakdown": {
+                "score_assessable": scores["score_assessable"],
                 "base_score": scores["base_score"],
                 "integrity_penalty": penalty,
                 "score_confidence": scores["score_confidence"],

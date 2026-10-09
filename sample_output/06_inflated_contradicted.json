@@ -194,7 +194,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "",
-      "notes": "8 years computed from dated roles.",
+      "notes": "8.8 years computed from dated roles.",
       "transferability": {}
     },
     {
@@ -202,7 +202,7 @@
       "priority": "Must Have",
       "status": "Matched",
       "resume_evidence": "B.S. in Computer Science, [INSTITUTION], 2016",
-      "notes": "A degree at or above the required level was found.",
+      "notes": "A bachelor's degree, at or above the required level, was found.",
       "transferability": {}
     },
     {
@@ -325,8 +325,8 @@
     "AWS: Exact Match: No - no adjacent experience found for AWS either.",
     "Pytest: Exact Match: No - no adjacent experience found for Pytest either."
   ],
-  "education_assessment": "A degree at or above the required level was found.",
-  "experience_assessment": "8 years computed from dated roles.",
+  "education_assessment": "A bachelor's degree, at or above the required level, was found.",
+  "experience_assessment": "8.8 years computed from dated roles.",
   "strengths": [
     "Evidence found for Python",
     "Evidence found for FastAPI",
@@ -349,9 +349,9 @@
   ],
   "fairness_notice": "This is a decision-support tool. A human recruiter must review all recommendations. Do not use protected characteristics or proxies in screening.",
   "extensions": {
-    "candidate_id": "fee86a3e",
+    "candidate_id": "sample-06_inflated_contradicted",
     "candidate_profile": {
-      "summary": "[CANDIDATE] [CANDIDATE].[CANDIDATE]@example.com Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
+      "summary": "[CANDIDATE] [CONTACT] Full-stack engineer with 12 years of FastAPI experience delivering world-class, cutting-edge platforms.",
       "skills": [
         "Docker",
         "FastAPI",
@@ -365,6 +365,8 @@
           "company": "Pinegate Software",
           "start": "2018",
           "end": "Present",
+          "start_month": null,
+          "end_month": null,
           "relevant_points": [
             "Spearheaded a revolutionary FastAPI platform leveraging synergy across teams",
             "Forked and deployed an open-source starter kit as the company's core product"
@@ -382,9 +384,11 @@
       ],
       "certifications": [],
       "achievements": [],
-      "total_years": 8.0
+      "total_years": 8.83
     },
+    "unrecognised_jd_lines": [],
     "score_breakdown": {
+      "score_assessable": true,
       "base_score": 87.5,
       "integrity_penalty": 1.0,
       "score_confidence": 0.94,
@@ -476,15 +480,16 @@
       "audit_log_entry": "Integrity scan completed with no findings; no score adjustment applied."
     },
     "authenticity": {
-      "candidate_id": "fee86a3e",
+      "candidate_id": "sample-06_inflated_contradicted",
       "band": "NEEDS_VERIFICATION",
       "scores": {
-        "authenticity": 0.581,
-        "reliability": 0.631,
-        "consistency": 0.5,
-        "coverage": 0.632,
+        "authenticity": 0.473,
+        "reliability": 0.534,
+        "consistency": 0.333,
+        "coverage": 0.747,
         "inflation_index": 0.472,
-        "assessment_confidence": 0.493
+        "assessment_confidence": 0.664,
+        "band_score": 0.467
       },
       "inflation_sub_signals": {
         "buzzword_density": 1.0,
@@ -495,7 +500,7 @@
       },
       "sources_used": {
         "github": "ok",
-        "linkedin": "missing",
+        "linkedin": "ok",
         "portfolio": "missing"
       },
       "source_details": {},
@@ -650,11 +655,17 @@
           "claim_id": "C7",
           "type": "ROLE",
           "text": "Lead Engineer",
-          "status": "UNVERIFIABLE",
+          "status": "CONTRADICTED",
           "epistemic_tag": "UNKNOWN",
-          "evidence": [],
-          "rationale": "No accessible LinkedIn export could confirm this role.",
-          "judge_confidence": 0.0,
+          "evidence": [
+            {
+              "source": "linkedin",
+              "citation": "linkedin_export:role:Lead Engineer",
+              "note": "'Lead Engineer' is dated 2018-Present on the resume but 2021-Present on LinkedIn."
+            }
+          ],
+          "rationale": "The candidate's LinkedIn export differs from the resume for this role. Profiles are often updated at different times, so this is worth a direct question rather than a conclusion.",
+          "judge_confidence": 0.7,
           "weight": 1.0
         },
         {
@@ -697,7 +708,17 @@
           "detail": "'12 years of FastAPI' claims 12 years, but Fastapi has existed for about 8 years.",
           "sources": [
             "resume"
-          ]
+          ],
+          "scope": "resume_only"
+        },
+        {
+          "type": "date_conflict",
+          "detail": "'Lead Engineer' is dated 2018-Present on the resume but 2021-Present on LinkedIn.",
+          "sources": [
+            "resume",
+            "linkedin"
+          ],
+          "scope": "cross_source"
         }
       ],
       "authenticity_flags": [
@@ -737,9 +758,14 @@
           "claim_id": "C5",
           "what_to_verify": "Ask the candidate to describe their hands-on use of Python.",
           "priority": "high"
+        },
+        {
+          "claim_id": "C2",
+          "what_to_verify": "Ask the candidate how long they have actually used this technology: '12 years of FastAPI' claims 12 years, but Fastapi has existed for about 8 years.",
+          "priority": "med"
         }
       ],
-      "recruiter_summary": "GitHub evidence was reviewed across 2 repositories. 2 claim(s) have no supporting evidence in the sources checked, which is worth a direct question in interview rather than an assumption either way. Overall assessment confidence is 0.493.",
+      "recruiter_summary": "GitHub evidence was reviewed across 2 repositories. 2 claim(s) have no supporting evidence in the sources checked, which is worth a direct question in interview rather than an assumption either way. Overall assessment confidence is 0.664. Note: the resume contains 1 date or experience item(s) that do not fit together on their own (for example overlapping dates). No other source disagrees, so this has not changed the trust band; it is listed as a question to ask the candidate.",
       "meta": {
         "model": "deterministic-v1",
         "config_version": "1.0.0",
@@ -1029,7 +1055,7 @@
         }
       ],
       "skipped_strong_evidence": [],
-      "_latency_seconds": 0.0001,
+      "_latency_seconds": 0,
       "_attempts": 1,
       "_model": "mock-heuristic-v1",
       "_usage": {}
@@ -1049,15 +1075,15 @@
           "status": "ok"
         },
         "core": {
-          "latency_ms": 2,
+          "latency_ms": 0,
           "status": "ok"
         },
         "authenticity": {
-          "latency_ms": 1,
+          "latency_ms": 0,
           "status": "ok"
         },
         "narrative": {
-          "latency_ms": 1,
+          "latency_ms": 0,
           "status": "ok"
         },
         "integrity_interpret": {
@@ -1073,7 +1099,7 @@
       "mock_mode": true,
       "interview_model": "mock-heuristic-v1",
       "config_version": "1.0.0",
-      "latency_ms": 5,
+      "latency_ms": 0,
       "llm_calls": 2,
       "provenance": [
         {

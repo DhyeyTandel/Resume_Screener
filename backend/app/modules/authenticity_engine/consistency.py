@@ -54,6 +54,7 @@ def check_anachronisms(resume_text: str, *, tolerance_years: int = 0) -> list[di
                             f"{name.title()} has existed for about {available} years."
                         ),
                         "sources": ["resume"],
+                        "technology": name,
                     }
                 )
     return out
@@ -69,33 +70,116 @@ def _parse_year(y: str, *, is_end: bool = False) -> int | None:
         return None
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+_MONTH_YEAR = re.compile(r"^([a-z]{3,9})\.?,?\s+(\d{4})$")  # "Jan 2020", "September 2021"
+_NUM_MONTH_YEAR = re.compile(r"^(\d{1,2})\s*[/.-]\s*(\d{4})$")  # "01/2020"
+_YEAR_NUM_MONTH = re.compile(r"^(\d{4})\s*[/.-]\s*(\d{1,2})$")  # "2020-01"
+
+# Roles that are not a full-time job. Holding one alongside a main job is ordinary (a student
+# tutoring, a freelancer with a day job, a volunteer), so such a role never counts as "a second
+# full-time role" (Spec 2.4: absence of full-time proof is not a contradiction; fairness).
+_NOT_FULL_TIME = re.compile(
+    r"\b(intern\w*|part[- ]?time|student|"
+    r"(?:teaching|research|graduate|lab)\s+(?:assistant|fellow)|assistant\s+(?:lecturer|instructor)|"
+    r"ta|ra|co-?op|apprentice\w*|freelanc\w*|contract(?:or|ing)?|volunteer\w*|tutor\w*|"
+    r"mentor\w*|adjunct|seasonal|casual|per[- ]?diem|gig|side\s+(?:project|gig|hustle)|"
+    r"moonlight\w*|self[- ]employed)\b",
+    re.I,
+)
+
+
+def is_full_time(role: dict) -> bool:
+    """False when the title, company or an explicit employment-type field marks the role as
+    part-time, an internship, freelance, contract, volunteer, tutoring or similar."""
+    text = " ".join(
+        str(role.get(k) or "") for k in ("title", "company", "employment_type", "type")
+    )
+    return not _NOT_FULL_TIME.search(text)
+
+
+def _parse_ym(s: str) -> tuple[int, int | None] | None:
+    """(year, month or None). 'Present' resolves to today. None when unparseable."""
+    s = str(s or "").strip().lower()
+    if s in ("present", "current", "now", "ongoing", "to date"):
+        today = date.today()
+        return today.year, today.month
+    if re.fullmatch(r"\d{4}", s):
+        return int(s), None
+    if m := _MONTH_YEAR.match(s):
+        mon = _MONTHS.get(m.group(1)[:3])
+        return (int(m.group(2)), mon) if mon else None
+    if m := _NUM_MONTH_YEAR.match(s):
+        return (int(m.group(2)), int(m.group(1))) if 1 <= int(m.group(1)) <= 12 else None
+    if m := _YEAR_NUM_MONTH.match(s):
+        return (int(m.group(1)), int(m.group(2))) if 1 <= int(m.group(2)) <= 12 else None
+    return None
+
+
+def _endpoint(role: dict, which: str) -> tuple[int, int | None] | None:
+    """(year, month) of a role's 'start' or 'end'. The month comes from the date string
+    ('Jan 2020', '01/2020') or, for a year string, from the structured `<which>_month` field
+    the resume parser fills in."""
+    ym = _parse_ym(role.get(which, ""))
+    if ym is not None and ym[1] is None:
+        m = role.get(f"{which}_month")
+        if isinstance(m, int) and 1 <= m <= 12:
+            return ym[0], m
+    return ym
+
+
+def _shown(role: dict, which: str) -> str:
+    ym = _endpoint(role, which)
+    if ym is not None and ym[1] is not None and re.fullmatch(r"\d{4}", str(role.get(which) or "")):
+        return f"{ym[1]:02d}/{ym[0]}"
+    return str(role.get(which) or "")
+
+
 def check_role_overlap(experience: list[dict], *, tolerance_months: int = 2) -> list[dict]:
-    """Two full-time roles claimed at the same time is a contradiction the
-    resume alone can reveal - no second source needed."""
+    """Two FULL-TIME roles claimed at the same time is an inconsistency the resume alone can
+    reveal - no second source needed. Part-time, intern, freelance, contract, volunteer, tutor,
+    TA/RA and similar roles are exempt (see `is_full_time`). When both roles carry months the
+    overlap is measured in months; otherwise at year granularity, as before.
+
+    The finding is resume-internal: it does not say which entry is wrong and no second source
+    disagrees, so the engine reports it and asks about it but never lets it set the band."""
     tolerance_years = tolerance_months / 12
     spans = []
     for e in experience:
-        start = _parse_year(e.get("start", ""))
-        end = _parse_year(e.get("end", ""), is_end=True)
-        if start is not None and end is not None and end >= start:
-            display_end = "Present" if str(e.get("end", "")).lower() in ("present", "current") else e.get("end", end)
-            spans.append((start, end, display_end, e))
+        if not is_full_time(e):
+            continue
+        a, b = _endpoint(e, "start"), _endpoint(e, "end")
+        if a is None or b is None or str(e.get("start") or "").strip() == "":
+            continue
+        if (b[0], b[1] or 12) < (a[0], a[1] or 1):
+            continue
+        spans.append((a, b, e))
     out = []
     for i in range(len(spans)):
         for j in range(i + 1, len(spans)):
-            s1, e1, disp1, r1 = spans[i]
-            s2, e2, disp2, r2 = spans[j]
-            overlap = min(e1, e2) - max(s1, s2)
-            if overlap > tolerance_years:
+            (a1, b1, r1), (a2, b2, r2) = spans[i], spans[j]
+            if all(x[1] is not None for x in (a1, b1, a2, b2)):
+                # Month granularity: month index = year*12 + month.
+                idx = lambda ym: ym[0] * 12 + (ym[1] or 1)  # noqa: E731
+                overlap = min(idx(b1), idx(b2)) - max(idx(a1), idx(a2))
+                over = overlap > tolerance_months
+            else:
+                overlap = min(b1[0], b2[0]) - max(a1[0], a2[0])  # years, as before
+                over = overlap > tolerance_years
+            if over:
                 out.append(
                     {
                         "type": "overlapping_roles",
                         "detail": (
-                            f"'{r1.get('title') or 'a role'}' ({s1}-{disp1}) and "
-                            f"'{r2.get('title') or 'a role'}' ({s2}-{disp2}) overlap by more than "
-                            f"{tolerance_months} months, both shown as full-time."
+                            f"'{r1.get('title') or 'a role'}' ({_shown(r1, 'start')}-{_shown(r1, 'end')}) and "
+                            f"'{r2.get('title') or 'a role'}' ({_shown(r2, 'start')}-{_shown(r2, 'end')}) "
+                            f"overlap by more than {tolerance_months} months, and neither is "
+                            "labelled part-time, internship, freelance, contract or similar. "
+                            "Both may be correct (for example a concurrent engagement); worth a "
+                            "question rather than a conclusion."
                         ),
                         "sources": ["resume"],
+                        "titles": [r1.get("title"), r2.get("title")],
                     }
                 )
     return out
@@ -249,8 +333,7 @@ _DEGREE_WORD = re.compile(
 _YEAR = re.compile(r"(?<!\d)(19[5-9]\d|20\d\d)(?!\d)")
 _SENIOR_TITLE = re.compile(r"\b(senior|sr\.?|lead|principal|staff|manager)\b", re.I)
 _EXEMPT_TITLE = re.compile(
-    r"\b(intern\w*|part[- ]?time|student|teaching\s+assistant|research\s+assistant|"
-    r"junior|jr\.?|trainee|apprentice|co-?op)\b",
+    r"\b(junior|jr\.?|trainee)\b|" + _NOT_FULL_TIME.pattern,
     re.I,
 )
 
@@ -293,7 +376,7 @@ def check_graduation_consistency(
                         f"section lists a graduation year of {grad}. The dates may reflect "
                         "work alongside study or an earlier qualification; worth confirming."
                     ),
-                    "sources": ["resume"],
+                    "sources": ["resume"], "title": title,
                 }
             )
     return out

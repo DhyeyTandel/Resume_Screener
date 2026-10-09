@@ -144,6 +144,23 @@ async def test_fairness_identity_swap_gives_identical_scores():
            [q["status"] for q in b["requirement_match"]]
 
 
+async def test_fairness_gender_pronoun_and_keywordless_institution_swap():
+    """Spec 2.2/16.3: pronouns, an inline gender word, a marital word, an affinity group and an
+    institution with no University/College keyword must not move any score."""
+    base = STRONG.replace("Ravenna University", "IIT Bombay")
+    one = base + "\nShe led the migration; her team shipped. Female, married. Hindu Students Association.\n"
+    two = (STRONG.replace("Ravenna University", "MIT")
+           + "\nHe led the migration; his team shipped. Male, single. Quaker Student Fellowship.\n")
+    a = await run(one, candidate_name="Priya Raman")
+    b = await run(two, candidate_name="Priya Raman")
+    assert a["overall_match_score"] == b["overall_match_score"]
+    assert a["recommendation"] == b["recommendation"]
+    assert [q["status"] for q in a["requirement_match"]] == \
+           [q["status"] for q in b["requirement_match"]]
+    assert a["extensions"]["score_breakdown"]["base_score"] == \
+           b["extensions"]["score_breakdown"]["base_score"]
+
+
 async def test_every_gap_reaches_module_d_and_no_strong_item_gets_a_question():
     r = await run(TRANSFERABLE)
     d = r["extensions"]["interview_questions_detailed"]
@@ -157,13 +174,12 @@ async def test_every_gap_reaches_module_d_and_no_strong_item_gets_a_question():
     assert not (asked & set(d["skipped_strong_evidence"]))
 
 
-async def test_overlapping_roles_is_detected_and_forces_review_once_confidence_clears_the_floor():
-    """P4: a resume claiming two full-time roles at once is a real contradiction
-    the pipeline can catch without any second source. The contradiction is
-    always visible in `contradictions`; per A-6c it is promoted to the
-    NEEDS_VERIFICATION band once assessment_confidence clears the 0.40 floor
-    (with too few sources it shows as INSUFFICIENT_EVIDENCE instead - the same
-    priority already exercised by the 06_inflated_contradicted scenario)."""
+async def test_overlapping_roles_is_detected_and_asked_about_but_does_not_force_review():
+    """P4: a resume claiming two full-time roles at once is a real inconsistency the pipeline
+    catches without any second source. It is always visible in `contradictions` and becomes a
+    verification gap, but it is resume-internal (no source contradicts a claim, A-22), so it
+    does not force NEEDS_VERIFICATION (audit fix; a LinkedIn-sourced conflict still does, see
+    test_audit_fairness.py)."""
     overlapping = STRONG.replace(
         "Backend Engineer at Corvid Systems, 2019 - 2021",
         "Backend Engineer at Corvid Systems, 2019 - 2026",
@@ -178,8 +194,8 @@ async def test_overlapping_roles_is_detected_and_forces_review_once_confidence_c
         github_username="priya", github_fetch=make_fetch("priya"))
     a1 = with_gh["extensions"]["authenticity"]
     assert any(c["type"] == "overlapping_roles" for c in a1["contradictions"])
-    assert a1["band"] == "NEEDS_VERIFICATION"
-    assert with_gh["recommendation"] == "Review Manually"
+    assert a1["band"] != "NEEDS_VERIFICATION"
+    assert any("overlap" in g["what_to_verify"].lower() for g in a1["verification_gaps"])
 
 
 async def test_linkedin_export_corroborates_a_role_claim():

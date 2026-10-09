@@ -1,6 +1,7 @@
 VENV := .venv/bin
-dev:      ## run backend + dashboard on :8077
-	$(VENV)/uvicorn backend.app.main:app --port 8077 --reload
+PORT ?= 8077
+dev:      ## run backend + dashboard (make dev PORT=8095 if 8077 is busy)
+	$(VENV)/uvicorn backend.app.main:app --port $(PORT) --reload
 install:  ## create the venv and install dependencies
 	python3 -m venv .venv && $(VENV)/pip install -r requirements.txt
 test:     ## run the full test suite

@@ -175,7 +175,11 @@ async def test_resume_internal_overlap_does_not_mark_claims(monkeypatch):
     out = await run(parsed_resume(experience=exp), gh_with(repo()), li_roles, monkeypatch=monkeypatch)
     assert any(c["type"] == "overlapping_roles" for c in out["contradictions"])
     assert all(c["status"] != "CONTRADICTED" for c in out["claims"] if c["type"] == "ROLE")
-    assert out["band"] == "NEEDS_VERIFICATION"  # the finding itself still forces review
+    # A resume-only finding is not a source-contradicted claim (A-22): it is reported and
+    # becomes a verification gap, but it does not force the band (see test_audit_fairness.py).
+    assert out["band"] != "NEEDS_VERIFICATION"
+    assert all(c["scope"] == "resume_only" for c in out["contradictions"])
+    assert any("overlap" in g["what_to_verify"].lower() for g in out["verification_gaps"])
 
 
 # ---------------------------------------------------------------- Defect 4: empty GitHub

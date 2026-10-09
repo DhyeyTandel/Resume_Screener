@@ -593,6 +593,13 @@
           ],
           "default": null,
           "title": "Status"
+        },
+        "unrecognised_jd_lines": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unrecognised Jd Lines",
+          "type": "array"
         }
       },
       "required": [
@@ -1190,6 +1197,11 @@
           },
           "title": "Per Requirement Contribution",
           "type": "array"
+        },
+        "score_assessable": {
+          "default": true,
+          "title": "Score Assessable",
+          "type": "boolean"
         },
         "score_confidence": {
           "title": "Score Confidence",

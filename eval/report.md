@@ -18,9 +18,9 @@ Fixture count: 7 cases (small set - see Known Limitations).
 
 | Metric | Measured | Target | |
 |---|---|---|---|
-| Recall on real hidden-text/injection/stuffing files | 1.00 (25/25) | ≥ 0.95 | ✅ |
-| False-positive rate on real clean+OCR files | 0.00 (0/8) | ≤ 0.02 | ✅ |
-| Per-file expected verdict and flags | 34/34 | all | ✅ |
+| Recall on real hidden-text/injection/stuffing files | 1.00 (32/32) | ≥ 0.95 | ✅ |
+| False-positive rate on real clean+OCR files | 0.00 (0/9) | ≤ 0.02 | ✅ |
+| Per-file expected verdict and flags | 42/42 | all | ✅ |
 
 | File | Measured | Expected | |
 |---|---|---|---|
@@ -50,12 +50,20 @@ Fixture count: 7 cases (small set - see Known Limitations).
 | docx/vanish.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | docx/white_text.docx | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/clean.pdf | clean (no flags) | clean | ✅ |
+| pdfs/dark_sidebar.pdf | clean (no flags) | clean | ✅ |
 | pdfs/injection_hidden.pdf | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| pdfs/injection_paraphrase.pdf | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
+| pdfs/injection_spaced.pdf | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
 | pdfs/jd_clone_hidden.pdf | attack (HIDDEN_TEXT, JD_CLONE) | attack + HIDDEN_TEXT, JD_CLONE | ✅ |
 | pdfs/metadata_stuffed.pdf | suspicious (METADATA_STUFF) | suspicious + METADATA_STUFF | ✅ |
 | pdfs/ocr_layer.pdf | clean (OCR_LAYER) | clean + OCR_LAYER | ✅ |
+| pdfs/ocr_partial.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| pdfs/ocr_spoof.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| pdfs/ocr_spoof_injection.pdf | attack (HIDDEN_TEXT, INJECTION_HIDDEN) | attack + HIDDEN_TEXT, INJECTION_HIDDEN | ✅ |
 | pdfs/offpage.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/tiny_font.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| pdfs/white_on_dark_dot.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
+| pdfs/white_on_light_box.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/white_text.pdf | suspicious (HIDDEN_TEXT) | suspicious + HIDDEN_TEXT | ✅ |
 | pdfs/scanned_no_text.pdf | Not Enough Evidence, Review Manually, confidence 0 | Not Enough Evidence, Review Manually, confidence 0 | ✅ |
 
@@ -126,7 +134,7 @@ Corpus: 300 candidates (seed 20261004), fixed stratified split 90 train / 210 te
 
 | Metric | Value | 95% CI | n | Target | Met |
 |---|---|---|---|---|---|
-| Claim extraction precision (type+text match) | 1.000 | [1.000, 1.000] | 3815 | informational | n/a |
+| Claim extraction precision (type+text match) | 1.000 | [0.999, 1.000] | 3815 | informational | n/a |
 | Claim extraction recall (type+text match) | 0.986 | [0.983, 0.990] | 3815 | informational | n/a |
 | Claim extraction F1 vs generated claims | 0.993 | [0.991, 0.995] | 3815 | >= 0.85 | yes |
 | Claim status macro-F1 | 0.936 | [0.918, 0.950] | 3715 | >= 0.75 | yes |
@@ -147,14 +155,14 @@ Corpus: 300 candidates (seed 20261004), fixed stratified split 90 train / 210 te
 | Fairness claim-extraction F1 gap, non-native minus native (pp) | 0.000 | [0.000, 0.000] | 1945 | <= 5 pp (absolute) | yes |
 | Name-swap invariance (identical scores, band, recommendation) | 1.000 | [1.000, 1.000] | 112 | 100% | yes |
 | Determinism (same input x3 -> same band + recommendation) | 1.000 | [1.000, 1.000] | 210 | 100% | yes |
-| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.005 | [0.005, 0.005] | 210 | <= 25 s with real GitHub | n/a |
-| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.008 | [0.007, 0.009] | 210 | <= 60 s with real GitHub | n/a |
+| Latency p50 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.007 | [0.007, 0.007] | 210 | <= 25 s with real GitHub | n/a |
+| Latency p95 per candidate, seconds (mock LLM + fake fetches, EXCLUDES real network time) | 0.016 | [0.012, 0.020] | 210 | <= 60 s with real GitHub | n/a |
 | Citation validity (evidence citation resolves to a collected artifact) | 1.000 | [1.000, 1.000] | 1736 | 100% | yes |
 | Spurious fork/tutorial flag on genuine candidates | 0.000 | [0.000, 0.000] | 112 | informational | n/a |
 
 Notes on the rows above:
 
-- Claim extraction F1 vs generated claims: n = generated claims; TP 3762, FP 0, FN 53
+- Claim extraction F1 vs generated claims: n = generated claims; TP 3762, FP 1, FN 53
 - Claim status macro-F1: over matched claims with an unambiguous label; accuracy 0.955
 - Detection recall P1 (injected skill flagged UNSUPPORTED): claim-level over 28 candidates; candidate-level any-flag 1.00, all-flagged 0.71
 - Detection recall P2 (inflated metric flagged CONTRADICTED): candidate-level; every P2 candidate has a README figure that conflicts with the resume
@@ -176,7 +184,7 @@ Notes on the rows above:
 - Citation validity (evidence citation resolves to a collected artifact): 0 unresolved citations
 - Spurious fork/tutorial flag on genuine candidates: genuine candidates never claim a fork or tutorial repo as their own
 
-Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.005 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 6.0 s.
+Latency is measured in-process per candidate with the mock LLM and in-memory fake fetches, so it excludes real network time entirely (median 0.007 s). The whole synthetic run (about 210 candidates, with the P3, non-native, private-heavy, name-swap and repeat runs) took 12.5 s.
 
 ### Claim status confusion matrix (rows = ground truth, columns = predicted)
 
@@ -211,7 +219,7 @@ Claims whose label is ambiguous by construction (a fork or tutorial repo claimed
 | P1 | 27 | 0 | 0 | 1 | 0.835 | 0.774 | 0.633 |
 | P2 | 20 | 0 | 0 | 1 | 0.855 | 0.801 | 0.6 |
 | P4 | 0 | 0 | 28 | 0 | 0.764 | 0.762 | 0.632 |
-| P5 | 17 | 0 | 0 | 4 | 0.846 | 0.785 | 0.488 |
+| P5 | 17 | 0 | 0 | 4 | 0.846 | 0.785 | 0.487 |
 | P6 | 6 | 0 | 0 | 22 | 0.782 | 0.681 | 0.175 |
 
 ### Breakdowns
@@ -222,7 +230,7 @@ Claims whose label is ambiguous by construction (a fork or tutorial repo claimed
 - P6 band by variant: {'empty_github, linkedin=no': {'INSUFFICIENT_EVIDENCE': 3}, 'empty_github, linkedin=yes': {'INSUFFICIENT_EVIDENCE': 4, 'HIGH_TRUST': 2}, 'no_github, linkedin=no': {'INSUFFICIENT_EVIDENCE': 10}, 'no_github, linkedin=yes': {'INSUFFICIENT_EVIDENCE': 5, 'HIGH_TRUST': 4}}.
 - False accusations by source availability (flagged/n): github 0/21, github+linkedin 0/37, github+linkedin+portfolio 0/12, github+portfolio 0/14, no-github 0/11, no-github+linkedin 0/8, no-github+linkedin+portfolio 0/7, no-github+portfolio 0/2.
 - Non-native English rendering: facts, numbers and technologies preserved for 112/112 candidates; mean score change (non-native minus native) {'authenticity': 0.0006, 'reliability': 0.0, 'assessment_confidence': -0.0, 'inflation_index': -0.0064}.
-- Private-heavy world: mean score change (private minus public) {'authenticity': -0.1367, 'reliability': -0.2278, 'assessment_confidence': -0.0715, 'inflation_index': 0.0}; bands {'MODERATE': 42, 'HIGH_TRUST': 29, 'INSUFFICIENT_EVIDENCE': 13}.
+- Private-heavy world: mean score change (private minus public) {'authenticity': -0.1367, 'reliability': -0.2278, 'assessment_confidence': -0.0715, 'inflation_index': 0.0}; bands {'MODERATE': 43, 'HIGH_TRUST': 28, 'INSUFFICIENT_EVIDENCE': 13}.
 - Reliability diagram (judged claims): [('0.3-0.4', 39, 0.3, 1.0), ('0.5-0.6', 14, 0.543, 0.929), ('0.6-0.7', 422, 0.656, 0.765), ('0.7-0.8', 306, 0.757, 0.928), ('0.8-0.9', 314, 0.856, 0.997), ('0.9-1.0', 855, 0.944, 0.988)].
 - No exceptions, no missing authenticity block, and no schema-invalid report across the test split.
 
@@ -276,4 +284,4 @@ Module B's synthetic metrics are above and are labelled SYNTHETIC-ONLY: they do 
 - Module C's labeled set is 7 pairs, enough to catch the canonical spec examples and the Java/JavaScript hard negative, not enough for a trustworthy macro-F1.
 - Module D's non-accusatory check is a keyword screen, not the LLM-judge or human spot-check rubric the spec describes.
 - Perturbations P1-P6 are checked as single synthetic cases (pass/fail), not a recall rate over many labeled examples. The synthetic corpus above does measure P1, P2, P4 (including LinkedIn date and title conflicts), P5 and P6 as recall rates, but only on invented data.
-- Total eval wall time: 7.7s, all in mock mode with no network calls.
+- Total eval wall time: 16.1s, all in mock mode with no network calls.

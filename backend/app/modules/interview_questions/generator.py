@@ -145,3 +145,22 @@ async def generate_interview_questions(
         "_model": None,
         "_usage": {},
     }
+
+
+if __name__ == "__main__":  # Spec 12: demo with the spec's sample input.
+    # Run from backend/:  python -m app.modules.interview_questions.generator
+    # Uses the configured provider (mock unless LLM_PROVIDER/.env says otherwise).
+    import asyncio
+    import json
+
+    _DEMO: list[dict] = [
+        {"skill": "PostgreSQL", "evidence_level": "strong_evidence",
+         "detail": "Query optimization bullet with 40% latency reduction", "jd_priority": "must_have"},
+        {"skill": "Kafka", "evidence_level": "claimed",
+         "detail": "Listed in skills section, no project uses it", "jd_priority": "must_have"},
+        {"skill": "Kubernetes", "evidence_level": "not_demonstrated", "detail": None,
+         "jd_priority": "nice_to_have"},
+        {"skill": "FastAPI", "evidence_level": "transferable",
+         "detail": "Django REST experience found, FastAPI not mentioned", "jd_priority": "must_have"},
+    ]
+    print(json.dumps(asyncio.run(generate_interview_questions(_DEMO)), indent=2))

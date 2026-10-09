@@ -66,11 +66,18 @@ def test_metadata_keyword_stuffing():
 
 def test_ocr_layer_alone_is_clean_and_never_penalised():
     spans = [Span("scanned line", render_mode=3) for _ in range(10)]
-    out = scan(doc(spans), JD)
+    out = scan(doc(spans, image_cover=1.0), JD)  # a real scan has a page-sized picture
     assert {f["code"] for f in out["flags"]} == {"OCR_LAYER"}
     assert out["verdict"] == "clean" and out["penalty"] == 1.0
     guarded = enforce_guardrails({"findings": []}, out, 80.0)
     assert guarded["intent"] == "benign" and guarded["recommended_action"] == "proceed"
+
+
+def test_invisible_text_with_no_picture_is_not_an_ocr_layer():
+    spans = [Span("scanned line", render_mode=3) for _ in range(10)]
+    out = scan(doc(spans), JD)
+    assert "OCR_LAYER" not in {f["code"] for f in out["flags"]}
+    assert "HIDDEN_TEXT" in {f["code"] for f in out["flags"]}
 
 
 def test_parser_divergence():

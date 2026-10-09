@@ -21,7 +21,7 @@ test("key prompt, wrong key error, right key loads samples, sign out", async ({ 
   await expect(input).toHaveAttribute("type", "text");
   await input.fill(KEY);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator("tbody tr")).toHaveCount(6);
+  await expect(page.locator("tbody tr")).toHaveCount(8);
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(KEY);
   expect(page.url()).not.toContain(KEY);
 

@@ -377,3 +377,61 @@ Recorded per Section 0.4 of the spec. Each is also commented at its call site.
   Deleting a still-processing screening returns 409, since the running job would otherwise
   re-create its candidates. The dashboard's Audit tab has a confirmed "Delete candidate data"
   action for real candidates.
+- **A-31 (compliance-audit fixes).** An adversarial audit against the spec reproduced these, all
+  now fixed with regression tests:
+  - **Unparseable resume -> "Not Recommended".** A resume with no section headings scored 0 and
+    Not Recommended at confidence 0.0, because `compose` returned 0 with an empty denominator.
+    Now a score with nothing assessable is flagged `score_assessable: false` and the
+    recommendation is Review Manually with the reason; labelled skill lines and skills in
+    prose are found under any heading (Spec 2.4).
+  - **Filename masked as the candidate's name.** `Docker_Kafka_CV.pdf` made Docker and Kafka
+    Missing (100 Shortlist -> 76 Not Recommended). Only the resume's own header name, or an
+    explicit plausible name, is masked; skills, role words and generic words never are.
+  - **Redaction gaps:** inline age/birth year, marital status, nationality, pronouns, religious
+    and affinity groups, and well-known institutions without a "University" keyword are now
+    masked (pattern-based; not a full NER model).
+  - **Dark-sidebar PDF templates** were flagged HIDDEN_TEXT and had their sidebar skills
+    dropped; PDF contrast is now measured against the fill actually behind each span.
+  - **OCR_LAYER spoof:** invisible text without a page image passed as a benign "scan". OCR_LAYER
+    now needs a page-covering image; otherwise invisible text is HIDDEN_TEXT.
+  - **Injection evasion** by spacing, paraphrase and invisible Unicode tag characters closed.
+  - **Interpreter payload** no longer sends hidden text outside untrusted_document tags.
+  - **Resume-only inconsistencies** (overlapping roles, graduation, anachronism) no longer
+    force NEEDS_VERIFICATION: a resume cannot contradict itself the way an independent source
+    can. They lower the consistency term, become verification questions, and are noted.
+    Part-time, intern, freelance and similar roles are exempt from the overlap check, which
+    now uses months. Source contradictions (LinkedIn) still force the band. Sample 06 now
+    carries the spec's LinkedIn date conflict, which is what puts it at NEEDS_VERIFICATION.
+  - **Spec conflict 2.7 vs Stage 6, resolved for 2.7:** the band uses an inflation-free score
+    `(alpha*reliability + beta*consistency)/(alpha+beta)`; the displayed authenticity keeps the
+    spec formula. AI-style wording can no longer move a band.
+  - **Portfolio SSRF and LinkedIn scraping:** http(s) only, private/loopback/link-local and
+    obfuscated addresses blocked on every redirect hop, body capped, linkedin.com blocked. A
+    DNS-rebinding race is narrowed, not closed (needs a transport pinned to the resolved IP).
+  - **LinkedIn "Save to PDF" uploads** were decoded as UTF-8 garbage; they now go through the
+    sandboxed PDF loader.
+  - **Education and experience:** word-boundary degree table (BSc, B.E., BCA, PhD recognised;
+    "Diploma in ...", "Clubs" no longer match), month-level durations, `date.today()`.
+  - **Unrecognised JD requirements** (skills outside the graph) are listed in
+    `extensions.unrecognised_jd_lines` with a reason, instead of vanishing.
+  - `OLLAMA_BASE_URL` and `OLLAMA_MODEL` are now actually read (they were documented, unused).
+  - Sample 03 is a real pipeline run on a real attack PDF (it had been assembled by hand, with
+    reasons that contradicted its score); scenarios 04 (scanned) and 08 (AI-polished truthful)
+    added; sample output is deterministic. Module D has the spec's `__main__` demo.
+- **A-32 (corrections to earlier entries, found by the audit).** Earlier entries claimed things
+  the code did not do; they stand as written, corrected here:
+  - **A-4 is false:** there is no embedding code path at all, optional or otherwise. Module C
+    semantic matching is graph plus lexical; Module B has no embedding retrieval.
+  - **A-3 / README "the provider changes wording, never numbers"** was overstated once the LLM
+    claim judge (A-12) existed: with a real model it can upgrade claims within caps.
+  - **README "AI-text indicators carry weight 0"** was false for the authenticity score until
+    A-31; it is now true for the band and recommendation.
+  - **A-6 "still not built: LinkedIn and portfolio collectors"** is stale (both built, A-6b, A-7).
+  - **Entry numbers A-7, A-8 and A-9 are each used twice;** cite them with their title.
+  - **Undocumented spec departures, now recorded:** Stage 1 claim extraction and Core JD/resume
+    extraction are deterministic (no LLM path); no `tutorial_fingerprints/` or `buzzwords.txt`
+    (tutorial detection is marker-based; buzzwords are an in-code set); commit authorship
+    matches the GitHub login only; `bulk_import` is a placeholder (flags repos with 2 or fewer
+    commits) with tests that document exactly that; GitHub and portfolio fixtures are
+    hand-written fakes, not recorded cassettes; `llm.provider` defaults to `mock`, not `ollama`;
+    consent is one set per screening, not per candidate; `candidate_profile.contact` is omitted.

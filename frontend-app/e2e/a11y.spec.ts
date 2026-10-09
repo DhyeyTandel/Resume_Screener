@@ -17,7 +17,7 @@ async function expectNoSeriousViolations(page: Page, label: string, include?: st
 
 test("axe: landing page", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("tbody tr")).toHaveCount(6);
+  await expect(page.locator("tbody tr")).toHaveCount(8);
   await expectNoSeriousViolations(page, "landing page");
 });
 
@@ -42,7 +42,7 @@ test("axe: progress timeline while and after screening", async ({ page }) => {
 
 test("axe: candidate drawer, every tab", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("tbody tr")).toHaveCount(6);
+  await expect(page.locator("tbody tr")).toHaveCount(8);
   await page.getByRole("button", { name: /^Open details for/ }).first().click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -65,7 +65,7 @@ test("axe: drawer on a flagged candidate (integrity findings)", async ({ page })
 
 test("keyboard only: reach a candidate, open it, switch tabs with arrows, Escape returns focus", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("tbody tr")).toHaveCount(6);
+  await expect(page.locator("tbody tr")).toHaveCount(8);
   const focused = () => page.evaluate(() => {
     const a = document.activeElement as HTMLElement | null;
     return { tag: a?.tagName ?? "", label: a?.getAttribute("aria-label") ?? a?.textContent?.trim() ?? "" };
@@ -121,5 +121,5 @@ test("keyboard only: reach a candidate, open it, switch tabs with arrows, Escape
 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("button", { name: trigger })).toBeFocused();
+  await expect(page.getByRole("button", { name: trigger, exact: true })).toBeFocused();
 });

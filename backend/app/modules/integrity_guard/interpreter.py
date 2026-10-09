@@ -50,11 +50,10 @@ async def interpret(scanner: dict, base_score: float, jd_text: str, llm: LLMClie
         },
         "base_score": base_score,
         "job_description": jd_text[:4000],
-        # The mock provider reads these two directly.
-        "verdict": scanner["verdict"],
-        "penalty": scanner["penalty"],
-        "flags": scanner["flags"],
     }
+    # Spec 2.3: hidden text reaches a model only wrapped as untrusted. The payload carries no
+    # raw copy of the flags; the mock provider reads the codes, verdict and penalty from
+    # scanner_report, where the evidence is already wrapped.
     try:
         result = (
             await llm.complete_json(

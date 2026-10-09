@@ -51,6 +51,9 @@ class ParsedDoc:
     page_size: tuple[float, float] = (612.0, 792.0)
     source: str = "text"
     ocr_used: bool = False
+    # PDF only: share of the page covered by pictures, taken as the minimum over pages that
+    # carry invisible text. Lets the scanner tell a scan's OCR layer from invisible text alone.
+    image_cover: float = 0.0
 
 
 def load(filename: str, data: bytes) -> ParsedDoc:
@@ -654,6 +657,7 @@ def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
     spans: list[Span] = []
     by_parser: dict[str, str] = {}
     pages, page_size, meta = 1, (612.0, 792.0), {}
+    image_cover: float | None = None
     try:
         try:
             import pymupdf as fitz  # PyMuPDF >= 1.24.3
@@ -676,6 +680,7 @@ def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
             # Span dicts carry no render mode, so take invisible (mode 3) runs
             # from the text trace and match spans to them by position.
             invisible = _invisible_boxes(page)
+            first_span = len(spans)
             # Keep text outside the page box; the default clip silently drops it
             # (a flag alone is not enough, an explicit infinite clip is), which
             # would hide off-page stuffing from the scanner.
@@ -699,6 +704,11 @@ def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
                             )
                         )
             text_parts.append(page.get_text("text", clip=everything))
+            images = _image_rects(page)
+            _set_backgrounds(fitz, page, spans[first_span:], images)
+            if any(sp.render_mode == 3 for sp in spans[first_span:]):
+                cover = _image_cover(page, images)
+                image_cover = cover if image_cover is None else min(image_cover, cover)
         by_parser["pymupdf"] = "\n".join(text_parts)
     except UnreadableFile:
         raise
@@ -742,7 +752,12 @@ def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
     primary = by_parser.get("pymupdf") or next(iter(by_parser.values()))
     visible = "\n".join(
         s.text for s in spans if _is_visible(s, page_size)
-    ).strip() or primary.strip()
+    ).strip()
+    # An OCR layer is invisible by design, so with nothing else to read it is the text. Invisible
+    # text with no picture behind it is not a scan: it stays quarantined rather than falling back.
+    spoof = any(s.render_mode == 3 for s in spans) and (image_cover or 0.0) < _OCR_IMAGE_MIN
+    if not visible and not spoof:
+        visible = primary.strip()
     return ParsedDoc(
         visible_text=visible,
         raw_text_by_parser=by_parser,
@@ -752,7 +767,135 @@ def _pdf_inprocess(data: bytes, filename: str) -> ParsedDoc:
         page_size=page_size,
         source=filename,
         ocr_used=ocr_used,
+        image_cover=image_cover or 0.0,
     )
+
+
+_OCR_IMAGE_MIN = 0.80  # mirrors integrity.ocr_image_coverage_min; spoof check only
+_BG_MAX_DRAWINGS = 5000
+_BG_MAX_SAMPLES = 200
+_BG_MAX_SAMPLE_AREA = 4_000_000  # pt^2: skip pixel sampling on absurd page sizes
+
+
+def _image_rects(page) -> list[tuple[float, float, float, float]]:
+    """Placed picture rectangles on the page (clipped to nothing; callers clip)."""
+    try:
+        return [tuple(i["bbox"]) for i in page.get_image_info() if i.get("bbox")]
+    except Exception:
+        return []
+
+
+def _image_cover(page, images) -> float:
+    """Share of the page area covered by pictures (overlaps counted once per picture, capped)."""
+    pw, ph = page.rect.width, page.rect.height
+    if pw <= 0 or ph <= 0:
+        return 0.0
+    area = 0.0
+    for x0, y0, x1, y1 in images:
+        w = min(x1, pw) - max(x0, 0.0)
+        h = min(y1, ph) - max(y0, 0.0)
+        if w > 0 and h > 0:
+            area += w * h
+    return min(1.0, area / (pw * ph))
+
+
+def _filled_rects(page) -> list[tuple[tuple[float, float, float, float], int]]:
+    """Axis-aligned filled boxes in paint order (topmost last), as (rect, 0xRRGGBB).
+
+    Only genuine rectangles count as a background: curves and diagonals have bounding boxes
+    far larger than their ink, so a thin filled triangle must not 'back' text it never touches."""
+    out: list[tuple[tuple[float, float, float, float], int]] = []
+    try:
+        drawings = page.get_drawings()
+    except Exception:
+        return out
+    for d in drawings[:_BG_MAX_DRAWINGS]:
+        fill = d.get("fill")
+        if not fill or float(d.get("fill_opacity") or 1.0) < 0.5:
+            continue
+        items = d.get("items") or []
+        if not items or not all(_is_box_item(it) for it in items):
+            continue
+        r = d.get("rect")
+        if r is None:
+            continue
+        rgb = [min(255, max(0, round(float(c) * 255))) for c in (tuple(fill) + (0, 0, 0))[:3]]
+        if len(fill) == 1:  # grey
+            rgb = [rgb[0]] * 3
+        out.append(((r[0], r[1], r[2], r[3]), (rgb[0] << 16) | (rgb[1] << 8) | rgb[2]))
+    return out
+
+
+def _is_box_item(it) -> bool:
+    kind = it[0]
+    if kind in ("re", "qu"):
+        return True
+    if kind == "l":  # an axis-aligned edge of a rectangle path
+        p, q = it[1], it[2]
+        return abs(p.x - q.x) < 0.01 or abs(p.y - q.y) < 0.01
+    return False
+
+
+def _set_backgrounds(fitz, page, page_spans: list[Span], images) -> None:
+    """Set Span.bg to the colour actually behind each span: the topmost filled box that holds
+    most of it, else (over a picture) a sampled pixel colour, else page white."""
+    if not page_spans:
+        return
+    boxes = _filled_rects(page)
+    samples = 0
+    for sp in page_spans:
+        x0, y0, x1, y1 = sp.bbox
+        area = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+        if area <= 0:
+            continue
+        for (bx0, by0, bx1, by1), rgb in reversed(boxes):
+            w = min(x1, bx1) - max(x0, bx0)
+            h = min(y1, by1) - max(y0, by0)
+            if w > 0 and h > 0 and (w * h) / area >= 0.6:
+                sp.bg = rgb
+                break
+        else:
+            if (
+                sp.render_mode != 3
+                and samples < _BG_MAX_SAMPLES
+                and page.rect.width * page.rect.height <= _BG_MAX_SAMPLE_AREA
+                and _overlaps_any(sp.bbox, images)
+                and _lightish(sp.color)
+            ):
+                samples += 1
+                got = _sample_colour(fitz, page, sp.bbox)
+                if got is not None:
+                    sp.bg = got
+
+
+def _overlaps_any(bbox, rects) -> bool:
+    x0, y0, x1, y1 = bbox
+    return any(min(x1, r[2]) > max(x0, r[0]) and min(y1, r[3]) > max(y0, r[1]) for r in rects)
+
+
+def _lightish(color: int) -> bool:
+    """Only light text can vanish into a light picture; dark text over a picture is the norm."""
+    from ..modules.integrity_guard.scanner import contrast_ratio
+
+    return contrast_ratio(color, 0xFFFFFF) < 3.0
+
+
+def _sample_colour(fitz, page, bbox) -> int | None:
+    """Median colour of the rendered pixels under bbox (text strokes are the minority)."""
+    try:
+        clip = fitz.Rect(bbox) & page.rect
+        if clip.is_empty:
+            return None
+        pix = page.get_pixmap(matrix=fitz.Matrix(0.5, 0.5), clip=clip, alpha=False)
+        n = pix.n
+        data = pix.samples
+        if n < 3 or not data:
+            return None
+        chans = [sorted(data[c::n]) for c in range(3)]
+        mid = len(chans[0]) // 2
+        return (chans[0][mid] << 16) | (chans[1][mid] << 8) | chans[2][mid]
+    except Exception:
+        return None
 
 
 # ---- PDF sandbox (A-28 item 3) -------------------------------------------------------------

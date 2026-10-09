@@ -71,7 +71,8 @@ async def eval_module_a() -> Section:
     invariance_ok = 0
     for name, (spans, expect) in cases.items():
         doc = ParsedDoc(visible_text=" ".join(sp.text for sp in spans if sp.size > 4 and sp.color != 0xFFFFFF),
-                        raw_text_by_parser={"pymupdf": "x"}, spans=spans)
+                        raw_text_by_parser={"pymupdf": "x"}, spans=spans,
+                        image_cover=1.0 if name == "ocr_layer" else 0.0)  # a scan has a page picture
         out = scan(doc, JD)
         is_flagged = out["verdict"] != "clean"
         if expect in ("attack", "attack_or_suspicious"):
@@ -111,6 +112,15 @@ REAL_EXPECT = {
     "pdfs/clean.pdf": ("clean", set(), _HID, "clean_set"),
     "pdfs/ocr_layer.pdf": ("clean", {"OCR_LAYER"}, _HID, "clean_set"),
     "pdfs/white_text.pdf": ("suspicious", _HID, set(), "attack_set"),
+    # A-audit fixtures: dark-sidebar template (genuine), OCR spoofs, lexicon evasion.
+    "pdfs/dark_sidebar.pdf": ("clean", set(), _HID, "clean_set"),
+    "pdfs/white_on_light_box.pdf": ("suspicious", _HID, set(), "attack_set"),
+    "pdfs/white_on_dark_dot.pdf": ("suspicious", _HID, set(), "attack_set"),
+    "pdfs/ocr_spoof.pdf": ("suspicious", _HID, {"OCR_LAYER"}, "attack_set"),
+    "pdfs/ocr_spoof_injection.pdf": ("attack", _INJ, {"OCR_LAYER"}, "attack_set"),
+    "pdfs/ocr_partial.pdf": ("suspicious", _HID, {"OCR_LAYER"}, "attack_set"),
+    "pdfs/injection_spaced.pdf": ("attack", _INJ, set(), "attack_set"),
+    "pdfs/injection_paraphrase.pdf": ("attack", _INJ, set(), "attack_set"),
     "pdfs/tiny_font.pdf": ("suspicious", _HID, set(), "attack_set"),
     "pdfs/offpage.pdf": ("suspicious", _HID, set(), "attack_set"),
     "pdfs/injection_hidden.pdf": ("attack", _INJ, set(), "attack_set"),
